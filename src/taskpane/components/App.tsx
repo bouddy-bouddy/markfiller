@@ -1,0 +1,346 @@
+import React, { useState, useRef, useEffect } from "react";
+import { FluentProvider, webLightTheme, Text, Card } from "@fluentui/react-components";
+import { createGlobalStyle } from "styled-components";
+import ocrService from "../services/orcService";
+import excelService from "../services/excelService";
+import { Student, ExcelStatus, AppStep, MarkType } from "../types";
+import StatusAlert from "./shared/StatusAlert";
+import ImageProcessingStep from "./steps/ImageProcessingStep";
+import FileAnalysisStep from "./steps/FileAnalysisStep";
+import ReviewConfirmStep from "./steps/ReviewConfirmStep";
+import MarkTypeDialog from "./dialogs/MarkTypeDialog";
+
+// Global styles for RTL support
+const GlobalStyle = createGlobalStyle`
+  body {
+    direction: rtl;
+    text-align: right;
+    background-color: #f5f5f5;
+    margin: 0;
+    padding: 16px;
+  }
+
+  .ms-welcome {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    padding: 24px;
+  }
+
+  .ms-welcome__header {
+    color: #242424;
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 20px;
+  }
+  
+  .steps-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    margin-top: 24px;
+  }
+
+  .step {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 24px;
+    background-color: white;
+    transition: all 0.3s ease;
+  }
+  
+  .step.active {
+    border-color: #0078d4;
+    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.1);
+  }
+  
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: #f0f0f0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    color: #666;
+  }
+  
+  .step.active .step-number {
+    background-color: #0078d4;
+    color: white;
+  }
+  
+  .step-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+  }
+  
+  .step-content {
+    padding-right: 44px;
+  }
+`;
+
+interface AppProps {
+  title: string;
+  isOfficeInitialized?: boolean;
+}
+
+const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
+  // State for selected image
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // Processing states
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Data and steps
+  const [extractedData, setExtractedData] = useState<Student[] | null>(null);
+  const [currentStep, setCurrentStep] = useState<AppStep>(AppStep.ImageProcessing);
+  const [completedSteps, setCompletedSteps] = useState<Set<AppStep>>(new Set());
+
+  // Excel status
+  const [excelStatus, setExcelStatus] = useState<ExcelStatus>({
+    isValid: false,
+    checked: false,
+  });
+
+  // Dialog states
+  const [showMarkTypeDialog, setShowMarkTypeDialog] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Reference for file input
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check Excel file on initialization
+  useEffect(() => {
+    const checkExcelFile = async () => {
+      try {
+        const isValid = await excelService.validateExcelFile();
+        setExcelStatus({
+          isValid,
+          checked: true,
+        });
+
+        if (isValid) {
+          advanceToStep(AppStep.ImageProcessing);
+        }
+      } catch (error) {
+        console.error("Excel validation error:", error);
+        setExcelStatus({
+          isValid: false,
+          checked: true,
+        });
+      }
+    };
+
+    if (isOfficeInitialized) {
+      checkExcelFile();
+    }
+  }, [isOfficeInitialized]);
+
+  // Handle image upload
+  const handleImageUpload = (file: File) => {
+    if (file) {
+      // Check if file is an image
+      if (!file.type.startsWith("image/")) {
+        setError("الرجاء اختيار ملف صورة صالح");
+        return;
+      }
+
+      // Check file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setError("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
+        return;
+      }
+
+      setSelectedImage(file);
+
+      // Create preview
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (e.target && typeof e.target.result === "string") {
+          setImagePreview(e.target.result);
+        }
+      };
+      reader.readAsDataURL(file);
+      setError(null);
+    }
+  };
+
+  // Process image with OCR
+  const processImage = async () => {
+    if (!selectedImage) return;
+
+    setIsProcessing(true);
+    try {
+      // Process the image using OCR
+      const extractedMarks = await ocrService.processImage(selectedImage);
+
+      // Show preview of extracted data
+      setExtractedData(extractedMarks);
+      completeStep(AppStep.ImageProcessing);
+      advanceToStep(AppStep.ReviewConfirm);
+    } catch (err) {
+      if (err instanceof Error) {
+        setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
+      } else {
+        setError("حدث خطأ غير معروف أثناء معالجة الصورة");
+      }
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Handle mark data confirmation
+  const handleConfirmData = async () => {
+    try {
+      // First validate Excel file
+      const isValidFile = await excelService.validateExcelFile();
+      if (!isValidFile) {
+        setError("يرجى التأكد من فتح ملف مسار صحيح في Excel");
+        return;
+      }
+
+      // Show mark type selection dialog
+      setShowMarkTypeDialog(true);
+    } catch (err) {
+      setError("حدث خطأ أثناء التحقق من ملف Excel");
+      console.error(err);
+    }
+  };
+
+  // Handle mark type selection
+  const handleMarkTypeSelected = async (markType: string) => {
+    setIsSaving(true);
+    try {
+      if (!extractedData) {
+        throw new Error("No data to save");
+      }
+
+      const results = await excelService.insertMarks(extractedData, markType);
+
+      // Show results
+      if (results.notFound > 0) {
+        setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم.`);
+      } else {
+        setError(null);
+      }
+
+      // Close dialogs and reset state
+      setShowMarkTypeDialog(false);
+      resetApp();
+    } catch (err) {
+      setError("حدث خطأ أثناء إدخال البيانات في Excel");
+      console.error(err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Update extracted data
+  const handleDataUpdate = (newData: Student[]) => {
+    setExtractedData(newData);
+  };
+
+  // Step navigation helpers
+  const advanceToStep = (step: AppStep) => {
+    setCurrentStep(step);
+  };
+
+  const completeStep = (step: AppStep) => {
+    setCompletedSteps((prev) => {
+      const newSet = new Set(prev);
+      newSet.add(step);
+      return newSet;
+    });
+  };
+
+  const isStepCompleted = (step: AppStep): boolean => {
+    return completedSteps.has(step);
+  };
+
+  const resetApp = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setExtractedData(null);
+    setCurrentStep(AppStep.ImageProcessing);
+    setCompletedSteps(new Set());
+  };
+
+  return (
+    <FluentProvider theme={webLightTheme}>
+      <GlobalStyle />
+      <Card className="ms-welcome">
+        <Text as="h1" className="ms-welcome__header">
+          {title || "استيراد النقط - مسار"}
+        </Text>
+
+        {excelStatus.checked && !excelStatus.isValid && (
+          <StatusAlert
+            type="error"
+            message="يرجى فتح ملف مسار المُصدَّر من النظام قبل البدء في معالجة الصور. للمتابعة:
+            ١. افتح ملف مسار الخاص بالقسم المطلوب
+            ٢. تأكد من أن الملف يحتوي على أعمدة العلامات (الفرض ١، الفرض ٢، إلخ)
+            ٣. ثم قم برفع صورة كشف النقط"
+          />
+        )}
+
+        {error && <StatusAlert type="error" message={error} />}
+
+        <div className="steps-container">
+          {/* Image Processing Step */}
+          <ImageProcessingStep
+            isActive={currentStep === AppStep.ImageProcessing}
+            isCompleted={isStepCompleted(AppStep.ImageProcessing)}
+            selectedImage={selectedImage}
+            imagePreview={imagePreview}
+            isProcessing={isProcessing}
+            onImageUpload={handleImageUpload}
+            onProcessImage={processImage}
+            fileInputRef={fileInputRef}
+          />
+
+          {/* File Analysis Step */}
+          <FileAnalysisStep
+            isActive={currentStep === AppStep.FileAnalysis}
+            isCompleted={isStepCompleted(AppStep.FileAnalysis)}
+            excelStatus={excelStatus}
+          />
+
+          {/* Review and Confirm Step */}
+          {extractedData && (
+            <ReviewConfirmStep
+              isActive={currentStep === AppStep.ReviewConfirm}
+              isCompleted={isStepCompleted(AppStep.ReviewConfirm)}
+              data={extractedData}
+              onConfirm={handleConfirmData}
+              onCancel={resetApp}
+              onDataUpdate={handleDataUpdate}
+            />
+          )}
+        </div>
+
+        {/* Mark Type Dialog */}
+        <MarkTypeDialog
+          isOpen={showMarkTypeDialog}
+          onClose={() => setShowMarkTypeDialog(false)}
+          onConfirm={handleMarkTypeSelected}
+          isSaving={isSaving}
+        />
+      </Card>
+    </FluentProvider>
+  );
+};
+
+export default App;
