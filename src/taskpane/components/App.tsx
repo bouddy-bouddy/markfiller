@@ -10,21 +10,28 @@ import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
 import MarkTypeDialog from "./dialogs/MarkTypeDialog";
 
-// Global styles for RTL support
+// GlobalStyle for App.tsx
 const GlobalStyle = createGlobalStyle`
-  body {
+  /* Base RTL Settings */
+  html, body {
     direction: rtl;
     text-align: right;
     background-color: #f5f5f5;
     margin: 0;
+    padding: 0;
+  }
+
+  body {
     padding: 16px;
   }
 
+  /* Container styles */
   .ms-welcome {
     background: white;
     border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     padding: 24px;
+    direction: rtl;
   }
 
   .ms-welcome__header {
@@ -32,8 +39,10 @@ const GlobalStyle = createGlobalStyle`
     font-size: 24px;
     font-weight: 600;
     margin-bottom: 20px;
+    text-align: right;
   }
   
+  /* Step styling */
   .steps-container {
     display: flex;
     flex-direction: column;
@@ -47,11 +56,13 @@ const GlobalStyle = createGlobalStyle`
     padding: 24px;
     background-color: white;
     transition: all 0.3s ease;
+    text-align: right;
+    direction: rtl;
   }
   
   .step.active {
-    border-color: #0078d4;
-    box-shadow: 0 2px 8px rgba(0, 120, 212, 0.1);
+    border-color: #0e7c42; /* Changed to green */
+    box-shadow: 0 2px 8px rgba(14, 124, 66, 0.1); /* Changed to green */
   }
   
   .step-header {
@@ -74,7 +85,7 @@ const GlobalStyle = createGlobalStyle`
   }
   
   .step.active .step-number {
-    background-color: #0078d4;
+    background-color: #0e7c42; /* Changed to green */
     color: white;
   }
   
@@ -87,8 +98,17 @@ const GlobalStyle = createGlobalStyle`
   .step-content {
     padding-right: 44px;
   }
-`;
 
+  /* Force RTL for all elements with text */
+  input, button, select, textarea, div, span, p, h1, h2, h3, h4, h5, h6 {
+    text-align: right;
+  }
+
+  /* Override Fluent UI RTL */
+  .fui-FluentProvider {
+    direction: rtl;
+  }
+`;
 interface AppProps {
   title: string;
   isOfficeInitialized?: boolean;
