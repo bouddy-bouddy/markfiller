@@ -22,10 +22,7 @@ class OCRService {
           tessedit_char_whitelist: "0123456789.,٠١٢٣٤٥٦٧٨٩/- ",
           preserve_interword_spaces: "1",
           tessedit_pageseg_mode: PSM.SPARSE_TEXT, // Use enum instead of string
-          textord_tablefind_recognize_tables: "1",
-          textord_min_linesize: "1.5",
-          tessedit_enable_dict_correction: "0",
-          classify_bln_numeric_mode: "1",
+          // Remove unsupported parameter: textord_tablefind_recognize_tables
         });
 
         this.workerReady = true;

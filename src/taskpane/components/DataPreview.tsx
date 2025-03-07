@@ -36,7 +36,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
   };
 
   const formatMark = (value: number | null): string => {
-    if (value === null || value === "") return "";
+    if (value === null) return "";
     return parseFloat(value.toString()).toFixed(2);
   };
 
