@@ -1,5 +1,5 @@
 {
-  "name": "office-addin-taskpane-react-js",
+  "name": "markfiller",
   "version": "0.0.1",
   "repository": {
     "type": "git",
@@ -28,7 +28,6 @@
     "watch": "webpack --mode development --watch"
   },
   "dependencies": {
-    "@azure/cognitiveservices-computervision": "^8.2.0",
     "@fluentui/react-components": "^9.58.3",
     "@fluentui/react-icons": "^2.0.274",
     "@microsoft/microsoft-graph-client": "^3.0.7",
@@ -39,8 +38,7 @@
     "react-dom": "^18.2.0",
     "regenerator-runtime": "^0.14.1",
     "rtl-css-js": "^1.16.1",
-    "styled-components": "^6.1.15",
-    "tesseract.js": "^4.1.1"
+    "styled-components": "^6.1.15"
   },
   "devDependencies": {
     "@babel/core": "^7.24.0",

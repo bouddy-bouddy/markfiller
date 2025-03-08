@@ -12,10 +12,11 @@ const UploadInstructions: React.FC = () => {
             للحصول على أفضل النتائج:
           </Text>
           <ol style={{ paddingRight: "20px", margin: 0 }}>
-            <li style={{ marginBottom: "8px" }}>التقط صورة لورقة النقط باستخدام تطبيق CamScanner</li>
-            <li style={{ marginBottom: "8px" }}>تأكد من اختيار الوضع "أبيض وأسود" في CamScanner</li>
-            <li style={{ marginBottom: "8px" }}>احرص على أن تكون الصورة واضحة وجميع الأرقام مقروءة</li>
-            <li>قم برفع الصورة المعالجة من CamScanner هنا</li>
+            <li style={{ marginBottom: "8px" }}>التقط صورة لورقة النقط باستخدام الهاتف أو ماسح ضوئي</li>
+            <li style={{ marginBottom: "8px" }}>تأكد من أن الصورة واضحة وجميع الأرقام مقروءة</li>
+            <li style={{ marginBottom: "8px" }}>تجنب الظلال والانعكاسات عند التقاط الصورة</li>
+            <li style={{ marginBottom: "8px" }}>سيتم تحليل الصورة باستخدام تقنية Google Cloud Vision للدقة العالية</li>
+            <li>قم برفع الصورة هنا</li>
           </ol>
         </div>
       </div>

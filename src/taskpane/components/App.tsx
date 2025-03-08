@@ -3,7 +3,7 @@ import { FluentProvider, webLightTheme, Text, Card } from "@fluentui/react-compo
 import { createGlobalStyle } from "styled-components";
 import ocrService from "../services/orcService";
 import excelService from "../services/excelService";
-import { Student, ExcelStatus, AppStep, MarkType } from "../types";
+import { Student, ExcelStatus, AppStep } from "../types";
 import StatusAlert from "./shared/StatusAlert";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
@@ -202,8 +202,11 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     if (!selectedImage) return;
 
     setIsProcessing(true);
+    setError(null); // Clear any previous errors
+
     try {
-      // Process the image using OCR
+      // Show a cloud processing message
+      // Process the image using Google Cloud Vision OCR
       const extractedMarks = await ocrService.processImage(selectedImage);
 
       // Show preview of extracted data

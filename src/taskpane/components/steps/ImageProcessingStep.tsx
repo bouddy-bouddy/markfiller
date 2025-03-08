@@ -112,7 +112,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             />
 
             {isProcessing ? (
-              <LoadingSpinner message="جاري معالجة الصورة وتحليل البيانات..." />
+              <LoadingSpinner message="جاري معالجة الصورة وتحليل البيانات..." isCloudProcessing={true} />
             ) : (
               <Button
                 appearance="primary"
