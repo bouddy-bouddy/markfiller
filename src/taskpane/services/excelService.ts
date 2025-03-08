@@ -8,33 +8,94 @@ class ExcelService {
   async validateExcelFile(): Promise<boolean> {
     try {
       return await Excel.run(async (context) => {
+        console.log("Validating Excel file...");
+
+        // Get the active worksheet
         const sheet = context.workbook.worksheets.getActiveWorksheet();
+        sheet.load("name");
+
+        // Get the used range to check headers
         const range = sheet.getUsedRange();
         range.load("values");
 
         await context.sync();
 
-        // Verify this is a Massar file by checking for specific headers
-        const headers = range.values[0] as string[];
-        const requiredHeaders = ["الفرض 1", "الفرض 2", "الفرض 3", "الأنشطة"];
-        const foundHeaders = requiredHeaders.filter((header) =>
-          headers.some((h) => h && h.toString().includes(header))
-        );
+        console.log(`Active sheet name: ${sheet.name}`);
+        console.log("Range values sample:", range.values.slice(0, 3));
 
-        // Store worksheet structure for future use
-        this.worksheetStructure = {
-          headers,
-          studentNameColumn: this.findStudentNameColumn(headers),
-          totalRows: range.values.length,
-          markColumns: this.findMarkColumns(headers),
-        };
+        // Check if this is a Massar file by looking for specific structural elements
+        // First check if the file has any data
+        if (!range.values || range.values.length < 5) {
+          console.log("File has insufficient data rows");
+          return false;
+        }
 
-        return foundHeaders.length >= 1;
+        // Look for Arabic text patterns that would indicate this is a Massar file
+        // Check for any of the expected headers or key Massar file indicators
+        const massarIndicators = ["رقم التلميذ", "إسم التلميذ", "الفرض", "النقطة", "مسار", "القسم"];
+
+        // Convert all cell values to strings and check for Arabic text
+        let foundIndicators = 0;
+
+        // Flatten the 2D array and check each cell
+        for (let row of range.values) {
+          for (let cell of row) {
+            if (cell && typeof cell === "string") {
+              // Check if any of our indicators is contained in this cell
+              for (let indicator of massarIndicators) {
+                if (cell.toString().includes(indicator)) {
+                  console.log(`Found Massar indicator: ${indicator} in cell value: ${cell}`);
+                  foundIndicators++;
+                  // If we found at least 2 indicators, it's likely a Massar file
+                  if (foundIndicators >= 2) {
+                    console.log("Confirmed Massar file based on indicators");
+
+                    // Store worksheet structure for future use
+                    this.worksheetStructure = {
+                      headers: this.extractHeaders(range.values),
+                      studentNameColumn: this.findStudentNameColumn(this.extractHeaders(range.values)),
+                      totalRows: range.values.length,
+                      markColumns: this.findMarkColumns(this.extractHeaders(range.values)),
+                    };
+
+                    return true;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        console.log("Could not identify file as Massar export");
+        return false;
       });
     } catch (error) {
       console.error("Excel validation error:", error);
       return false;
     }
+  }
+
+  // Helper method to extract headers more reliably
+  private extractHeaders(values: any[][]): string[] {
+    // Try to find the row that has headers by looking for known column headers
+    const headerKeywords = ["رقم التلميذ", "إسم التلميذ", "تاريخ"];
+
+    for (let i = 0; i < Math.min(10, values.length); i++) {
+      const row = values[i];
+      // Check if this row contains any of our header keywords
+      if (
+        row.some(
+          (cell) =>
+            cell && typeof cell === "string" && headerKeywords.some((keyword) => cell.toString().includes(keyword))
+        )
+      ) {
+        console.log(`Found header row at index ${i}`);
+        return row.map((cell) => (cell ? cell.toString() : ""));
+      }
+    }
+
+    // Fallback: return the first row as headers
+    return values[0].map((cell) => (cell ? cell.toString() : ""));
   }
 
   findStudentNameColumn(headers: string[]): number {

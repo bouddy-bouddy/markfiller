@@ -12,43 +12,60 @@ class OCRService {
 
       // Convert image to base64
       const base64Image = await this.fileToBase64(imageFile);
-      // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+      // Remove the data URL prefix
       const base64Content = base64Image.split(",")[1];
 
+      // Get API key from environment variables
+      const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+
+      if (!apiKey) {
+        throw new Error("API key not found. Please check your environment configuration.");
+      }
+
+      // Build proper URL with API key
+      const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+
+      console.log("Sending request to Google Cloud Vision API...");
+
       // Prepare request to Google Cloud Vision API
-      const response = await fetch(
-        `${process.env.GOOGLE_CLOUD_VISION_API_URL}?key=${process.env.GOOGLE_CLOUD_VISION_API_KEY}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            requests: [
-              {
-                image: {
-                  content: base64Content,
-                },
-                features: [
-                  {
-                    type: "DOCUMENT_TEXT_DETECTION",
-                  },
-                ],
-                imageContext: {
-                  languageHints: ["ar"], // Specify Arabic language for better accuracy
-                },
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: {
+                content: base64Content,
               },
-            ],
-          }),
+              features: [
+                {
+                  type: "DOCUMENT_TEXT_DETECTION",
+                },
+              ],
+              imageContext: {
+                languageHints: ["ar"], // Specify Arabic language for better accuracy
+              },
+            },
+          ],
+        }),
+      });
+
+      // Handle non-OK responses
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Google Vision API error:", errorData);
+
+        // Provide more specific error message based on response status
+        if (response.status === 403) {
+          throw new Error("فشل الاتصال بخدمة التعرف على النص: خطأ في المصادقة. يرجى التحقق من مفتاح API.");
+        } else {
+          throw new Error("فشل الاتصال بخدمة التعرف على النص. يرجى المحاولة مرة أخرى.");
         }
-      );
+      }
 
       const data = await response.json();
-
-      if (!response.ok) {
-        console.error("Google Vision API error:", data);
-        throw new Error("فشل الاتصال بخدمة التعرف على النص. يرجى المحاولة مرة أخرى.");
-      }
 
       if (!data.responses || !data.responses[0] || !data.responses[0].fullTextAnnotation) {
         throw new Error("لم يتم التعرف على أي نص في الصورة");

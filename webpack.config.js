@@ -61,7 +61,6 @@ module.exports = async (env, options) => {
     plugins: [
       new Dotenv({
         systemvars: true, // Load all system variables as well
-        safe: true, // Load '.env.example' to verify the '.env' variables are all set
       }),
       new HtmlWebpackPlugin({
         filename: "taskpane.html",

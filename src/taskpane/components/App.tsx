@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FluentProvider, webLightTheme, Text, Card } from "@fluentui/react-components";
 import { createGlobalStyle } from "styled-components";
-import ocrService from "../services/orcService";
+import ocrService from "../services/ocrService";
 import excelService from "../services/excelService";
 import { Student, ExcelStatus, AppStep } from "../types";
 import StatusAlert from "./shared/StatusAlert";
