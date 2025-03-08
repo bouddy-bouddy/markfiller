@@ -1,6 +1,4 @@
-// src/taskpane/services/ocrService.ts
-import { Student, StudentMarks } from "../types";
-import { GOOGLE_CLOUD_VISION_API_KEY, GOOGLE_CLOUD_VISION_API_URL } from "../config/apiConfig";
+import { Student } from "../types";
 
 interface CurrentRow {
   text: string;
@@ -18,32 +16,32 @@ class OCRService {
       const base64Content = base64Image.split(",")[1];
 
       // Prepare request to Google Cloud Vision API
-      const response = await fetch(`${GOOGLE_CLOUD_VISION_API_URL}?key=${GOOGLE_CLOUD_VISION_API_KEY}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          requests: [
-            {
-              image: {
-                content: base64Content,
-              },
-              features: [
-                {
-                  type: "TEXT_DETECTION",
-                  // Using DOCUMENT_TEXT_DETECTION for better handling of structured text
-                  // like tables, which is common in grade sheets
-                  type: "DOCUMENT_TEXT_DETECTION",
+      const response = await fetch(
+        `${process.env.GOOGLE_CLOUD_VISION_API_URL}?key=${process.env.GOOGLE_CLOUD_VISION_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            requests: [
+              {
+                image: {
+                  content: base64Content,
                 },
-              ],
-              imageContext: {
-                languageHints: ["ar"], // Specify Arabic language for better accuracy
+                features: [
+                  {
+                    type: "DOCUMENT_TEXT_DETECTION",
+                  },
+                ],
+                imageContext: {
+                  languageHints: ["ar"], // Specify Arabic language for better accuracy
+                },
               },
-            },
-          ],
-        }),
-      });
+            ],
+          }),
+        }
+      );
 
       const data = await response.json();
 

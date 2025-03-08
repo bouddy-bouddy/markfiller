@@ -9,7 +9,6 @@ interface LoadingSpinnerProps {
 const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ message, isCloudProcessing = false }) => {
   const [progressMessage, setProgressMessage] = useState<string>(message || "جاري المعالجة...");
 
-  // For cloud processing, show a sequence of steps to indicate progress
   useEffect(() => {
     if (isCloudProcessing) {
       const messages = [
