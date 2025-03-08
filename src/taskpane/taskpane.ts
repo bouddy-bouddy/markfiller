@@ -1,6 +1,6 @@
 /* global Excel console */
 
-export async function insertText(text) {
+export async function insertText(text: string) {
   // Write text to the top left cell.
   try {
     await Excel.run(async (context) => {
