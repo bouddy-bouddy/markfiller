@@ -69,8 +69,20 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
   };
 
   const formatMark = (value: number | null): string => {
-    if (value === null) return "";
-    return value.toFixed(2);
+    if (value === null || value === undefined) return "";
+
+    // Handle string values that might be passed
+    let numValue: number;
+
+    if (typeof value === "string") {
+      numValue = parseFloat(value);
+    } else {
+      numValue = value;
+    }
+
+    if (isNaN(numValue)) return "";
+
+    return numValue.toFixed(2);
   };
 
   const handleMarkEdit = (studentIndex: number, markType: keyof StudentMarks, value: string): boolean => {

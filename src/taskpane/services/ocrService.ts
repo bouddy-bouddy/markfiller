@@ -94,126 +94,44 @@ class OCRService {
 
   extractStructuredData(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
     try {
-      // Split the text into lines and normalize
-      const lines = text
-        .split("\n")
-        .map((line) => this.normalizeArabicNumber(line.trim()))
-        .filter((line) => line.length > 0);
+      console.log("Extracting structured data from OCR text");
 
-      const students: Student[] = [];
+      // Default detected mark types for this document format
       const detectedMarkTypes: DetectedMarkTypes = {
-        hasFard1: false,
-        hasFard2: false,
-        hasFard3: false,
-        hasActivities: false,
+        hasFard1: true,
+        hasFard2: true,
+        hasFard3: true,
+        hasActivities: true,
       };
 
-      // First, detect the mark types from headers
-      const headerText = lines.slice(0, 10).join(" ");
-      if (headerText.includes("الفرض 1") || headerText.includes("فرض 1")) {
-        detectedMarkTypes.hasFard1 = true;
-      }
-      if (headerText.includes("الفرض 2") || headerText.includes("فرض 2")) {
-        detectedMarkTypes.hasFard2 = true;
-      }
-      if (headerText.includes("الفرض 3") || headerText.includes("فرض 3")) {
-        detectedMarkTypes.hasFard3 = true;
-      }
-      if (headerText.includes("الأنشطة") || headerText.includes("أنشطة")) {
-        detectedMarkTypes.hasActivities = true;
-      }
+      // Extract student names and mark rows
+      const { names, markRows } = this.extractMarksFromTable(text);
+      console.log(`Extracted ${names.length} student names and mark rows`);
 
-      // Find where the student list starts (usually after header)
-      let studentStartIndex = 0;
-      for (let i = 0; i < lines.length; i++) {
-        if (lines[i].includes("اسم التلميذ") || lines[i].includes("اسم الطالب")) {
-          studentStartIndex = i + 1;
-          break;
-        }
-      }
+      // Map to Student objects
+      const students: Student[] = [];
 
-      // Extract student names first
-      const studentNames: string[] = [];
-      const marksLines: string[] = [];
+      for (let i = 0; i < names.length; i++) {
+        const marks = markRows[i] || [];
 
-      // Process the document in two passes - first collect names, then marks
-      for (let i = studentStartIndex; i < lines.length; i++) {
-        const line = lines[i].trim();
+        // Create student object with correctly mapped marks
+        const student: Student = {
+          number: i + 1,
+          name: names[i],
+          marks: {
+            // Map based on document column order: Activities, Fard3, Fard2, Fard1
+            activities: marks.length > 0 ? this.cleanMarkValue(marks[0] || null) : null,
+            fard3: marks.length > 1 ? this.cleanMarkValue(marks[1] || null) : null,
+            fard2: marks.length > 2 ? this.cleanMarkValue(marks[2] || null) : null,
+            fard1: marks.length > 3 ? this.cleanMarkValue(marks[3] || null) : null,
+          },
+        };
 
-        // Skip empty lines or lines that look like headers
-        if (!line || line.includes("الفرض") || line.includes("ر.ت")) {
-          continue;
-        }
-
-        // Check if this line has a student name pattern
-        // Look for lines that start with Arabic text and don't have many numbers
-        const hasArabicName = /^[\u0600-\u06FF\s]+/.test(line);
-        const numberCount = (line.match(/\d/g) || []).length;
-
-        if (hasArabicName && numberCount < 3) {
-          studentNames.push(line);
-        } else if (numberCount >= 3) {
-          // This is likely a line with marks
-          marksLines.push(line);
-        }
+        students.push(student);
       }
 
-      // Now match marks with student names
-      for (let i = 0; i < studentNames.length && i < marksLines.length; i++) {
-        const name = studentNames[i];
-        const marksLine = marksLines[i];
-
-        // Extract marks using regex
-        const markValues: number[] = [];
-        const markMatches = marksLine.match(/\d+(?:[.,]\d+)?/g);
-
-        if (markMatches) {
-          for (const markMatch of markMatches) {
-            const cleanMark = this.cleanMarkValue(markMatch);
-            if (cleanMark !== null) {
-              markValues.push(cleanMark);
-            }
-          }
-        }
-
-        // Create student object if we have at least one mark
-        if (markValues.length > 0) {
-          students.push({
-            number: i + 1, // Use index+1 as student number if not found
-            name: name,
-            marks: {
-              fard1: markValues.length > 0 ? markValues[0] : null,
-              fard2: markValues.length > 1 ? markValues[1] : null,
-              fard3: markValues.length > 2 ? markValues[2] : null,
-              activities: markValues.length > 3 ? markValues[3] : null,
-            },
-          });
-        }
-      }
-
+      // Log the extraction results
       console.log("Extracted students:", students);
-
-      // Detect mark types based on available data if not found in headers
-      if (students.length > 0) {
-        let countFard1 = 0,
-          countFard2 = 0,
-          countFard3 = 0,
-          countActivities = 0;
-
-        students.forEach((student) => {
-          if (student.marks.fard1 !== null) countFard1++;
-          if (student.marks.fard2 !== null) countFard2++;
-          if (student.marks.fard3 !== null) countFard3++;
-          if (student.marks.activities !== null) countActivities++;
-        });
-
-        // Set detected types if enough students have values
-        const threshold = students.length * 0.3;
-        if (countFard1 > threshold) detectedMarkTypes.hasFard1 = true;
-        if (countFard2 > threshold) detectedMarkTypes.hasFard2 = true;
-        if (countFard3 > threshold) detectedMarkTypes.hasFard3 = true;
-        if (countActivities > threshold) detectedMarkTypes.hasActivities = true;
-      }
 
       return { students, detectedMarkTypes };
     } catch (error) {
@@ -228,6 +146,44 @@ class OCRService {
         },
       };
     }
+  }
+
+  // Add this function to ocrService.ts:
+  private extractMarksFromTable(text: string): { names: string[]; markRows: string[][] } {
+    const lines = text.split("\n").map((line) => this.normalizeArabicNumber(line.trim()));
+
+    const names: string[] = [];
+    const markRows: string[][] = [];
+
+    // Look for student names and match with corresponding marks
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      // Skip header lines and empty lines
+      if (!line || line.includes("اسم التلميذ") || line.includes("رقم التلميذ")) {
+        continue;
+      }
+
+      // Look for lines with Arabic names - typically at the end of the line
+      if (/[\u0600-\u06FF]+\s*$/.test(line)) {
+        // Extract the name (Arabic text at the end)
+        const nameMatch = line.match(/[\u0600-\u06FF\s]+$/);
+        if (nameMatch) {
+          const name = nameMatch[0].trim();
+
+          // Extract all numbers from the line
+          const marks = line.match(/\d+(?:[.,]\d+)?/g) || [];
+
+          // Only add if we have valid data
+          if (name.length > 2) {
+            names.push(name);
+            markRows.push(marks);
+          }
+        }
+      }
+    }
+
+    return { names, markRows };
   }
 
   detectMarkTypesFromHeader(lines: string[], detectedMarkTypes: DetectedMarkTypes): void {
@@ -358,22 +314,23 @@ class OCRService {
     return parseFloat(num.toFixed(2));
   }
 
+  // Ensure cleanMarkValue handles null or undefined input
   cleanMarkValue(mark: string | null): number | null {
     if (!mark) return null;
 
     // Remove any non-numeric characters except dots and commas
-    mark = mark.replace(/[^\d.,]/g, "");
+    const cleaned = mark.replace(/[^\d.,]/g, "");
 
     // Convert comma to dot for decimal
-    mark = mark.replace(",", ".");
+    const normalized = cleaned.replace(",", ".");
 
     // Parse the number
-    const num = parseFloat(mark);
+    const num = parseFloat(normalized);
 
     // Validate the mark is within reasonable range (0-20)
     if (!isNaN(num) && num >= 0 && num <= 20) {
-      // Format to 2 decimal places
-      return this.formatMarkToDecimal(num);
+      // Ensure it's returned as a number
+      return Number(num.toFixed(2));
     }
 
     return null;
@@ -404,6 +361,14 @@ class OCRService {
       reader.onerror = reject;
       reader.readAsDataURL(file);
     });
+  }
+
+  private debug = true;
+  private logDebug(message: string, data?: any) {
+    if (this.debug) {
+      console.log(`[DEBUG] ${message}`);
+      if (data !== undefined) console.log(data);
+    }
   }
 }
 

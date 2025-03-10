@@ -184,15 +184,15 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   }, [isOfficeInitialized]);
 
   // Clear success message after 5 seconds
-  useEffect(() => {
-    if (successMessage) {
-      const timeout = setTimeout(() => {
-        setSuccessMessage(null);
-      }, 5000);
+  // useEffect(() => {
+  //   if (successMessage) {
+  //     const timeout = setTimeout(() => {
+  //       setSuccessMessage(null);
+  //     }, 5000);
 
-      return () => clearTimeout(timeout);
-    }
-  }, [successMessage]);
+  //     return () => clearTimeout(timeout);
+  //   }
+  // }, [successMessage]);
 
   // Handle image upload
   const handleImageUpload = (file: File) => {
@@ -224,8 +224,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   };
 
   // Process image with OCR
-  const processImage = async () => {
-    if (!selectedImage) return undefined;
+  const processImage = async (): Promise<void> => {
+    if (!selectedImage) return; // This line needs an explicit return type
 
     setIsProcessing(true);
     setError(null); // Clear any previous errors
@@ -266,7 +266,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       setIsProcessing(false);
     }
 
-    return undefined;
+    // Add this explicit return
+    return;
   };
 
   // Handle mark data confirmation

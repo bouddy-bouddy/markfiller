@@ -37,22 +37,45 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
 
   const formatMark = (value: number | null): string => {
     if (value === null) return "";
-    return parseFloat(value.toString()).toFixed(2);
+
+    // Ensure we're dealing with a number
+    const numValue = typeof value === "string" ? parseFloat(value) : value;
+
+    if (isNaN(numValue)) return "";
+
+    return numValue.toFixed(2);
   };
 
   const handleMarkEdit = (studentIndex: number, markType: keyof StudentMarks, value: string): boolean => {
-    const newValue = value.trim() === "" ? null : parseFloat(value);
+    // Handle empty input
+    if (value.trim() === "") {
+      const newData = [...editableData];
+      newData[studentIndex] = {
+        ...newData[studentIndex],
+        marks: {
+          ...newData[studentIndex].marks,
+          [markType]: null,
+        },
+      };
 
-    if (newValue !== null && !validateMark(newValue)) {
+      setEditableData(newData);
+      onDataUpdate(newData);
+      return true;
+    }
+
+    // Convert to number and validate
+    const numValue = parseFloat(value);
+    if (isNaN(numValue) || numValue < 0 || numValue > 20) {
       return false;
     }
 
+    // Update data with proper number
     const newData = [...editableData];
     newData[studentIndex] = {
       ...newData[studentIndex],
       marks: {
         ...newData[studentIndex].marks,
-        [markType]: newValue === null ? null : (parseFloat(newValue.toString()).toFixed(2) as unknown as number),
+        [markType]: numValue, // Store as number not string
       },
     };
 
