@@ -1,14 +1,24 @@
-import { MarkType, Student, WorksheetStructure, MarkInsertionResults } from "../types";
+import {
+  MarkType,
+  Student,
+  MarkInsertionResults,
+  IntelligentWorksheetStructure,
+  MarkStats,
+  DetectedMarkTypes,
+} from "../types";
 
 /* global Excel */
 
 class ExcelService {
-  private worksheetStructure: WorksheetStructure | null = null;
+  private worksheetStructure: IntelligentWorksheetStructure | null = null;
 
+  /**
+   * Validates the Excel file and intelligently analyzes its structure
+   */
   async validateExcelFile(): Promise<boolean> {
     try {
       return await Excel.run(async (context) => {
-        console.log("Validating Excel file...");
+        console.log("Validating Excel file with intelligent analysis...");
 
         // Get the active worksheet
         const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -23,51 +33,26 @@ class ExcelService {
         console.log(`Active sheet name: ${sheet.name}`);
         console.log("Range values sample:", range.values.slice(0, 3));
 
-        // Check if this is a Massar file by looking for specific structural elements
         // First check if the file has any data
         if (!range.values || range.values.length < 5) {
           console.log("File has insufficient data rows");
           return false;
         }
 
-        // Look for Arabic text patterns that would indicate this is a Massar file
-        // Check for any of the expected headers or key Massar file indicators
-        const massarIndicators = ["رقم التلميذ", "إسم التلميذ", "الفرض", "النقطة", "مسار", "القسم"];
-
-        // Convert all cell values to strings and check for Arabic text
-        let foundIndicators = 0;
-
-        // Flatten the 2D array and check each cell
-        for (let row of range.values) {
-          for (let cell of row) {
-            if (cell && typeof cell === "string") {
-              // Check if any of our indicators is contained in this cell
-              for (let indicator of massarIndicators) {
-                if (cell.toString().includes(indicator)) {
-                  console.log(`Found Massar indicator: ${indicator} in cell value: ${cell}`);
-                  foundIndicators++;
-                  // If we found at least 2 indicators, it's likely a Massar file
-                  if (foundIndicators >= 2) {
-                    console.log("Confirmed Massar file based on indicators");
-
-                    // Store worksheet structure for future use
-                    this.worksheetStructure = {
-                      headers: this.extractHeaders(range.values),
-                      studentNameColumn: this.findStudentNameColumn(this.extractHeaders(range.values)),
-                      totalRows: range.values.length,
-                      markColumns: this.findMarkColumns(this.extractHeaders(range.values)),
-                    };
-
-                    return true;
-                  }
-                }
-              }
-            }
+        // Start with basic analysis - recognize Massar file format
+        const isMassarFormat = this.detectMassarFormat(range.values);
+        if (!isMassarFormat) {
+          console.log("Could not identify file as Massar export, attempting generic format analysis");
+          // Try generic format detection (non-Massar)
+          const isGenericFormat = this.analyzeGenericFormat(range.values);
+          if (!isGenericFormat) {
+            console.log("Could not identify a valid student marks format");
+            return false;
           }
         }
 
-        console.log("Could not identify file as Massar export");
-        return false;
+        console.log("Excel file structure analyzed successfully:", this.worksheetStructure);
+        return true;
       });
     } catch (error) {
       console.error("Excel validation error:", error);
@@ -75,10 +60,496 @@ class ExcelService {
     }
   }
 
+  /**
+   * Detects if the file follows Massar format
+   */
+  private detectMassarFormat(values: any[][]): boolean {
+    // Look for Arabic text patterns that would indicate this is a Massar file
+    const massarIndicators = ["رقم التلميذ", "إسم التلميذ", "الفرض", "النقطة", "مسار", "القسم"];
+
+    // Count how many indicators we found
+    let foundIndicators = 0;
+
+    // Flatten the 2D array and check each cell
+    for (let row of values.slice(0, 10)) {
+      // Only check first 10 rows for headers
+      for (let cell of row) {
+        if (cell && typeof cell === "string") {
+          // Check if any of our indicators is contained in this cell
+          for (let indicator of massarIndicators) {
+            if (cell.toString().includes(indicator)) {
+              console.log(`Found Massar indicator: ${indicator} in cell value: ${cell}`);
+              foundIndicators++;
+
+              // If we found at least 2 indicators, it's likely a Massar file
+              if (foundIndicators >= 2) {
+                console.log("Confirmed Massar file based on indicators");
+
+                // Intelligently analyze the structure
+                this.analyzeMassarStructure(values);
+                return true;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Analyzes Massar file structure in detail
+   */
+  private analyzeMassarStructure(values: any[][]): void {
+    const headers = this.extractHeaders(values);
+    const studentNameColumn = this.findStudentNameColumn(headers);
+    const studentIdColumn = this.findStudentIdColumn(headers);
+    const markColumns = this.findMarkColumns(headers);
+    const markColumnsConfidence = this.calculateMarkColumnConfidence(headers, values);
+    const additionalMarkColumns = this.findAdditionalMarkColumns(headers, markColumns);
+
+    this.worksheetStructure = {
+      headers,
+      studentNameColumn,
+      studentIdColumn,
+      totalRows: values.length,
+      markColumns,
+      markColumnsConfidence,
+      additionalMarkColumns,
+    };
+  }
+
+  /**
+   * Analyzes a generic (non-Massar) format
+   */
+  private analyzeGenericFormat(values: any[][]): boolean {
+    // Try to find common patterns in generic student mark sheets
+    // Look for student names and numbers
+    const headers = this.extractHeaders(values);
+
+    // Try to find student name column
+    const studentNameColumn = this.findStudentNameColumn(headers);
+    if (studentNameColumn === -1) {
+      // Try a more aggressive approach - look for a column with string values that could be names
+      const possibleNameColumn = this.findPossibleNameColumn(values);
+      if (possibleNameColumn === -1) {
+        return false;
+      }
+
+      // If we found a possible name column, construct the worksheet structure
+      const studentIdColumn = this.findPossibleIdColumn(values, possibleNameColumn);
+      const markColumns = this.detectNumericColumns(values, [possibleNameColumn, studentIdColumn]);
+      const markColumnsConfidence = this.assignMarkTypesHeuristically(markColumns, values);
+
+      // Convert to proper structure
+      const formalMarkColumns: Record<MarkType, number> = {
+        fard1: -1,
+        fard2: -1,
+        fard3: -1,
+        activities: -1,
+      };
+
+      // Assign detected columns to formal structure
+      Object.entries(markColumnsConfidence).forEach(([markType, confidence]) => {
+        if (confidence > 0.5) {
+          formalMarkColumns[markType as MarkType] = markColumns[parseInt(markType.replace(/\D/g, ""))];
+        }
+      });
+
+      const additionalMarkColumns = this.findAdditionalMarkColumns(headers, formalMarkColumns);
+
+      this.worksheetStructure = {
+        headers: headers.length > 0 ? headers : new Array(values[0].length).fill("").map((_, i) => `Column ${i + 1}`),
+        studentNameColumn: possibleNameColumn,
+        studentIdColumn,
+        totalRows: values.length,
+        markColumns: formalMarkColumns,
+        markColumnsConfidence,
+        additionalMarkColumns,
+      };
+
+      return true;
+    }
+
+    // If we found a student name column through headers, proceed with standard analysis
+    const studentIdColumn = this.findStudentIdColumn(headers);
+    const markColumns = this.findMarkColumns(headers);
+    const markColumnsConfidence = this.calculateMarkColumnConfidence(headers, values);
+    const additionalMarkColumns = this.findAdditionalMarkColumns(headers, markColumns);
+
+    this.worksheetStructure = {
+      headers,
+      studentNameColumn,
+      studentIdColumn,
+      totalRows: values.length,
+      markColumns,
+      markColumnsConfidence,
+      additionalMarkColumns,
+    };
+
+    return true;
+  }
+
+  /**
+   * Find a column that likely contains student names based on content analysis
+   */
+  private findPossibleNameColumn(values: any[][]): number {
+    // Skip the first row (assumed to be headers)
+    const dataRows = values.slice(1);
+
+    if (dataRows.length === 0 || dataRows[0].length === 0) {
+      return -1;
+    }
+
+    // For each column, calculate score for how likely it contains names
+    const columnScores: number[] = new Array(dataRows[0].length).fill(0);
+
+    for (let colIndex = 0; colIndex < dataRows[0].length; colIndex++) {
+      let stringCount = 0;
+      let arabicCount = 0;
+      let shortValueCount = 0;
+
+      for (let rowIndex = 0; rowIndex < Math.min(dataRows.length, 10); rowIndex++) {
+        const value = dataRows[rowIndex][colIndex];
+
+        if (value && typeof value === "string") {
+          stringCount++;
+
+          // Check for Arabic characters
+          if (/[\u0600-\u06FF]/.test(value)) {
+            arabicCount++;
+          }
+
+          // Names are usually not very short
+          if (value.length > 3) {
+            shortValueCount++;
+          }
+        }
+      }
+
+      // Calculate a score
+      columnScores[colIndex] = (stringCount + arabicCount * 2 + shortValueCount) / (Math.min(dataRows.length, 10) * 4);
+    }
+
+    // Find column with highest score
+    const maxScore = Math.max(...columnScores);
+    if (maxScore > 0.5) {
+      // Threshold to consider it a name column
+      return columnScores.indexOf(maxScore);
+    }
+
+    return -1;
+  }
+
+  /**
+   * Find a column that likely contains student IDs
+   */
+  private findPossibleIdColumn(values: any[][], nameColumn: number): number {
+    // Skip the first row (assumed to be headers)
+    const dataRows = values.slice(1);
+
+    if (dataRows.length === 0 || dataRows[0].length === 0) {
+      return -1;
+    }
+
+    // For each column, calculate score for how likely it contains IDs
+    const columnScores: number[] = new Array(dataRows[0].length).fill(0);
+
+    for (let colIndex = 0; colIndex < dataRows[0].length; colIndex++) {
+      // Skip the name column
+      if (colIndex === nameColumn) {
+        continue;
+      }
+
+      let numericCount = 0;
+      let sequentialCount = 0;
+      let lastValue = 0;
+
+      for (let rowIndex = 0; rowIndex < Math.min(dataRows.length, 10); rowIndex++) {
+        const value = dataRows[rowIndex][colIndex];
+
+        if (value !== undefined && value !== null) {
+          const numValue = parseFloat(value);
+
+          if (!isNaN(numValue)) {
+            numericCount++;
+
+            // Check if values are sequential (common for IDs)
+            if (rowIndex > 0 && numValue === lastValue + 1) {
+              sequentialCount++;
+            }
+
+            lastValue = numValue;
+          }
+        }
+      }
+
+      // Calculate a score
+      columnScores[colIndex] = (numericCount + sequentialCount * 2) / (Math.min(dataRows.length, 10) * 3);
+    }
+
+    // Find column with highest score
+    const maxScore = Math.max(...columnScores);
+    if (maxScore > 0.4) {
+      // Lower threshold for ID column
+      return columnScores.indexOf(maxScore);
+    }
+
+    return -1;
+  }
+
+  /**
+   * Detect columns that contain numeric values (potential mark columns)
+   */
+  private detectNumericColumns(values: any[][], excludeColumns: number[]): number[] {
+    // Skip the first row (assumed to be headers)
+    const dataRows = values.slice(1);
+
+    if (dataRows.length === 0 || dataRows[0].length === 0) {
+      return [];
+    }
+
+    const numericColumns: number[] = [];
+
+    for (let colIndex = 0; colIndex < dataRows[0].length; colIndex++) {
+      // Skip excluded columns
+      if (excludeColumns.includes(colIndex)) {
+        continue;
+      }
+
+      let numericCount = 0;
+      let inRangeCount = 0;
+
+      for (let rowIndex = 0; rowIndex < Math.min(dataRows.length, 10); rowIndex++) {
+        const value = dataRows[rowIndex][colIndex];
+
+        if (value !== undefined && value !== null) {
+          const numValue = parseFloat(value);
+
+          if (!isNaN(numValue)) {
+            numericCount++;
+
+            // Check if values are in the expected mark range (0-20)
+            if (numValue >= 0 && numValue <= 20) {
+              inRangeCount++;
+            }
+          }
+        }
+      }
+
+      // If most values are numeric and in range, consider it a mark column
+      if (numericCount > Math.min(dataRows.length, 10) * 0.7 && inRangeCount > Math.min(dataRows.length, 10) * 0.5) {
+        numericColumns.push(colIndex);
+      }
+    }
+
+    return numericColumns;
+  }
+
+  /**
+   * Assign mark types to numeric columns heuristically
+   */
+  private assignMarkTypesHeuristically(columns: number[], values: any[][]): Record<MarkType, number> {
+    // Create a confidence map for each mark type
+    const confidenceMap: Record<MarkType, number> = {
+      fard1: 0,
+      fard2: 0,
+      fard3: 0,
+      activities: 0,
+    };
+
+    // If we have no columns or data, return empty confidence map
+    if (columns.length === 0 || values.length <= 1) {
+      return confidenceMap;
+    }
+
+    // Skip header row
+    const dataRows = values.slice(1);
+
+    // Calculate statistics for each column
+    const columnStats: Array<{ column: number; avg: number; stdDev: number; hasZeros: boolean }> = [];
+
+    for (const column of columns) {
+      const validValues: number[] = [];
+      let zeroCount = 0;
+
+      for (const row of dataRows) {
+        if (row[column] !== undefined && row[column] !== null) {
+          const numValue = parseFloat(row[column]);
+          if (!isNaN(numValue)) {
+            validValues.push(numValue);
+            if (numValue === 0) {
+              zeroCount++;
+            }
+          }
+        }
+      }
+
+      if (validValues.length > 0) {
+        // Calculate average
+        const avg = validValues.reduce((sum, val) => sum + val, 0) / validValues.length;
+
+        // Calculate standard deviation
+        const sumSquaredDiffs = validValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0);
+        const stdDev = Math.sqrt(sumSquaredDiffs / validValues.length);
+
+        columnStats.push({
+          column,
+          avg,
+          stdDev,
+          hasZeros: zeroCount > 0,
+        });
+      } else {
+        columnStats.push({
+          column,
+          avg: 0,
+          stdDev: 0,
+          hasZeros: false,
+        });
+      }
+    }
+
+    // Sort columns by position (left to right)
+    columnStats.sort((a, b) => a.column - b.column);
+
+    // Assign confidence based on column position and statistics
+    // In a typical marks sheet, fard1 comes before fard2, etc.
+    if (columnStats.length >= 1) {
+      confidenceMap.fard1 = 0.8; // High confidence for first numeric column
+    }
+
+    if (columnStats.length >= 2) {
+      confidenceMap.fard2 = 0.7; // Good confidence for second column
+    }
+
+    if (columnStats.length >= 3) {
+      confidenceMap.fard3 = 0.6; // Moderate confidence for third column
+    }
+
+    if (columnStats.length >= 4) {
+      confidenceMap.activities = 0.5; // Lower confidence for fourth column
+    }
+
+    // Adjust confidence based on statistics
+    // Activities often have higher averages than tests
+    if (columnStats.length >= 2) {
+      // Find column with highest average
+      const highestAvgColumn = columnStats.reduce(
+        (highest, current) => (current.avg > highest.avg ? current : highest),
+        columnStats[0]
+      );
+
+      // If one column has a much higher average, it's likely activities
+      const avgDifference = columnStats.map((col) => Math.abs(col.avg - highestAvgColumn.avg));
+      const maxDifference = Math.max(...avgDifference);
+
+      if (maxDifference > 3 && highestAvgColumn.avg > 10) {
+        const highestAvgIndex = columnStats.findIndex((col) => col.column === highestAvgColumn.column);
+
+        // Reset confidence for activities
+        confidenceMap.activities = 0;
+
+        // Set high confidence for the column with highest average being activities
+        if (highestAvgIndex === 0) confidenceMap.fard1 = 0.3;
+        if (highestAvgIndex === 1) confidenceMap.fard2 = 0.3;
+        if (highestAvgIndex === 2) confidenceMap.fard3 = 0.3;
+        if (highestAvgIndex === 3) confidenceMap.activities = 0.3;
+
+        // The column with highest average is likely activities
+        confidenceMap.activities = 0.9;
+      }
+    }
+
+    return confidenceMap;
+  }
+
+  /**
+   * Calculate confidence in mark column identification
+   */
+  private calculateMarkColumnConfidence(headers: string[], values: any[][]): Record<MarkType, number> {
+    const confidenceMap: Record<MarkType, number> = {
+      fard1: 0,
+      fard2: 0,
+      fard3: 0,
+      activities: 0,
+    };
+
+    // Check header-based confidence
+    headers.forEach((header, index) => {
+      if (!header) return;
+
+      const headerString = header.toString().toLowerCase();
+
+      // Calculate confidence based on how closely the header matches expected patterns
+      if (headerString.includes("فرض 1") || headerString.includes("فرض الأول") || headerString.includes("فرض١")) {
+        confidenceMap.fard1 = 0.9;
+      } else if (headerString.includes("فرض") && headerString.includes("1")) {
+        confidenceMap.fard1 = 0.7;
+      }
+
+      if (headerString.includes("فرض 2") || headerString.includes("فرض الثاني") || headerString.includes("فرض٢")) {
+        confidenceMap.fard2 = 0.9;
+      } else if (headerString.includes("فرض") && headerString.includes("2")) {
+        confidenceMap.fard2 = 0.7;
+      }
+
+      if (headerString.includes("فرض 3") || headerString.includes("فرض الثالث") || headerString.includes("فرض٣")) {
+        confidenceMap.fard3 = 0.9;
+      } else if (headerString.includes("فرض") && headerString.includes("3")) {
+        confidenceMap.fard3 = 0.7;
+      }
+
+      if (headerString.includes("أنشطة") || headerString.includes("نشاط")) {
+        confidenceMap.activities = 0.9;
+      } else if (headerString.includes("أداء") || headerString.includes("مهارات")) {
+        confidenceMap.activities = 0.7;
+      }
+    });
+
+    // Data-based confidence calculation could be added here
+    // For example, analyzing the distribution of values in each column
+
+    return confidenceMap;
+  }
+
+  /**
+   * Find additional mark columns that don't match standard types
+   */
+  private findAdditionalMarkColumns(
+    headers: string[],
+    standardColumns: Record<MarkType, number>
+  ): Array<{ index: number; header: string }> {
+    const additionalColumns: Array<{ index: number; header: string }> = [];
+    const standardColumnIndices = Object.values(standardColumns).filter((index) => index !== -1);
+
+    headers.forEach((header, index) => {
+      if (!header) return;
+
+      const headerString = header.toString().toLowerCase();
+
+      // Check if this might be a mark column but isn't one of our standard ones
+      if (
+        (headerString.includes("فرض") ||
+          headerString.includes("امتحان") ||
+          headerString.includes("اختبار") ||
+          headerString.includes("تقويم")) &&
+        !standardColumnIndices.includes(index)
+      ) {
+        additionalColumns.push({
+          index,
+          header: headers[index],
+        });
+      }
+    });
+
+    return additionalColumns;
+  }
+
   // Helper method to extract headers more reliably
   private extractHeaders(values: any[][]): string[] {
     // Try to find the row that has headers by looking for known column headers
-    const headerKeywords = ["رقم التلميذ", "إسم التلميذ", "تاريخ"];
+    const headerKeywords = ["رقم التلميذ", "إسم التلميذ", "تاريخ", "رقم", "اسم"];
 
     for (let i = 0; i < Math.min(10, values.length); i++) {
       const row = values[i];
@@ -98,18 +569,69 @@ class ExcelService {
     return values[0].map((cell) => (cell ? cell.toString() : ""));
   }
 
+  /**
+   * Find student name column with enhanced matching
+   */
   findStudentNameColumn(headers: string[]): number {
-    // Look for common name column headers in Massar
-    const nameHeaders = ["الاسم الكامل", "اسم التلميذ", "الاسم"];
+    // Look for common name column headers in Massar and other formats
+    const nameHeaders = [
+      "الاسم الكامل",
+      "اسم التلميذ",
+      "الاسم",
+      "إسم التلميذ",
+      "اسم الطالب",
+      "التلميذ",
+      "الطالب",
+      "اسم المتعلم",
+      "المتعلم",
+    ];
+
+    // Try exact match first
+    const exactMatch = headers.findIndex((h) => nameHeaders.some((nh) => h && h.toString() === nh));
+
+    if (exactMatch !== -1) return exactMatch;
+
+    // Then try partial match
     return headers.findIndex((h) => nameHeaders.some((nh) => h && h.toString().includes(nh)));
   }
 
+  /**
+   * Find student ID column
+   */
+  findStudentIdColumn(headers: string[]): number {
+    // Look for common ID column headers
+    const idHeaders = [
+      "رقم التلميذ",
+      "رقم",
+      "ر.ت",
+      "ر.م",
+      "الرقم",
+      "المسلسل",
+      "رقم الطالب",
+      "الرقم الترتيبي",
+      "ت",
+      "id",
+      "الرقم التسلسلي",
+    ];
+
+    // Try exact match first
+    const exactMatch = headers.findIndex((h) => idHeaders.some((ih) => h && h.toString() === ih));
+
+    if (exactMatch !== -1) return exactMatch;
+
+    // Then try partial match
+    return headers.findIndex((h) => idHeaders.some((ih) => h && h.toString().includes(ih)));
+  }
+
+  /**
+   * Find mark columns with enhanced pattern matching
+   */
   findMarkColumns(headers: string[]): Record<MarkType, number> {
     const markTypes: Record<MarkType, string[]> = {
-      fard1: ["الفرض 1", "الفرض الأول"],
-      fard2: ["الفرض 2", "الفرض الثاني"],
-      fard3: ["الفرض 3", "الفرض الثالث"],
-      activities: ["الأنشطة", "النشاط"],
+      fard1: ["الفرض 1", "الفرض الأول", "فرض 1", "فرض١", "اختبار 1", "امتحان 1", "تقويم 1"],
+      fard2: ["الفرض 2", "الفرض الثاني", "فرض 2", "فرض٢", "اختبار 2", "امتحان 2", "تقويم 2"],
+      fard3: ["الفرض 3", "الفرض الثالث", "فرض 3", "فرض٣", "اختبار 3", "امتحان 3", "تقويم 3"],
+      activities: ["الأنشطة", "النشاط", "أنشطة", "المهارات", "الأداء", "نشاط", "تطبيقات", "مراقبة مستمرة"],
     };
 
     const columns: Record<MarkType, number> = {
@@ -119,14 +641,55 @@ class ExcelService {
       activities: -1,
     };
 
+    // Try exact matches first
     for (const [type, patterns] of Object.entries(markTypes)) {
-      columns[type as MarkType] = headers.findIndex((h) => patterns.some((p) => h && h.toString().includes(p)));
+      columns[type as MarkType] = headers.findIndex((h) => patterns.some((p) => h && h.toString() === p));
+    }
+
+    // Then try partial matches for any that weren't found
+    for (const [type, patterns] of Object.entries(markTypes)) {
+      if (columns[type as MarkType] === -1) {
+        columns[type as MarkType] = headers.findIndex((h) => patterns.some((p) => h && h.toString().includes(p)));
+      }
+    }
+
+    // For any still not found, try fuzzy matching with numbers
+    if (columns.fard1 === -1) {
+      columns.fard1 = headers.findIndex(
+        (h) => h && h.toString().match(/فرض.*1|1.*فرض|اختبار.*1|1.*اختبار|امتحان.*1|1.*امتحان/)
+      );
+    }
+
+    if (columns.fard2 === -1) {
+      columns.fard2 = headers.findIndex(
+        (h) => h && h.toString().match(/فرض.*2|2.*فرض|اختبار.*2|2.*اختبار|امتحان.*2|2.*امتحان/)
+      );
+    }
+
+    if (columns.fard3 === -1) {
+      columns.fard3 = headers.findIndex(
+        (h) => h && h.toString().match(/فرض.*3|3.*فرض|اختبار.*3|3.*اختبار|امتحان.*3|3.*امتحان/)
+      );
     }
 
     return columns;
   }
 
-  async insertMarks(extractedData: Student[], markType: string): Promise<MarkInsertionResults> {
+  /**
+   * Get worksheet structure for mark insertion
+   */
+  getWorksheetStructure(): IntelligentWorksheetStructure | null {
+    return this.worksheetStructure;
+  }
+
+  /**
+   * Insert marks with intelligent column mapping based on detected mark types
+   */
+  async insertMarks(
+    extractedData: Student[],
+    markType: string,
+    detectedMarkTypes?: DetectedMarkTypes
+  ): Promise<MarkInsertionResults> {
     try {
       return await Excel.run(async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
@@ -145,17 +708,36 @@ class ExcelService {
           throw new Error("Worksheet structure not initialized");
         }
 
+        // Validate the marks against historical data before inserting
+        const stats = await this.calculateMarkStats(context, markType);
+        const validationResults = this.validateMarksWithStats(extractedData, stats, markType);
+
+        // If we have detected mark types, use that to guide insertion
+        let internalMarkType = this.getInternalMarkType(markType);
+
+        // If we don't have the requested mark type but have detected other types,
+        // suggest alternative columns to insert into
+        if (detectedMarkTypes && internalMarkType) {
+          const hasRequestedType = this.markTypeDetected(detectedMarkTypes, internalMarkType);
+
+          if (!hasRequestedType) {
+            // Find an available mark type that was detected
+            const availableType = this.findAvailableMarkType(detectedMarkTypes);
+
+            if (availableType) {
+              console.log(`Requested mark type ${markType} not detected, using ${availableType} instead`);
+              internalMarkType = availableType;
+            }
+          }
+        }
+
+        if (!internalMarkType) {
+          throw new Error(`Invalid mark type: ${markType}`);
+        }
+
         for (const student of extractedData) {
           const rowIndex = await this.findStudentRow(student.name, range.values as string[][]);
           if (rowIndex !== -1) {
-            // Map the mark type from Arabic display name to internal property name
-            const internalMarkType = this.getInternalMarkType(markType);
-
-            if (!internalMarkType) {
-              console.error("Invalid mark type:", markType);
-              continue;
-            }
-
             // Get the correct column for this mark type
             const columnIndex = this.worksheetStructure.markColumns[internalMarkType];
             if (columnIndex !== -1) {
@@ -183,17 +765,157 @@ class ExcelService {
     }
   }
 
+  /**
+   * Check if a specific mark type was detected in the image
+   */
+  private markTypeDetected(detectedTypes: DetectedMarkTypes, markType: MarkType): boolean {
+    switch (markType) {
+      case "fard1":
+        return detectedTypes.hasFard1;
+      case "fard2":
+        return detectedTypes.hasFard2;
+      case "fard3":
+        return detectedTypes.hasFard3;
+      case "activities":
+        return detectedTypes.hasActivities;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Find an available mark type that was detected
+   */
+  private findAvailableMarkType(detectedTypes: DetectedMarkTypes): MarkType | null {
+    if (detectedTypes.hasFard1) return "fard1";
+    if (detectedTypes.hasFard2) return "fard2";
+    if (detectedTypes.hasFard3) return "fard3";
+    if (detectedTypes.hasActivities) return "activities";
+    return null;
+  }
+
+  /**
+   * Calculate statistics for existing marks in the Excel file
+   */
+  private async calculateMarkStats(context: Excel.RequestContext, markType: string): Promise<MarkStats | null> {
+    if (!this.worksheetStructure) {
+      return null;
+    }
+
+    const internalMarkType = this.getInternalMarkType(markType);
+    if (!internalMarkType) {
+      return null;
+    }
+
+    const columnIndex = this.worksheetStructure.markColumns[internalMarkType];
+    if (columnIndex === -1) {
+      return null;
+    }
+
+    const sheet = context.workbook.worksheets.getActiveWorksheet();
+    const usedRange = sheet.getUsedRange();
+    usedRange.load("values");
+
+    await context.sync();
+
+    const values = usedRange.values;
+    const markValues: number[] = [];
+
+    // Start from row 1 (skip header)
+    for (let i = 1; i < values.length; i++) {
+      const cellValue = values[i][columnIndex];
+      if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
+        const numValue = parseFloat(cellValue.toString());
+        if (!isNaN(numValue)) {
+          markValues.push(numValue);
+        }
+      }
+    }
+
+    if (markValues.length === 0) {
+      return null;
+    }
+
+    // Calculate statistics
+    const min = Math.min(...markValues);
+    const max = Math.max(...markValues);
+    const avg = markValues.reduce((sum, val) => sum + val, 0) / markValues.length;
+
+    // Calculate median
+    markValues.sort((a, b) => a - b);
+    const mid = Math.floor(markValues.length / 2);
+    const median = markValues.length % 2 === 0 ? (markValues[mid - 1] + markValues[mid]) / 2 : markValues[mid];
+
+    // Calculate standard deviation
+    const variance = markValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / markValues.length;
+    const stdDev = Math.sqrt(variance);
+
+    return { min, max, avg, median, stdDev };
+  }
+
+  /**
+   * Validate marks against historical statistics
+   */
+  private validateMarksWithStats(
+    students: Student[],
+    stats: MarkStats | null,
+    markType: string
+  ): { valid: Student[]; suspicious: Student[] } {
+    const internalMarkType = this.getInternalMarkType(markType);
+    if (!internalMarkType || !stats) {
+      return { valid: students, suspicious: [] };
+    }
+
+    const valid: Student[] = [];
+    const suspicious: Student[] = [];
+
+    for (const student of students) {
+      const mark = student.marks[internalMarkType];
+      if (mark === null) {
+        valid.push(student);
+        continue;
+      }
+
+      // Check if mark is within reasonable range based on stats
+      // Flag as suspicious if it's more than 2 standard deviations from the mean
+      const lowerBound = stats.avg - 2 * stats.stdDev;
+      const upperBound = stats.avg + 2 * stats.stdDev;
+
+      if (mark < lowerBound || mark > upperBound) {
+        suspicious.push(student);
+      } else {
+        valid.push(student);
+      }
+    }
+
+    return { valid, suspicious };
+  }
+
+  /**
+   * Map from Arabic display name to internal mark type
+   */
   private getInternalMarkType(arabicMarkType: string): MarkType | null {
     const markTypeMap: Record<string, MarkType> = {
       "الفرض 1": "fard1",
+      "الفرض الأول": "fard1",
+      "فرض 1": "fard1",
       "الفرض 2": "fard2",
+      "الفرض الثاني": "fard2",
+      "فرض 2": "fard2",
       "الفرض 3": "fard3",
+      "الفرض الثالث": "fard3",
+      "فرض 3": "fard3",
       الأنشطة: "activities",
+      النشاط: "activities",
+      أنشطة: "activities",
     };
 
     return markTypeMap[arabicMarkType] || null;
   }
 
+  /**
+   * Enhanced student name matching with fuzzy logic
+   */
   async findStudentRow(studentName: string, values: string[][]): Promise<number> {
     if (!this.worksheetStructure) {
       throw new Error("Worksheet structure not initialized");
@@ -202,12 +924,56 @@ class ExcelService {
     const nameColumn = this.worksheetStructure.studentNameColumn;
     const nameToFind = this.normalizeArabicText(studentName);
 
+    // First try exact match (after normalization)
+    for (let i = 1; i < values.length; i++) {
+      const cellName = this.normalizeArabicText(values[i][nameColumn]);
+      if (cellName === nameToFind) {
+        return i;
+      }
+    }
+
+    // Then try partial name matching (first/last name)
+    const nameParts = nameToFind.split(/\s+/);
+    for (let i = 1; i < values.length; i++) {
+      const cellName = this.normalizeArabicText(values[i][nameColumn]);
+      const cellNameParts = cellName.split(/\s+/);
+
+      // Check for first and last name match
+      if (nameParts.length > 0 && cellNameParts.length > 0) {
+        // First name match
+        if (nameParts[0] === cellNameParts[0]) {
+          // Last name match (if available)
+          if (
+            nameParts.length > 1 &&
+            cellNameParts.length > 1 &&
+            nameParts[nameParts.length - 1] === cellNameParts[cellNameParts.length - 1]
+          ) {
+            return i;
+          }
+
+          // At least first name matches
+          return i;
+        }
+
+        // Last name match
+        if (
+          nameParts.length > 1 &&
+          cellNameParts.length > 1 &&
+          nameParts[nameParts.length - 1] === cellNameParts[cellNameParts.length - 1]
+        ) {
+          return i;
+        }
+      }
+    }
+
+    // Finally try fuzzy matching
     for (let i = 1; i < values.length; i++) {
       const cellName = this.normalizeArabicText(values[i][nameColumn]);
       if (this.compareNames(nameToFind, cellName)) {
         return i;
       }
     }
+
     return -1;
   }
 
@@ -268,5 +1034,4 @@ class ExcelService {
     return parseFloat(mark.toString()).toFixed(2);
   }
 }
-
 export default new ExcelService();

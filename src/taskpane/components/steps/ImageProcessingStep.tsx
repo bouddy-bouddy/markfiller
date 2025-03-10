@@ -1,9 +1,10 @@
 import React from "react";
-import { Button, Text } from "@fluentui/react-components";
-import { Image24Regular, ArrowRight24Regular } from "@fluentui/react-icons";
+import { Button, Text, Badge } from "@fluentui/react-components";
+import { Image24Regular, ArrowRight24Regular, ListRegular } from "@fluentui/react-icons";
 import StepIndicator from "../shared/StepIndicator";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import UploadInstructions from "../shared/UploadInstructions";
+import { DetectedMarkTypes } from "../../types";
 
 interface ImageProcessingStepProps {
   isActive: boolean;
@@ -14,6 +15,7 @@ interface ImageProcessingStepProps {
   onImageUpload: (file: File) => void;
   onProcessImage: () => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
+  detectedMarkTypes: DetectedMarkTypes;
 }
 
 const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
@@ -25,6 +27,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   onImageUpload,
   onProcessImage,
   fileInputRef,
+  detectedMarkTypes,
 }) => {
   // Handle file drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -42,6 +45,23 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.currentTarget.classList.remove("drag-over");
+  };
+
+  // Check if any mark type was detected
+  const hasDetectedTypes =
+    detectedMarkTypes.hasFard1 ||
+    detectedMarkTypes.hasFard2 ||
+    detectedMarkTypes.hasFard3 ||
+    detectedMarkTypes.hasActivities;
+
+  // Get detected mark types as string array
+  const getDetectedTypesText = (): string[] => {
+    const types: string[] = [];
+    if (detectedMarkTypes.hasFard1) types.push("الفرض 1");
+    if (detectedMarkTypes.hasFard2) types.push("الفرض 2");
+    if (detectedMarkTypes.hasFard3) types.push("الفرض 3");
+    if (detectedMarkTypes.hasActivities) types.push("الأنشطة");
+    return types;
   };
 
   return (
@@ -114,15 +134,46 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             {isProcessing ? (
               <LoadingSpinner message="جاري معالجة الصورة وتحليل البيانات..." isCloudProcessing={true} />
             ) : (
-              <Button
-                appearance="primary"
-                onClick={onProcessImage}
-                disabled={isProcessing}
-                icon={<ArrowRight24Regular />}
-                style={{ marginTop: "16px" }}
-              >
-                معالجة الصورة
-              </Button>
+              <div style={{ marginTop: "16px" }}>
+                <Button
+                  appearance="primary"
+                  onClick={onProcessImage}
+                  disabled={isProcessing}
+                  icon={<ArrowRight24Regular />}
+                >
+                  معالجة الصورة
+                </Button>
+
+                {/* Show detected mark types if completed and types were detected */}
+                {isCompleted && hasDetectedTypes && (
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                      marginTop: "16px",
+                      padding: "12px",
+                      backgroundColor: "#f0fff4",
+                      borderRadius: "4px",
+                      border: "1px solid #c6f6d5",
+                    }}
+                  >
+                    <ListRegular style={{ color: "#38a169" }} />
+                    <div>
+                      <Text weight="semibold" style={{ color: "#38a169", display: "block", marginBottom: "4px" }}>
+                        تم اكتشاف أنواع العلامات التالية:
+                      </Text>
+                      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                        {getDetectedTypesText().map((type) => (
+                          <Badge key={type} appearance="filled" color="success">
+                            {type}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}

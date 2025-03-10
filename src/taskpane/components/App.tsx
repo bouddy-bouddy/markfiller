@@ -3,12 +3,12 @@ import { FluentProvider, webLightTheme, Text, Card } from "@fluentui/react-compo
 import { createGlobalStyle } from "styled-components";
 import ocrService from "../services/ocrService";
 import excelService from "../services/excelService";
-import { Student, ExcelStatus, AppStep } from "../types";
+import { Student, ExcelStatus, AppStep, DetectedMarkTypes } from "../types";
 import StatusAlert from "./shared/StatusAlert";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
-import MarkTypeDialog from "./dialogs/MarkTypeDialog";
+import IntelligentMarkTypeDialog from "./dialogs/IntelligentMarkTypeDialog";
 
 // GlobalStyle for App.tsx
 const GlobalStyle = createGlobalStyle`
@@ -109,6 +109,7 @@ const GlobalStyle = createGlobalStyle`
     direction: rtl;
   }
 `;
+
 interface AppProps {
   title: string;
   isOfficeInitialized?: boolean;
@@ -122,6 +123,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // Processing states
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Data and steps
   const [extractedData, setExtractedData] = useState<Student[] | null>(null);
@@ -134,9 +136,20 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     checked: false,
   });
 
+  // Mark detection
+  const [detectedMarkTypes, setDetectedMarkTypes] = useState<DetectedMarkTypes>({
+    hasFard1: false,
+    hasFard2: false,
+    hasFard3: false,
+    hasActivities: false,
+  });
+
   // Dialog states
   const [showMarkTypeDialog, setShowMarkTypeDialog] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+
+  // Suspicious marks detection
+  const [suspiciousMarks, setSuspiciousMarks] = useState<Student[]>([]);
 
   // Reference for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -149,6 +162,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         setExcelStatus({
           isValid,
           checked: true,
+          message: isValid ? "تم التحقق من ملف مسار بنجاح" : "يرجى فتح ملف مسار المناسب في Excel",
         });
 
         if (isValid) {
@@ -159,6 +173,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         setExcelStatus({
           isValid: false,
           checked: true,
+          message: "حدث خطأ أثناء التحقق من ملف Excel",
         });
       }
     };
@@ -167,6 +182,17 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       checkExcelFile();
     }
   }, [isOfficeInitialized]);
+
+  // Clear success message after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timeout = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+
+      return () => clearTimeout(timeout);
+    }
+  }, [successMessage]);
 
   // Handle image upload
   const handleImageUpload = (file: File) => {
@@ -199,20 +225,36 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   // Process image with OCR
   const processImage = async () => {
-    if (!selectedImage) return;
+    if (!selectedImage) return undefined;
 
     setIsProcessing(true);
     setError(null); // Clear any previous errors
 
     try {
-      // Show a cloud processing message
-      // Process the image using Google Cloud Vision OCR
-      const extractedMarks = await ocrService.processImage(selectedImage);
+      // Process the image using Google Cloud Vision OCR with enhanced detection
+      const { students, detectedMarkTypes } = await ocrService.processImage(selectedImage);
 
       // Show preview of extracted data
-      setExtractedData(extractedMarks);
+      setExtractedData(students);
+      setDetectedMarkTypes(detectedMarkTypes);
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
+
+      // Log detected mark types for debugging
+      console.log("Detected mark types:", detectedMarkTypes);
+
+      // Show success message with intelligent mark detection
+      const detectedTypes = [];
+      if (detectedMarkTypes.hasFard1) detectedTypes.push("الفرض 1");
+      if (detectedMarkTypes.hasFard2) detectedTypes.push("الفرض 2");
+      if (detectedMarkTypes.hasFard3) detectedTypes.push("الفرض 3");
+      if (detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
+
+      if (detectedTypes.length > 0) {
+        setSuccessMessage(`تم اكتشاف العلامات التالية: ${detectedTypes.join("، ")}`);
+      } else {
+        setSuccessMessage("تم استخراج البيانات بنجاح");
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
@@ -223,6 +265,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     } finally {
       setIsProcessing(false);
     }
+
+    return undefined;
   };
 
   // Handle mark data confirmation
@@ -235,7 +279,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         return;
       }
 
-      // Show mark type selection dialog
+      // Show mark type selection dialog with intelligent recommendations
       setShowMarkTypeDialog(true);
     } catch (err) {
       setError("حدث خطأ أثناء التحقق من ملف Excel");
@@ -251,12 +295,18 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         throw new Error("No data to save");
       }
 
-      const results = await excelService.insertMarks(extractedData, markType);
+      // Insert marks with detected mark types information
+      const results = await excelService.insertMarks(extractedData, markType, detectedMarkTypes);
 
       // Show results
       if (results.notFound > 0) {
         setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم.`);
+
+        if (results.notFoundStudents.length > 0) {
+          console.log("Students not found:", results.notFoundStudents);
+        }
       } else {
+        setSuccessMessage(`تم إدخال ${results.success} علامة بنجاح في عمود "${markType}"`);
         setError(null);
       }
 
@@ -299,6 +349,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setExtractedData(null);
     setCurrentStep(AppStep.ImageProcessing);
     setCompletedSteps(new Set());
+    setSuspiciousMarks([]);
+    // Keep detected mark types for the next run
   };
 
   return (
@@ -320,6 +372,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         )}
 
         {error && <StatusAlert type="error" message={error} />}
+        {successMessage && <StatusAlert type="success" message={successMessage} />}
 
         <div className="steps-container">
           {/* Image Processing Step */}
@@ -332,6 +385,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             onImageUpload={handleImageUpload}
             onProcessImage={processImage}
             fileInputRef={fileInputRef}
+            detectedMarkTypes={detectedMarkTypes}
           />
 
           {/* File Analysis Step */}
@@ -350,16 +404,19 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
               onConfirm={handleConfirmData}
               onCancel={resetApp}
               onDataUpdate={handleDataUpdate}
+              suspiciousMarks={suspiciousMarks}
+              detectedMarkTypes={detectedMarkTypes}
             />
           )}
         </div>
 
-        {/* Mark Type Dialog */}
-        <MarkTypeDialog
+        {/* Intelligent Mark Type Dialog */}
+        <IntelligentMarkTypeDialog
           isOpen={showMarkTypeDialog}
           onClose={() => setShowMarkTypeDialog(false)}
           onConfirm={handleMarkTypeSelected}
           isSaving={isSaving}
+          detectedMarkTypes={detectedMarkTypes}
         />
       </Card>
     </FluentProvider>

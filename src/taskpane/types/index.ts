@@ -33,6 +33,16 @@ export const markTypeNames: Record<MarkType, string> = {
 };
 
 /**
+ * Detected mark types from OCR
+ */
+export interface DetectedMarkTypes {
+  hasFard1: boolean;
+  hasFard2: boolean;
+  hasFard3: boolean;
+  hasActivities: boolean;
+}
+
+/**
  * Excel file validation status
  */
 export interface ExcelStatus {
@@ -49,6 +59,22 @@ export interface WorksheetStructure {
   studentNameColumn: number;
   totalRows: number;
   markColumns: Record<MarkType, number>;
+}
+
+/**
+ * Intelligently recognized excel structure
+ * Provides more details about the Excel file structure
+ */
+export interface IntelligentWorksheetStructure extends WorksheetStructure {
+  // For each detected mark column, the confidence level (0-1)
+  markColumnsConfidence: Record<MarkType, number>;
+  // Student ID column if available
+  studentIdColumn: number;
+  // Additional mark columns that were detected but not mapped to standard types
+  additionalMarkColumns: Array<{
+    index: number;
+    header: string;
+  }>;
 }
 
 /**
@@ -84,4 +110,25 @@ export interface StepProps {
   isActive: boolean;
   isCompleted: boolean;
   children: React.ReactNode;
+}
+
+/**
+ * Stats for contextual validation
+ */
+export interface MarkStats {
+  min: number;
+  max: number;
+  avg: number;
+  median: number;
+  stdDev: number;
+}
+
+/**
+ * Valid ranges for different mark types (for contextual validation)
+ */
+export interface MarkValidRanges {
+  fard1?: { min: number; max: number };
+  fard2?: { min: number; max: number };
+  fard3?: { min: number; max: number };
+  activities?: { min: number; max: number };
 }
