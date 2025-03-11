@@ -8,7 +8,7 @@ interface CurrentRow {
 class OCRService {
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     try {
-      console.log("Starting Google Cloud Vision OCR processing...");
+      console.log("Starting Vision AI OCR processing...");
 
       // Convert image to base64
       const base64Image = await this.fileToBase64(imageFile);
@@ -16,18 +16,18 @@ class OCRService {
       const base64Content = base64Image.split(",")[1];
 
       // Get API key from environment variables
-      const apiKey = process.env.GOOGLE_CLOUD_VISION_API_KEY;
+      const apiKey = process.env.GOOGLE_VISION_AI_API_KEY;
 
       if (!apiKey) {
         throw new Error("API key not found. Please check your environment configuration.");
       }
 
-      // Build proper URL with API key
-      const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+      // Vision AI API endpoint
+      const apiUrl = `https://vision.googleapis.com/v1p2beta1/files:annotate?key=${apiKey}`;
 
-      console.log("Sending request to Google Cloud Vision API...");
+      console.log("Sending request to Vision AI API...");
 
-      // Prepare request to Google Cloud Vision API
+      // Prepare request to Vision AI API
       const response = await fetch(apiUrl, {
         method: "POST",
         headers: {
