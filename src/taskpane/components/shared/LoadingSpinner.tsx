@@ -26,13 +26,37 @@ const CloudProcessingText = styled(Text)`
   gap: 6px;
 `;
 
+// Progress bar container
+const ProgressContainer = styled.div`
+  width: 100%;
+  margin-top: 12px;
+  height: 4px;
+  background-color: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+`;
+
+// Progress bar fill
+const ProgressFill = styled.div<{ width: string }>`
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  background-color: #0e7c42;
+  width: ${(props) => props.width};
+  transition: width 0.3s ease;
+`;
+
 interface LoadingSpinnerProps {
   message?: string;
   isCloudProcessing?: boolean;
+  progress?: number;
+  stage?: string;
 }
 
 const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
-  const { message = "جاري المعالجة...", isCloudProcessing = false } = props;
+  const { message = "جاري المعالجة...", isCloudProcessing = false, progress = 0, stage } = props;
 
   return (
     <SpinnerCard>
@@ -46,6 +70,23 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
       >
         {message}
       </Text>
+
+      {stage && (
+        <Text
+          style={{
+            color: "#666",
+            fontSize: "12px",
+          }}
+        >
+          {stage}
+        </Text>
+      )}
+
+      {progress > 0 && (
+        <ProgressContainer>
+          <ProgressFill width={`${progress}%`} />
+        </ProgressContainer>
+      )}
 
       {isCloudProcessing && (
         <CloudProcessingText>
