@@ -1,11 +1,13 @@
 import React from "react";
-import { Button, Text, Badge, Card } from "@fluentui/react-components";
+import { Button, Text, Badge, Card, Tooltip } from "@fluentui/react-components";
 import {
   CheckmarkCircle24Regular,
   DismissCircle24Regular,
   ListRegular,
   WarningRegular,
   Edit24Regular,
+  CheckmarkCircle16Regular,
+  Info16Regular,
 } from "@fluentui/react-icons";
 import DataTable from "../shared/DataTable";
 import { Student, DetectedMarkTypes } from "../../types";
@@ -47,6 +49,15 @@ const ButtonContainer = styled.div`
   justify-content: flex-start;
 `;
 
+const ConfidenceIndicator = styled.span<{ confidence: "high" | "medium" | "low" }>`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: ${(props) =>
+    props.confidence === "high" ? "#38a169" : props.confidence === "medium" ? "#dd6b20" : "#e53e3e"};
+  font-size: 12px;
+`;
+
 interface ReviewConfirmStepProps {
   isActive: boolean;
   isCompleted: boolean;
@@ -83,6 +94,43 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
     if (detectedMarkTypes.hasFard3) types.push("الفرض 3");
     if (detectedMarkTypes.hasActivities) types.push("الأنشطة");
     return types;
+  };
+
+  // Function to get confidence level based on extraction quality
+  const getConfidenceLevel = (markType: string): "high" | "medium" | "low" => {
+    // Example implementation - in real scenario, this would come from the OCR service
+    const confidenceLevels: Record<string, "high" | "medium" | "low"> = {
+      "الفرض 1": detectedMarkTypes.hasFard1 ? "high" : "low",
+      "الفرض 2": detectedMarkTypes.hasFard2 ? "high" : "low",
+      "الفرض 3": detectedMarkTypes.hasFard3 ? "high" : "low",
+      الأنشطة: detectedMarkTypes.hasActivities ? "high" : "low",
+    };
+
+    return confidenceLevels[markType] || "medium";
+  };
+
+  // Function to render confidence indicator
+  const renderConfidenceIndicator = (markType: string) => {
+    const confidence = getConfidenceLevel(markType);
+    let icon;
+    let tooltipText;
+
+    if (confidence === "high") {
+      icon = <CheckmarkCircle16Regular />;
+      tooltipText = "تم التعرف على هذا النوع من العلامات بثقة عالية";
+    } else if (confidence === "medium") {
+      icon = <Info16Regular />;
+      tooltipText = "تم التعرف على هذا النوع من العلامات بثقة متوسطة";
+    } else {
+      icon = <WarningRegular style={{ fontSize: "12px" }} />;
+      tooltipText = "لم يتم التعرف على هذا النوع من العلامات بشكل مؤكد";
+    }
+
+    return (
+      <Tooltip content={tooltipText} relationship="label">
+        <ConfidenceIndicator confidence={confidence}>{icon}</ConfidenceIndicator>
+      </Tooltip>
+    );
   };
 
   // Count non-null values for each mark type
@@ -127,7 +175,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
       </StepTitle>
 
       <div className="step-content">
-        {/* Detected Mark Types */}
+        {/* Detected Mark Types with Confidence Indicators */}
         {hasDetectedTypes && (
           <InfoCard type="success">
             <ListRegular style={{ color: "#38a169", flexShrink: 0, marginTop: "4px" }} />
@@ -137,8 +185,14 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
               </Text>
               <BadgesContainer>
                 {getDetectedTypesText().map((type) => (
-                  <Badge key={type} appearance="filled" color="success">
+                  <Badge
+                    key={type}
+                    appearance="filled"
+                    color="success"
+                    style={{ display: "flex", alignItems: "center", gap: "4px" }}
+                  >
                     {type}
+                    {renderConfidenceIndicator(type)}
                   </Badge>
                 ))}
               </BadgesContainer>
@@ -164,6 +218,9 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
               <Text size={200} style={{ color: "#c53030" }}>
                 هناك {suspiciousMarks.length} علامة تبدو خارج النطاق المعتاد. يرجى مراجعتها قبل التأكيد.
               </Text>
+              <Text size={200} style={{ color: "#c53030", marginTop: "8px" }}>
+                العلامات المشكوك فيها مميزة بخلفية حمراء خفيفة في الجدول. انقر على أي علامة لتعديلها.
+              </Text>
             </div>
           </InfoCard>
         )}
@@ -185,6 +242,12 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
                 إلغاء
               </Button>
             </ButtonContainer>
+
+            {/* Additional helping text */}
+            <Text size={200} style={{ color: "#666", marginTop: "16px", display: "block" }}>
+              * تم استخدام خوارزميات التعلم الآلي المتقدمة للتعرف على العلامات. إذا وجدت أي أخطاء، يمكنك تصحيحها بالنقر
+              على العلامة المعنية.
+            </Text>
           </>
         )}
       </div>

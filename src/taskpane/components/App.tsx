@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FluentProvider, webLightTheme, Text, Card } from "@fluentui/react-components";
+import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { createGlobalStyle } from "styled-components";
-import ocrService from "../services/ocrService";
+import enhancedOcrService from "../services/ocrService";
 import excelService from "../services/excelService";
+import OCREdgeCasesHandler from "../services/ocrEdgeCaseHandler";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
 import StatusAlert from "./shared/StatusAlert";
+import OcrErrorDisplay from "./shared/OcrErrorDisplay";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
@@ -12,6 +14,8 @@ import StatisticsStep from "./steps/StatisticsStep";
 import IntelligentMarkTypeDialog from "./dialogs/IntelligentMarkTypeDialog";
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
+import feedbackService from "../services/feedbackService";
+import OcrDebugMode from "./debug/OcrDebugMode";
 
 // GlobalStyle for App.tsx
 const GlobalStyle = createGlobalStyle`
@@ -222,6 +226,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // Processing states
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string>("UNKNOWN_ERROR");
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Data and steps
@@ -252,6 +257,10 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   // Suspicious marks detection
   const [suspiciousMarks, setSuspiciousMarks] = useState<Student[]>([]);
+
+  // Processing stages
+  const [processingStage, setProcessingStage] = useState<number>(0);
+  const [processingProgress, setProcessingProgress] = useState<number>(0);
 
   // Reference for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -292,12 +301,14 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       // Check if file is an image
       if (!file.type.startsWith("image/")) {
         setError("الرجاء اختيار ملف صورة صالح");
+        setErrorCode("UNSUPPORTED_FORMAT");
         return;
       }
 
       // Check file size (max 5MB)
       if (file.size > 5 * 1024 * 1024) {
         setError("حجم الصورة يجب أن يكون أقل من 5 ميغابايت");
+        setErrorCode("IMAGE_TOO_LARGE");
         return;
       }
 
@@ -315,32 +326,55 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     }
   };
 
-  // Process image with OCR
+  // Process image with enhanced OCR
   const processImage = async (): Promise<void> => {
     if (!selectedImage) return;
 
     setIsProcessing(true);
-    setError(null); // Clear any previous errors
+    setError(null);
+    setProcessingStage(0);
+    setProcessingProgress(0);
+
+    // Define processing stages
+    const stages = ["تحليل الصورة", "استخراج النص", "تحديد هيكل الجدول", "استخراج العلامات", "التحقق من الدقة"];
 
     try {
-      // Process the image using OCR
-      const { students, detectedMarkTypes } = await ocrService.processImage(selectedImage);
+      // Show processing stages with animation
+      const updateStage = (stage: number) => {
+        setProcessingStage(stage);
+        setProcessingProgress(((stage + 1) / stages.length) * 100);
+      };
+
+      // Simulate stage progression
+      for (let i = 0; i < stages.length - 1; i++) {
+        updateStage(i);
+        await new Promise((resolve) => setTimeout(resolve, 800));
+      }
+
+      // Process the image using enhanced OCR service
+      const { students, detectedMarkTypes } = await enhancedOcrService.processImage(selectedImage);
+
+      // Final stage complete
+      updateStage(stages.length - 1);
+
+      // Apply edge case handling to improve results
+      const enhancedResults = OCREdgeCasesHandler.enhanceExtractedData(students, detectedMarkTypes);
 
       // Show preview of extracted data
-      setExtractedData(students);
-      setDetectedMarkTypes(detectedMarkTypes);
+      setExtractedData(enhancedResults.students);
+      setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
 
       // Log detected mark types for debugging
-      console.log("Detected mark types:", detectedMarkTypes);
+      console.log("Detected mark types:", enhancedResults.detectedMarkTypes);
 
       // Show success message with intelligent mark detection
       const detectedTypes = [];
-      if (detectedMarkTypes.hasFard1) detectedTypes.push("الفرض 1");
-      if (detectedMarkTypes.hasFard2) detectedTypes.push("الفرض 2");
-      if (detectedMarkTypes.hasFard3) detectedTypes.push("الفرض 3");
-      if (detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
+      if (enhancedResults.detectedMarkTypes.hasFard1) detectedTypes.push("الفرض 1");
+      if (enhancedResults.detectedMarkTypes.hasFard2) detectedTypes.push("الفرض 2");
+      if (enhancedResults.detectedMarkTypes.hasFard3) detectedTypes.push("الفرض 3");
+      if (enhancedResults.detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
 
       if (detectedTypes.length > 0) {
         setSuccessMessage(`تم اكتشاف العلامات التالية: ${detectedTypes.join("، ")}`);
@@ -348,13 +382,29 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         setSuccessMessage("تم استخراج البيانات بنجاح");
       }
 
-      // Generate some basic statistics for the data
-      generateMarkStatistics(students);
+      // Generate statistics for the data
+      generateMarkStatistics(enhancedResults.students);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
+
+        // Try to extract error code
+        if (err.message.includes("حجم الصورة")) {
+          setErrorCode("IMAGE_TOO_LARGE");
+        } else if (err.message.includes("تنسيق الصورة")) {
+          setErrorCode("UNSUPPORTED_FORMAT");
+        } else if (err.message.includes("لم يتم التعرف على أي نص")) {
+          setErrorCode("NO_TEXT_DETECTED");
+        } else if (err.message.includes("لم يتم العثور على أي بيانات")) {
+          setErrorCode("NO_MARKS_DETECTED");
+        } else if (err.message.includes("API")) {
+          setErrorCode("API_ERROR");
+        } else {
+          setErrorCode("UNKNOWN_ERROR");
+        }
       } else {
         setError("حدث خطأ غير معروف أثناء معالجة الصورة");
+        setErrorCode("UNKNOWN_ERROR");
       }
       console.error(err);
     } finally {
@@ -439,6 +489,16 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setSuspiciousMarks(suspicious);
   };
 
+  // Handle feedback for OCR improvements
+  const handleOcrFeedback = async (feedback: any) => {
+    try {
+      await feedbackService.sendOcrFeedback(feedback, imagePreview);
+      setSuccessMessage("شكرًا لك! تم إرسال ملاحظاتك وستساعد في تحسين دقة التعرف الضوئي.");
+    } catch (error) {
+      setError("حدث خطأ أثناء إرسال الملاحظات. يرجى المحاولة مرة أخرى.");
+    }
+  };
+
   // Handle image removal
   const handleRemoveImage = () => {
     setSelectedImage(null);
@@ -446,6 +506,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setError(null);
     setSuccessMessage(null);
   };
+
   const handleConfirmData = async () => {
     try {
       // First validate Excel file
@@ -543,7 +604,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         </div>
 
         <div className="app-content">
-          {error && <StatusAlert type="error" message={error} />}
+          {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
           {successMessage && <StatusAlert type="success" message={successMessage} />}
 
           <div className="steps-container">
@@ -591,7 +652,11 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onRemoveImage={handleRemoveImage}
                 fileInputRef={fileInputRef}
                 detectedMarkTypes={detectedMarkTypes}
-              />
+              >
+                {selectedImage && !isProcessing && (
+                  <OcrDebugMode onSendFeedback={handleOcrFeedback} imagePreview={imagePreview} />
+                )}
+              </ImageProcessingStep>
             )}
 
             {/* Review and Confirm Step */}

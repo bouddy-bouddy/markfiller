@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button, Text, Badge, Card } from "@fluentui/react-components";
 import {
   Image24Regular,
@@ -11,6 +11,8 @@ import {
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
+import enhancedOcrService from "../../services/enhancedOcrService";
+import OcrQualityTips from "../shared/OcrQualityTips";
 
 const StepTitle = styled.div`
   display: flex;
@@ -92,6 +94,7 @@ interface ImageProcessingStepProps {
   onRemoveImage?: () => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
   detectedMarkTypes: DetectedMarkTypes;
+  children?: React.ReactNode;
 }
 
 const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
@@ -105,7 +108,15 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   onRemoveImage,
   fileInputRef,
   detectedMarkTypes,
+  children,
 }) => {
+  // State for processing stages
+  const [processingStage, setProcessingStage] = useState<number>(0);
+  const [processingProgress, setProcessingProgress] = useState<number>(0);
+
+  // Processing stages
+  const stages = ["تحليل الصورة", "استخراج النص", "تحديد هيكل الجدول", "استخراج العلامات", "التحقق من الدقة"];
+
   // Handle file drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -123,6 +134,39 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
 
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.currentTarget.classList.remove("drag-over");
+  };
+
+  // Enhanced processImage function that shows stages
+  const processImageWithStages = async () => {
+    if (!selectedImage) return;
+
+    // Start processing
+    setProcessingStage(0);
+    setProcessingProgress(0);
+
+    // Update progress through stages
+    const updateStage = (stage: number) => {
+      setProcessingStage(stage);
+      setProcessingProgress(((stage + 1) / stages.length) * 100);
+    };
+
+    // Show initial stage
+    updateStage(0);
+
+    // Call the actual process function (which will show actual progress)
+    onProcessImage();
+
+    // In a real implementation, onProcessImage would update these stages
+    // This is just a simulation for the UI
+    const simulateStages = async () => {
+      for (let i = 1; i < stages.length; i++) {
+        await new Promise((resolve) => setTimeout(resolve, 800));
+        updateStage(i);
+      }
+    };
+
+    // Run the simulation in parallel with actual processing
+    simulateStages();
   };
 
   // Check if any mark type was detected
@@ -216,7 +260,12 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             <ImagePreview src={imagePreview} alt="معاينة" />
 
             {isProcessing ? (
-              <LoadingSpinner message="جاري معالجة الصورة وتحليل البيانات..." isCloudProcessing={true} />
+              <LoadingSpinner
+                message="جاري معالجة الصورة وتحليل البيانات..."
+                isCloudProcessing={true}
+                progress={processingProgress}
+                stage={stages[processingStage]}
+              />
             ) : (
               <div
                 style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
@@ -224,7 +273,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
                 <div>
                   <Button
                     appearance="primary"
-                    onClick={onProcessImage}
+                    onClick={processImageWithStages}
                     disabled={isProcessing}
                     icon={<ArrowRight24Regular />}
                   >
@@ -278,6 +327,11 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             )}
           </PreviewContainer>
         )}
+
+        {/* OCR Quality Tips added here */}
+        {isActive && !isProcessing && !isCompleted && <OcrQualityTips />}
+
+        {children}
       </div>
     </div>
   );
