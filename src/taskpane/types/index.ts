@@ -95,9 +95,10 @@ export type AlertType = "error" | "warning" | "info" | "success";
  * Application steps
  */
 export enum AppStep {
-  ImageProcessing = 1,
-  FileAnalysis = 2,
+  FileAnalysis = 1,
+  ImageProcessing = 2,
   ReviewConfirm = 3,
+  Statistics = 4,
 }
 
 /**

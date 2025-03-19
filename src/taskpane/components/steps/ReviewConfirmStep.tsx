@@ -1,9 +1,51 @@
 import React from "react";
-import { Button, Text, Badge } from "@fluentui/react-components";
-import { CheckmarkCircle24Regular, DismissCircle24Regular, ListRegular, WarningRegular } from "@fluentui/react-icons";
-import StepIndicator from "../shared/StepIndicator";
+import { Button, Text, Badge, Card } from "@fluentui/react-components";
+import {
+  CheckmarkCircle24Regular,
+  DismissCircle24Regular,
+  ListRegular,
+  WarningRegular,
+  Edit24Regular,
+} from "@fluentui/react-icons";
 import DataTable from "../shared/DataTable";
 import { Student, DetectedMarkTypes } from "../../types";
+import styled from "styled-components";
+
+const StepTitle = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+`;
+
+interface InfoCardProps {
+  type: "success" | "warning";
+}
+
+const InfoCard = styled(Card)<InfoCardProps>`
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background-color: ${(props) => (props.type === "success" ? "#f0fff4" : "#fff5f5")};
+  border-radius: 8px;
+  border: 1px solid ${(props) => (props.type === "success" ? "#c6f6d5" : "#fed7d7")};
+`;
+
+const BadgesContainer = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+`;
+
+const ButtonContainer = styled.div`
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-start;
+`;
 
 interface ReviewConfirmStepProps {
   isActive: boolean;
@@ -11,7 +53,7 @@ interface ReviewConfirmStepProps {
   data: Student[];
   onConfirm: () => void;
   onCancel: () => void;
-  onDataUpdate: (newData: Student[]) => void;
+  onDataUpdate: (data: Student[]) => void;
   suspiciousMarks: Student[];
   detectedMarkTypes: DetectedMarkTypes;
 }
@@ -66,42 +108,40 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
 
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
-      <StepIndicator stepNumber={3} title="مراجعة وتأكيد" isActive={isActive} isCompleted={isCompleted} />
+      <StepTitle>
+        <Edit24Regular
+          style={{
+            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#666",
+            fontSize: "24px",
+          }}
+        />
+        <Text
+          size={600}
+          weight="semibold"
+          style={{
+            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#333",
+          }}
+        >
+          مراجعة وتأكيد
+        </Text>
+      </StepTitle>
 
       <div className="step-content">
-        <div style={{ display: "flex", alignItems: "center", marginBottom: "20px" }}>
-          <CheckmarkCircle24Regular style={{ marginLeft: "12px", color: "#0078D4" }} />
-          <Text as="h3" size={500} weight="semibold">
-            مراجعة البيانات المستخرجة
-          </Text>
-        </div>
-
         {/* Detected Mark Types */}
         {hasDetectedTypes && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "12px",
-              marginBottom: "20px",
-              padding: "12px",
-              backgroundColor: "#f0fff4",
-              borderRadius: "4px",
-              border: "1px solid #c6f6d5",
-            }}
-          >
+          <InfoCard type="success">
             <ListRegular style={{ color: "#38a169", flexShrink: 0, marginTop: "4px" }} />
             <div>
               <Text weight="semibold" style={{ color: "#38a169", display: "block", marginBottom: "8px" }}>
                 تم اكتشاف أنواع العلامات التالية:
               </Text>
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+              <BadgesContainer>
                 {getDetectedTypesText().map((type) => (
                   <Badge key={type} appearance="filled" color="success">
                     {type}
                   </Badge>
                 ))}
-              </div>
+              </BadgesContainer>
               <Text size={200} style={{ color: "#2f855a" }}>
                 تم استخراج {data.length} طالب من الصورة.
                 {markCounts.fard1 > 0 && ` الفرض 1: ${markCounts.fard1} علامة`}
@@ -110,23 +150,12 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
                 {markCounts.activities > 0 && ` | الأنشطة: ${markCounts.activities} علامة`}
               </Text>
             </div>
-          </div>
+          </InfoCard>
         )}
 
         {/* Statistics & Potential Issues */}
         {suspiciousMarks.length > 0 && (
-          <div
-            style={{
-              display: "flex",
-              alignItems: "flex-start",
-              gap: "12px",
-              marginBottom: "20px",
-              padding: "12px",
-              backgroundColor: "#fff5f5",
-              borderRadius: "4px",
-              border: "1px solid #fed7d7",
-            }}
-          >
+          <InfoCard type="warning">
             <WarningRegular style={{ color: "#e53e3e", flexShrink: 0, marginTop: "4px" }} />
             <div>
               <Text weight="semibold" style={{ color: "#e53e3e", display: "block", marginBottom: "8px" }}>
@@ -136,10 +165,10 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
                 هناك {suspiciousMarks.length} علامة تبدو خارج النطاق المعتاد. يرجى مراجعتها قبل التأكيد.
               </Text>
             </div>
-          </div>
+          </InfoCard>
         )}
 
-        <Text size={300} style={{ marginBottom: "16px", color: "#666" }}>
+        <Text size={300} style={{ marginBottom: "16px", color: "#666", display: "block" }}>
           يمكنك تصحيح أي علامة غير صحيحة بالنقر عليها
         </Text>
 
@@ -147,14 +176,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
           <>
             <DataTable data={data} onDataUpdate={onDataUpdate} suspiciousMarks={suspiciousMarks} />
 
-            <div
-              style={{
-                marginTop: "20px",
-                display: "flex",
-                gap: "10px",
-                justifyContent: "flex-end",
-              }}
-            >
+            <ButtonContainer>
               <Button appearance="primary" onClick={onConfirm} icon={<CheckmarkCircle24Regular />}>
                 تأكيد وإدخال في Excel
               </Button>
@@ -162,11 +184,12 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
               <Button appearance="secondary" onClick={onCancel} icon={<DismissCircle24Regular />}>
                 إلغاء
               </Button>
-            </div>
+            </ButtonContainer>
           </>
         )}
       </div>
     </div>
   );
 };
+
 export default ReviewConfirmStep;

@@ -1,5 +1,30 @@
 import React from "react";
 import { Spinner, Text, Card } from "@fluentui/react-components";
+import { CloudSync24Regular } from "@fluentui/react-icons";
+import styled from "styled-components";
+
+const SpinnerCard = styled(Card)`
+  text-align: center;
+  padding: 32px;
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  margin: 20px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+`;
+
+const CloudProcessingText = styled(Text)`
+  color: #666;
+  font-size: 12px;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`;
 
 interface LoadingSpinnerProps {
   message?: string;
@@ -10,22 +35,10 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
   const { message = "جاري المعالجة...", isCloudProcessing = false } = props;
 
   return (
-    <Card
-      style={{
-        textAlign: "center",
-        padding: "32px",
-        backgroundColor: "rgba(255, 255, 255, 0.9)",
-        border: "1px solid #e0e0e0",
-        boxShadow: "0 4px 12px rgba(0, 0, 0, 0.1)",
-        borderRadius: "8px",
-        margin: "20px 0",
-      }}
-    >
+    <SpinnerCard>
       <Spinner size="large" />
       <Text
         style={{
-          display: "block",
-          marginTop: "16px",
           color: "#242424",
           fontSize: "14px",
           fontWeight: "500",
@@ -35,11 +48,12 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
       </Text>
 
       {isCloudProcessing && (
-        <Text style={{ color: "#666", fontSize: "12px", marginTop: "8px" }}>
-          نستخدم خدمة Google Cloud Vision للحصول على دقة أعلى في استخراج النقط
-        </Text>
+        <CloudProcessingText>
+          <CloudSync24Regular style={{ fontSize: "14px" }} />
+          نستخدم تقنية التعرف البصري على النصوص للحصول على دقة أعلى في استخراج النقط
+        </CloudProcessingText>
       )}
-    </Card>
+    </SpinnerCard>
   );
 };
 
