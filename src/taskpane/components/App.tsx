@@ -439,7 +439,13 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setSuspiciousMarks(suspicious);
   };
 
-  // Handle mark data confirmation
+  // Handle image removal
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    setError(null);
+    setSuccessMessage(null);
+  };
   const handleConfirmData = async () => {
     try {
       // First validate Excel file
@@ -582,6 +588,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 isProcessing={isProcessing}
                 onImageUpload={handleImageUpload}
                 onProcessImage={processImage}
+                onRemoveImage={handleRemoveImage}
                 fileInputRef={fileInputRef}
                 detectedMarkTypes={detectedMarkTypes}
               />

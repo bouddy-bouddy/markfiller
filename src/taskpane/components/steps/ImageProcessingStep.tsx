@@ -6,6 +6,7 @@ import {
   ListRegular,
   CloudArrowUp24Regular,
   DocumentRegular,
+  DeleteRegular,
 } from "@fluentui/react-icons";
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { DetectedMarkTypes } from "../../types";
@@ -88,6 +89,7 @@ interface ImageProcessingStepProps {
   isProcessing: boolean;
   onImageUpload: (file: File) => void;
   onProcessImage: () => void;
+  onRemoveImage?: () => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
   detectedMarkTypes: DetectedMarkTypes;
 }
@@ -100,6 +102,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   isProcessing,
   onImageUpload,
   onProcessImage,
+  onRemoveImage,
   fileInputRef,
   detectedMarkTypes,
 }) => {
@@ -218,23 +221,40 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
               <div
                 style={{ marginTop: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}
               >
-                <Button
-                  appearance="primary"
-                  onClick={onProcessImage}
-                  disabled={isProcessing}
-                  icon={<ArrowRight24Regular />}
-                >
-                  معالجة الصورة
-                </Button>
+                <div>
+                  <Button
+                    appearance="primary"
+                    onClick={onProcessImage}
+                    disabled={isProcessing}
+                    icon={<ArrowRight24Regular />}
+                  >
+                    معالجة الصورة
+                  </Button>
+                </div>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Button
+                    appearance="subtle"
+                    onClick={() => {
+                      fileInputRef.current?.click();
+                    }}
+                    icon={<Image24Regular />}
+                  >
+                    تغيير الصورة
+                  </Button>
 
-                <Button
-                  appearance="subtle"
-                  onClick={() => {
-                    fileInputRef.current?.click();
-                  }}
-                >
-                  تغيير الصورة
-                </Button>
+                  <Button
+                    appearance="outline"
+                    onClick={() => {
+                      // Clear the selected image
+                      if (typeof onRemoveImage === "function") {
+                        onRemoveImage();
+                      }
+                    }}
+                    icon={<DeleteRegular />}
+                  >
+                    حذف الصورة
+                  </Button>
+                </div>
               </div>
             )}
 
