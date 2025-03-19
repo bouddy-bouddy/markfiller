@@ -541,52 +541,56 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           {successMessage && <StatusAlert type="success" message={successMessage} />}
 
           <div className="steps-container">
-            {/* File Analysis Step */}
-            <FileAnalysisStep
-              isActive={currentStep === AppStep.FileAnalysis}
-              isCompleted={isStepCompleted(AppStep.FileAnalysis)}
-              excelStatus={excelStatus}
-              onValidateExcel={async () => {
-                try {
-                  const isValid = await excelService.validateExcelFile();
-                  setExcelStatus({
-                    isValid,
-                    checked: true,
-                    message: isValid ? "تم التحقق من ملف مسار بنجاح" : "يرجى فتح ملف مسار المناسب في Excel",
-                  });
+            {/* Conditionally render the step that is currently active */}
+            {currentStep === AppStep.FileAnalysis && (
+              <FileAnalysisStep
+                isActive={true}
+                isCompleted={isStepCompleted(AppStep.FileAnalysis)}
+                excelStatus={excelStatus}
+                onValidateExcel={async () => {
+                  try {
+                    const isValid = await excelService.validateExcelFile();
+                    setExcelStatus({
+                      isValid,
+                      checked: true,
+                      message: isValid ? "تم التحقق من ملف مسار بنجاح" : "يرجى فتح ملف مسار المناسب في Excel",
+                    });
 
-                  if (isValid) {
-                    completeStep(AppStep.FileAnalysis);
-                    advanceToStep(AppStep.ImageProcessing);
+                    if (isValid) {
+                      completeStep(AppStep.FileAnalysis);
+                      advanceToStep(AppStep.ImageProcessing);
+                    }
+                  } catch (error) {
+                    console.error("Excel validation error:", error);
+                    setExcelStatus({
+                      isValid: false,
+                      checked: true,
+                      message: "حدث خطأ أثناء التحقق من ملف Excel",
+                    });
                   }
-                } catch (error) {
-                  console.error("Excel validation error:", error);
-                  setExcelStatus({
-                    isValid: false,
-                    checked: true,
-                    message: "حدث خطأ أثناء التحقق من ملف Excel",
-                  });
-                }
-              }}
-            />
+                }}
+              />
+            )}
 
             {/* Image Processing Step */}
-            <ImageProcessingStep
-              isActive={currentStep === AppStep.ImageProcessing}
-              isCompleted={isStepCompleted(AppStep.ImageProcessing)}
-              selectedImage={selectedImage}
-              imagePreview={imagePreview}
-              isProcessing={isProcessing}
-              onImageUpload={handleImageUpload}
-              onProcessImage={processImage}
-              fileInputRef={fileInputRef}
-              detectedMarkTypes={detectedMarkTypes}
-            />
+            {currentStep === AppStep.ImageProcessing && (
+              <ImageProcessingStep
+                isActive={true}
+                isCompleted={isStepCompleted(AppStep.ImageProcessing)}
+                selectedImage={selectedImage}
+                imagePreview={imagePreview}
+                isProcessing={isProcessing}
+                onImageUpload={handleImageUpload}
+                onProcessImage={processImage}
+                fileInputRef={fileInputRef}
+                detectedMarkTypes={detectedMarkTypes}
+              />
+            )}
 
             {/* Review and Confirm Step */}
-            {extractedData && (
+            {currentStep === AppStep.ReviewConfirm && extractedData && (
               <ReviewConfirmStep
-                isActive={currentStep === AppStep.ReviewConfirm}
+                isActive={true}
                 isCompleted={isStepCompleted(AppStep.ReviewConfirm)}
                 data={extractedData}
                 onConfirm={handleConfirmData}
@@ -598,9 +602,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             )}
 
             {/* Statistics Step */}
-            {markStats && (
+            {currentStep === AppStep.Statistics && markStats && (
               <StatisticsStep
-                isActive={currentStep === AppStep.Statistics}
+                isActive={true}
                 isCompleted={isStepCompleted(AppStep.Statistics)}
                 statistics={markStats}
                 detectedMarkTypes={detectedMarkTypes}
