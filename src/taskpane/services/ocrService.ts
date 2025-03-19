@@ -1,3 +1,5 @@
+// Export this new version of the OCR service
+
 import { Student, DetectedMarkTypes } from "../types";
 
 interface CurrentRow {
@@ -9,6 +11,16 @@ class OCRService {
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     try {
       console.log("Starting Vision AI OCR processing...");
+
+      // First, try the advanced table extraction method
+      try {
+        const result = await this.processImageWithTableExtraction(imageFile);
+        if (result.students.length > 0) {
+          return result;
+        }
+      } catch (tableError) {
+        console.log("Table extraction failed, falling back to basic extraction", tableError);
+      }
 
       // Convert image to base64
       const base64Image = await this.fileToBase64(imageFile);
@@ -23,7 +35,7 @@ class OCRService {
       }
 
       // Vision AI API endpoint
-      const apiUrl = `https://vision.googleapis.com/v1p2beta1/files:annotate?key=${apiKey}`;
+      const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
 
       console.log("Sending request to Vision AI API...");
 
@@ -56,13 +68,7 @@ class OCRService {
       if (!response.ok) {
         const errorData = await response.json();
         console.error("Google Vision API error:", errorData);
-
-        // Provide more specific error message based on response status
-        if (response.status === 403) {
-          throw new Error("فشل الاتصال بخدمة التعرف على النص: خطأ في المصادقة. يرجى التحقق من مفتاح API.");
-        } else {
-          throw new Error("فشل الاتصال بخدمة التعرف على النص. يرجى المحاولة مرة أخرى.");
-        }
+        throw new Error("فشل الاتصال بخدمة التعرف على النص. يرجى المحاولة مرة أخرى.");
       }
 
       const data = await response.json();
@@ -74,7 +80,7 @@ class OCRService {
       const extractedText = data.responses[0].fullTextAnnotation.text;
       console.log("OCR completed, raw text:", extractedText);
 
-      // Extract structured student data from the OCR result
+      // Use the improved extraction method
       const { students, detectedMarkTypes } = this.extractStructuredData(extractedText);
       console.log("Structured data:", students);
       console.log("Detected mark types:", detectedMarkTypes);
@@ -92,47 +98,127 @@ class OCRService {
     }
   }
 
+  // Include the new extractStructuredData method
+
   extractStructuredData(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
     try {
       console.log("Extracting structured data from OCR text");
 
-      // Default detected mark types for this document format
+      // Default detected mark types
       const detectedMarkTypes: DetectedMarkTypes = {
-        hasFard1: true,
-        hasFard2: true,
-        hasFard3: true,
-        hasActivities: true,
+        hasFard1: false,
+        hasFard2: false,
+        hasFard3: false,
+        hasActivities: false,
       };
 
-      // Extract student names and mark rows
-      const { names, markRows } = this.extractMarksFromTable(text);
-      console.log(`Extracted ${names.length} student names and mark rows`);
+      // Split text into lines for processing
+      const lines = text
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0);
 
-      // Map to Student objects
+      // Arrays to hold student names and marks
+      const names: string[] = [];
+      const marksByType: {
+        fard1: number[];
+        fard2: number[];
+        fard3: number[];
+        activities: number[];
+      } = {
+        fard1: [],
+        fard2: [],
+        fard3: [],
+        activities: [],
+      };
+
+      // Identify mark type headers to detect the structure
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Detect column headers for marks
+        if (line.includes("الفرض 1") || line.includes("فرض 1")) {
+          detectedMarkTypes.hasFard1 = true;
+        }
+        if (line.includes("الفرض 2") || line.includes("فرض 2")) {
+          detectedMarkTypes.hasFard2 = true;
+        }
+        if (line.includes("الفرض 3") || line.includes("فرض 3")) {
+          detectedMarkTypes.hasFard3 = true;
+        }
+        if (line.includes("الأنشطة") || line.includes("أنشطة")) {
+          detectedMarkTypes.hasActivities = true;
+        }
+      }
+
+      // Extract student names
+      let studentsStarted = false;
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+
+        // Look for indicators that we're in the student list section
+        if (line.includes("اسم التلميذ") || line.includes("رقم التلميذ")) {
+          studentsStarted = true;
+          continue;
+        }
+
+        if (studentsStarted) {
+          // Check if this line likely contains a student name (Arabic characters)
+          const containsArabic = /[\u0600-\u06FF]/.test(line);
+          const containsDigits = /\d/.test(line);
+
+          // If it has Arabic and not just numbers, it might be a student name
+          if (containsArabic && !line.match(/^\d+$/)) {
+            // Extract the name - look for patterns of Arabic characters
+            const nameMatch = line.match(/[\u0600-\u06FF\s]+/);
+            if (nameMatch) {
+              const name = nameMatch[0].trim();
+              if (name.length > 2) {
+                names.push(name);
+
+                // Look for marks on this line (numbers with potential decimal points)
+                const marksMatch = line.match(/\d+[.,]?\d*/g);
+                if (marksMatch) {
+                  // Try to match marks to appropriate columns
+                  // The pattern often follows the order of columns in the document
+                  const marks = marksMatch.map((m) => parseFloat(m.replace(",", ".")));
+
+                  // Store marks by their respective columns
+                  // The order depends on your document structure
+                  if (marks.length >= 1 && marks[0] >= 0 && marks[0] <= 20) marksByType.fard1.push(marks[0]);
+                  if (marks.length >= 2 && marks[1] >= 0 && marks[1] <= 20) marksByType.fard2.push(marks[1]);
+                  if (marks.length >= 3 && marks[2] >= 0 && marks[2] <= 20) marksByType.fard3.push(marks[2]);
+                  if (marks.length >= 4 && marks[3] >= 0 && marks[3] <= 20) marksByType.activities.push(marks[3]);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // Create student objects from collected data
       const students: Student[] = [];
-
       for (let i = 0; i < names.length; i++) {
-        const marks = markRows[i] || [];
-
-        // Create student object with correctly mapped marks
-        const student: Student = {
+        students.push({
           number: i + 1,
           name: names[i],
           marks: {
-            // Map based on document column order: Activities, Fard3, Fard2, Fard1
-            activities: marks.length > 0 ? this.cleanMarkValue(marks[0] || null) : null,
-            fard3: marks.length > 1 ? this.cleanMarkValue(marks[1] || null) : null,
-            fard2: marks.length > 2 ? this.cleanMarkValue(marks[2] || null) : null,
-            fard1: marks.length > 3 ? this.cleanMarkValue(marks[3] || null) : null,
+            fard1: marksByType.fard1[i] !== undefined ? this.formatMarkToDecimal(marksByType.fard1[i]) : null,
+            fard2: marksByType.fard2[i] !== undefined ? this.formatMarkToDecimal(marksByType.fard2[i]) : null,
+            fard3: marksByType.fard3[i] !== undefined ? this.formatMarkToDecimal(marksByType.fard3[i]) : null,
+            activities:
+              marksByType.activities[i] !== undefined ? this.formatMarkToDecimal(marksByType.activities[i]) : null,
           },
-        };
-
-        students.push(student);
+        });
       }
 
-      // Log the extraction results
-      console.log("Extracted students:", students);
+      // Update detection based on actual data found
+      detectedMarkTypes.hasFard1 = marksByType.fard1.length > 0 || detectedMarkTypes.hasFard1;
+      detectedMarkTypes.hasFard2 = marksByType.fard2.length > 0 || detectedMarkTypes.hasFard2;
+      detectedMarkTypes.hasFard3 = marksByType.fard3.length > 0 || detectedMarkTypes.hasFard3;
+      detectedMarkTypes.hasActivities = marksByType.activities.length > 0 || detectedMarkTypes.hasActivities;
 
+      console.log("Extracted students:", students);
       return { students, detectedMarkTypes };
     } catch (error) {
       console.error("Data extraction error:", error);
@@ -148,159 +234,9 @@ class OCRService {
     }
   }
 
-  // Add this function to ocrService.ts:
-  private extractMarksFromTable(text: string): { names: string[]; markRows: string[][] } {
-    const lines = text.split("\n").map((line) => this.normalizeArabicNumber(line.trim()));
+  // Include the rest of the methods from previous artifacts
 
-    const names: string[] = [];
-    const markRows: string[][] = [];
-
-    // Look for student names and match with corresponding marks
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-
-      // Skip header lines and empty lines
-      if (!line || line.includes("اسم التلميذ") || line.includes("رقم التلميذ")) {
-        continue;
-      }
-
-      // Look for lines with Arabic names - typically at the end of the line
-      if (/[\u0600-\u06FF]+\s*$/.test(line)) {
-        // Extract the name (Arabic text at the end)
-        const nameMatch = line.match(/[\u0600-\u06FF\s]+$/);
-        if (nameMatch) {
-          const name = nameMatch[0].trim();
-
-          // Extract all numbers from the line
-          const marks = line.match(/\d+(?:[.,]\d+)?/g) || [];
-
-          // Only add if we have valid data
-          if (name.length > 2) {
-            names.push(name);
-            markRows.push(marks);
-          }
-        }
-      }
-    }
-
-    return { names, markRows };
-  }
-
-  detectMarkTypesFromHeader(lines: string[], detectedMarkTypes: DetectedMarkTypes): void {
-    // Look for mark type headers in the first 5 lines
-    const headerLines = lines.slice(0, 5).join(" ");
-
-    // Common patterns for mark headers
-    if (headerLines.includes("الفرض 1") || headerLines.includes("الفرض الأول") || headerLines.includes("فرض 1")) {
-      detectedMarkTypes.hasFard1 = true;
-    }
-
-    if (headerLines.includes("الفرض 2") || headerLines.includes("الفرض الثاني") || headerLines.includes("فرض 2")) {
-      detectedMarkTypes.hasFard2 = true;
-    }
-
-    if (headerLines.includes("الفرض 3") || headerLines.includes("الفرض الثالث") || headerLines.includes("فرض 3")) {
-      detectedMarkTypes.hasFard3 = true;
-    }
-
-    if (headerLines.includes("الأنشطة") || headerLines.includes("النشاط") || headerLines.includes("أنشطة")) {
-      detectedMarkTypes.hasActivities = true;
-    }
-  }
-
-  anyMarkTypeDetected(detectedMarkTypes: DetectedMarkTypes): boolean {
-    return (
-      detectedMarkTypes.hasFard1 ||
-      detectedMarkTypes.hasFard2 ||
-      detectedMarkTypes.hasFard3 ||
-      detectedMarkTypes.hasActivities
-    );
-  }
-
-  inferMarkTypesFromData(students: Student[], detectedMarkTypes: DetectedMarkTypes): void {
-    // Count how many students have each mark type
-    const counts = {
-      fard1: 0,
-      fard2: 0,
-      fard3: 0,
-      activities: 0,
-    };
-
-    // Count non-null values for each mark type
-    students.forEach((student) => {
-      if (student.marks.fard1 !== null) counts.fard1++;
-      if (student.marks.fard2 !== null) counts.fard2++;
-      if (student.marks.fard3 !== null) counts.fard3++;
-      if (student.marks.activities !== null) counts.activities++;
-    });
-
-    // Use a threshold (e.g., if more than 30% of students have a mark type)
-    const threshold = students.length * 0.3;
-
-    if (counts.fard1 > threshold) detectedMarkTypes.hasFard1 = true;
-    if (counts.fard2 > threshold) detectedMarkTypes.hasFard2 = true;
-    if (counts.fard3 > threshold) detectedMarkTypes.hasFard3 = true;
-    if (counts.activities > threshold) detectedMarkTypes.hasActivities = true;
-
-    // If we still haven't detected any mark types but have data,
-    // handle the sequential assignment case (where marks are in columns but not labeled)
-    if (!this.anyMarkTypeDetected(detectedMarkTypes) && students.length > 0) {
-      // Sort mark types by frequency
-      const sortedCounts = Object.entries(counts)
-        .sort((a, b) => b[1] - a[1])
-        .filter(([_, count]) => count > 0);
-
-      // Assign mark types based on frequency (most frequent first)
-      if (sortedCounts.length >= 1) {
-        const markType = sortedCounts[0][0] as keyof typeof counts;
-        if (markType === "fard1") detectedMarkTypes.hasFard1 = true;
-        else if (markType === "fard2") detectedMarkTypes.hasFard2 = true;
-        else if (markType === "fard3") detectedMarkTypes.hasFard3 = true;
-        else if (markType === "activities") detectedMarkTypes.hasActivities = true;
-      }
-    }
-  }
-
-  processStudentRow(row: CurrentRow, students: Student[], detectedMarkTypes: DetectedMarkTypes): void {
-    const studentPattern = /^(\d{1,2})\s*([\u0600-\u06FF\s]+)/;
-    const marksPattern = /\b(\d{1,2}(?:[.,]\d{1,2})?)\b/g;
-
-    const studentMatch = row.text.match(studentPattern);
-    if (studentMatch) {
-      // Extract marks
-      const marks: Array<number> = [];
-      let match: RegExpExecArray | null;
-
-      // Reset the lastIndex to ensure we start matching from the beginning
-      marksPattern.lastIndex = 0;
-
-      while ((match = marksPattern.exec(row.text)) !== null) {
-        const markValue = this.cleanMarkValue(match[1]);
-        if (markValue !== null) {
-          marks.push(markValue);
-        }
-      }
-
-      if (marks.length > 0) {
-        // Update detected mark types based on how many marks we found
-        if (marks.length >= 1 && !detectedMarkTypes.hasFard1) detectedMarkTypes.hasFard1 = true;
-        if (marks.length >= 2 && !detectedMarkTypes.hasFard2) detectedMarkTypes.hasFard2 = true;
-        if (marks.length >= 3 && !detectedMarkTypes.hasFard3) detectedMarkTypes.hasFard3 = true;
-        if (marks.length >= 4 && !detectedMarkTypes.hasActivities) detectedMarkTypes.hasActivities = true;
-
-        students.push({
-          number: parseInt(studentMatch[1]),
-          name: studentMatch[2].trim(),
-          marks: {
-            fard1: this.formatMarkToDecimal(marks[0]) || null,
-            fard2: this.formatMarkToDecimal(marks[1]) || null,
-            fard3: this.formatMarkToDecimal(marks[2]) || null,
-            activities: this.formatMarkToDecimal(marks[3]) || null,
-          },
-        });
-      }
-    }
-  }
+  // Rest of original methods...
 
   formatMarkToDecimal(mark: string | number | null | undefined): number | null {
     if (mark === null || mark === undefined) return null;
@@ -314,7 +250,6 @@ class OCRService {
     return parseFloat(num.toFixed(2));
   }
 
-  // Ensure cleanMarkValue handles null or undefined input
   cleanMarkValue(mark: string | null): number | null {
     if (!mark) return null;
 
@@ -363,13 +298,251 @@ class OCRService {
     });
   }
 
-  private debug = true;
-  private logDebug(message: string, data?: any) {
-    if (this.debug) {
-      console.log(`[DEBUG] ${message}`);
-      if (data !== undefined) console.log(data);
+  // Include the advanced table extraction methods
+  async processImageWithTableExtraction(
+    imageFile: File
+  ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+    try {
+      console.log("Starting Vision AI table extraction...");
+
+      // Convert image to base64
+      const base64Image = await this.fileToBase64(imageFile);
+      const base64Content = base64Image.split(",")[1];
+
+      // Get API key from environment variables
+      const apiKey = process.env.GOOGLE_VISION_AI_API_KEY;
+
+      if (!apiKey) {
+        throw new Error("API key not found. Please check your environment configuration.");
+      }
+
+      // Vision AI API endpoint with DOCUMENT_TEXT_DETECTION and layout analysis
+      const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
+
+      // Request both text detection and layout analysis
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          requests: [
+            {
+              image: {
+                content: base64Content,
+              },
+              features: [
+                {
+                  type: "DOCUMENT_TEXT_DETECTION", // Gets text with layout info
+                  maxResults: 1,
+                },
+              ],
+              imageContext: {
+                languageHints: ["ar"],
+              },
+            },
+          ],
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Google Vision API error:", errorData);
+        throw new Error("فشل الاتصال بخدمة التعرف على النص. يرجى المحاولة مرة أخرى.");
+      }
+
+      const data = await response.json();
+
+      if (!data.responses || !data.responses[0]) {
+        throw new Error("لم يتم التعرف على أي نص في الصورة");
+      }
+
+      // Extract full text for backup processing
+      const fullText = data.responses[0].fullTextAnnotation?.text || "";
+
+      // Get text blocks with position information
+      const textBlocks = data.responses[0].textAnnotations || [];
+
+      // Process the result with layout information to reconstruct the table
+      return this.extractStructuredTableData(fullText, textBlocks);
+    } catch (error) {
+      console.error("Table extraction error:", error);
+      throw new Error(
+        error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة والمحاولة مرة أخرى."
+      );
     }
   }
-}
 
+  /**
+   * Extract table data using layout information
+   */
+  extractStructuredTableData(
+    fullText: string,
+    textBlocks: any[]
+  ): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
+    // Default detected mark types
+    const detectedMarkTypes: DetectedMarkTypes = {
+      hasFard1: false,
+      hasFard2: false,
+      hasFard3: false,
+      hasActivities: false,
+    };
+
+    // Skip the first block which contains the entire text
+    const blocks = textBlocks.slice(1);
+
+    // First, identify column headers to establish table structure
+    const headerBlocks = blocks.filter((block) => {
+      const text = block.description.toLowerCase();
+      return text.includes("فرض") || text.includes("أنشطة") || text.includes("اسم") || text.includes("رقم");
+    });
+
+    // Determine column boundaries and types
+    const columns: Array<{
+      type: string;
+      xMin: number;
+      xMax: number;
+      yLevel: number;
+    }> = [];
+
+    headerBlocks.forEach((block) => {
+      const text = block.description.toLowerCase();
+      const boundingBox = block.boundingPoly.vertices;
+
+      // Calculate average X position and boundaries
+      const xMin = Math.min(...boundingBox.map((v: any) => v.x));
+      const xMax = Math.max(...boundingBox.map((v: any) => v.x));
+      const yLevel = Math.min(...boundingBox.map((v: any) => v.y));
+
+      let columnType = "";
+
+      if (text.includes("اسم")) {
+        columnType = "name";
+      } else if (text.includes("رقم")) {
+        columnType = "number";
+      } else if (text.includes("فرض 1") || text.includes("الفرض 1")) {
+        columnType = "fard1";
+        detectedMarkTypes.hasFard1 = true;
+      } else if (text.includes("فرض 2") || text.includes("الفرض 2")) {
+        columnType = "fard2";
+        detectedMarkTypes.hasFard2 = true;
+      } else if (text.includes("فرض 3") || text.includes("الفرض 3")) {
+        columnType = "fard3";
+        detectedMarkTypes.hasFard3 = true;
+      } else if (text.includes("أنشطة") || text.includes("الأنشطة")) {
+        columnType = "activities";
+        detectedMarkTypes.hasActivities = true;
+      }
+
+      if (columnType) {
+        columns.push({ type: columnType, xMin, xMax, yLevel });
+      }
+    });
+
+    // Sort columns by X position
+    columns.sort((a, b) => a.xMin - b.xMin);
+
+    // Now find row data by looking at Y positions below header
+    const headerYLevel = Math.max(...columns.map((c) => c.yLevel));
+    const rowBlocks = blocks.filter((block) => {
+      const boundingBox = block.boundingPoly.vertices;
+      const yMin = Math.min(...boundingBox.map((v: any) => v.y));
+      return yMin > headerYLevel;
+    });
+
+    // Group blocks by row (similar Y position)
+    const rowGroups: Record<number, any[]> = {};
+
+    rowBlocks.forEach((block) => {
+      const boundingBox = block.boundingPoly.vertices;
+      const yCenter = boundingBox.reduce((sum: number, v: any) => sum + v.y, 0) / 4;
+
+      // Find or create row group (allowing some vertical tolerance)
+      const rowKey = Math.floor(yCenter / 20); // Group within 20px vertically
+      if (!rowGroups[rowKey]) {
+        rowGroups[rowKey] = [];
+      }
+      rowGroups[rowKey].push(block);
+    });
+
+    // Sort row groups by Y position
+    const sortedRowKeys = Object.keys(rowGroups)
+      .map(Number)
+      .sort((a, b) => a - b);
+
+    // Build student data from rows
+    const students: Student[] = [];
+
+    sortedRowKeys.forEach((rowKey, index) => {
+      const rowData = rowGroups[rowKey];
+
+      // Create empty student record
+      const student: Student = {
+        number: index + 1,
+        name: "",
+        marks: {
+          fard1: null,
+          fard2: null,
+          fard3: null,
+          activities: null,
+        },
+      };
+
+      // Assign data to columns based on X position
+      rowData.forEach((block) => {
+        const text = block.description;
+        const xCenter = block.boundingPoly.vertices.reduce((sum: number, v: any) => sum + v.x, 0) / 4;
+
+        // Find which column this text belongs to
+        for (const column of columns) {
+          if (xCenter >= column.xMin && xCenter <= column.xMax) {
+            if (column.type === "name") {
+              student.name = text;
+            } else if (column.type === "number") {
+              student.number = parseInt(text) || index + 1;
+            } else if (column.type === "fard1") {
+              student.marks.fard1 = this.parseMarkValue(text);
+            } else if (column.type === "fard2") {
+              student.marks.fard2 = this.parseMarkValue(text);
+            } else if (column.type === "fard3") {
+              student.marks.fard3 = this.parseMarkValue(text);
+            } else if (column.type === "activities") {
+              student.marks.activities = this.parseMarkValue(text);
+            }
+            break;
+          }
+        }
+      });
+
+      // Only add if we have a name or marks
+      if (student.name || Object.values(student.marks).some((mark) => mark !== null)) {
+        students.push(student);
+      }
+    });
+
+    // If we don't have enough structure from layout analysis, fall back to simple text parsing
+    if (students.length === 0) {
+      return this.extractStructuredData(fullText);
+    }
+
+    return { students, detectedMarkTypes };
+  }
+
+  /**
+   * Parse a mark value from text, handling different formats
+   */
+  parseMarkValue(text: string): number | null {
+    if (!text) return null;
+
+    // Remove non-numeric characters except decimal separators
+    const cleaned = text.replace(/[^\d.,]/g, "").replace(",", ".");
+    const value = parseFloat(cleaned);
+
+    if (isNaN(value) || value < 0 || value > 20) {
+      return null;
+    }
+
+    return this.formatMarkToDecimal(value);
+  }
+}
 export default new OCRService();
