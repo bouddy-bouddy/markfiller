@@ -11,7 +11,6 @@ import {
 import LoadingSpinner from "../shared/LoadingSpinner";
 import { DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
-import enhancedOcrService from "../../services/enhancedOcrService";
 import OcrQualityTips from "../shared/OcrQualityTips";
 
 const StepTitle = styled.div`

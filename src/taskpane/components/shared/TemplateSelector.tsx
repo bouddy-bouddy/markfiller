@@ -1,6 +1,6 @@
 import React from "react";
 import { Card, Text, RadioGroup, Radio } from "@fluentui/react-components";
-import { DocumentTemplate24Regular } from "@fluentui/react-icons";
+import { DocumentText24Regular } from "@fluentui/react-icons";
 import styled from "styled-components";
 import { documentTemplates } from "../../config/documentTemplates";
 
@@ -20,7 +20,7 @@ const TemplateSelector: React.FC<TemplateSelectorProps> = ({ selectedTemplate, o
   return (
     <TemplateCard>
       <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
-        <DocumentTemplate24Regular style={{ color: "#0284c7", flexShrink: 0 }} />
+        <DocumentText24Regular style={{ color: "#0284c7", flexShrink: 0 }} />
         <div>
           <Text weight="semibold" style={{ color: "#0284c7", display: "block", marginBottom: "12px" }}>
             اختر نوع المستند للحصول على نتائج أفضل:
