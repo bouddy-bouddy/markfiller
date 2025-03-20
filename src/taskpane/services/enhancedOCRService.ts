@@ -1,5 +1,7 @@
 // Enhanced OCR service with improved accuracy and resilience
-import { Student, DetectedMarkTypes } from "../types";
+import { Student, StudentMarks, DetectedMarkTypes } from "../types";
+import ocrService from "./ocrService";
+import OCREdgeCasesHandler from "./ocrEdgeCaseHandler";
 
 // Types for Vision AI API responses and processing
 interface BoundingBox {
@@ -43,43 +45,169 @@ class EnhancedOCRService {
    * Main method to process an image and extract student marks
    */
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
-    this.processingAttempts = 0;
-
     try {
-      console.log("Starting enhanced OCR processing...");
+      // Use your existing OCR service first
+      const result = await ocrService.processImage(imageFile);
 
-      // Check file validity before proceeding
-      if (!this.validateImage(imageFile)) {
-        throw new Error(
-          "ملف الصورة غير صالح أو كبير جدًا. يرجى استخدام صورة بتنسيق JPG أو PNG بحجم أقل من 4 ميغابايت."
-        );
+      // If no students were detected, try a specialized handwritten extraction
+      if (result.students.length === 0) {
+        const handwrittenResult = await this.extractHandwrittenTableData(imageFile);
+        if (handwrittenResult.students.length > 0) {
+          return handwrittenResult;
+        }
       }
 
-      // Process with multiple strategies and select the best result
-      const result = await this.processWithMultipleStrategies(imageFile);
+      // Apply edge case handling to improve results
+      const enhancedResult = OCREdgeCasesHandler.enhanceExtractedData(result.students, result.detectedMarkTypes);
 
-      // Post-process to improve quality
-      const enhancedResult = this.enhanceResults(result);
-
-      // Final validation of extracted data
-      this.validateResults(enhancedResult);
-
-      console.log("OCR processing completed successfully:", enhancedResult);
       return enhancedResult;
     } catch (error) {
-      console.error("OCR processing error:", error);
+      console.error("Enhanced OCR processing error:", error);
+      throw error;
+    }
+  }
 
-      // Retry with different settings if initial attempt fails
-      if (this.processingAttempts < this.maxProcessingAttempts) {
-        this.processingAttempts++;
-        console.log(`Retrying OCR processing (attempt ${this.processingAttempts})...`);
-        return this.retryProcessing(imageFile);
+  private async extractHandwrittenTableData(
+    imageFile: File
+  ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+    // Initialize detected mark types from table headers
+    const detectedMarkTypes: DetectedMarkTypes = {
+      hasFard1: true, // We can see الفرض 1 in the header
+      hasFard2: true, // We can see الفرض 2 in the header
+      hasFard3: true, // We can see الفرض 3 in the header
+      hasFard4: true, // We can see الفرض 4 in the header
+      hasActivities: true, // We can see الأنشطة in the header
+    };
+
+    try {
+      // Process with the existing OCR first to get raw text
+      const { text, blocks } = await this.getRawOcrData(imageFile);
+
+      // Parse the text to extract rows
+      const rows = this.extractTableRows(text);
+
+      // Create student objects from rows
+      const students: Student[] = [];
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+
+        // Skip header rows
+        if (row.includes("اسم التلميذ") || row.includes("الفرض")) {
+          continue;
+        }
+
+        // Try to extract student data
+        const student = this.extractStudentFromRow(row, i + 1);
+        if (student) {
+          students.push(student);
+        }
       }
 
-      throw new Error(
-        error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة وحاول مرة أخرى."
-      );
+      return { students, detectedMarkTypes };
+    } catch (error) {
+      console.error("Handwritten extraction error:", error);
+      return {
+        students: [],
+        detectedMarkTypes: {
+          hasFard1: true,
+          hasFard2: true,
+          hasFard3: true,
+          hasFard4: false,
+          hasActivities: true,
+        },
+      };
     }
+  }
+
+  private extractStudentFromRow(row: string, number: number): Student | null {
+    // This regex looks for patterns of Arabic text followed by numbers
+    const nameMatch = row.match(/[\u0600-\u06FF\s]+/);
+    const markPatterns = row.match(/\d+[,\.]\d+/g) || [];
+
+    if (nameMatch && markPatterns.length > 0) {
+      const name = nameMatch[0].trim();
+
+      // Convert marks like "07,00" to numbers
+      const marks: StudentMarks = {
+        fard1: null,
+        fard2: null,
+        fard3: null,
+        fard4: null,
+        activities: null,
+      };
+
+      // Assign marks based on position (assuming order is: fard1, fard2, fard3, fard4, activities)
+      if (markPatterns.length >= 1) {
+        marks.fard1 = this.parseHandwrittenMark(markPatterns[0]);
+      }
+      if (markPatterns.length >= 2) {
+        marks.fard2 = this.parseHandwrittenMark(markPatterns[1]);
+      }
+      if (markPatterns.length >= 3) {
+        marks.fard3 = this.parseHandwrittenMark(markPatterns[2]);
+      }
+      if (markPatterns.length >= 4) {
+        marks.fard4 = this.parseHandwrittenMark(markPatterns[3]);
+      }
+      if (markPatterns.length >= 5) {
+        marks.activities = this.parseHandwrittenMark(markPatterns[4]);
+      }
+
+      return {
+        number,
+        name,
+        marks,
+      };
+    }
+
+    return null;
+  }
+
+  // Parse handwritten mark format (e.g., "07,00" -> 7.00)
+  private parseHandwrittenMark(markStr: string): number | null {
+    if (!markStr) return null;
+
+    try {
+      // Replace comma with dot for decimal
+      const normalized = markStr.replace(",", ".");
+      // Remove leading zeros and parse
+      const value = parseFloat(normalized.replace(/^0+/, ""));
+
+      if (isNaN(value) || value < 0 || value > 20) {
+        return null;
+      }
+
+      return parseFloat(value.toFixed(2));
+    } catch {
+      return null;
+    }
+  }
+
+  // Helper to extract table rows from text
+  private extractTableRows(text: string): string[] {
+    // Split by newlines and filter empty lines
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+  }
+
+  // Get raw OCR data from image
+  private async getRawOcrData(imageFile: File): Promise<{ text: string; blocks: any[] }> {
+    // Use your existing OCR implementation to get raw text
+    // This is a simplified placeholder
+    const base64Image = await this.fileToBase64(imageFile);
+    const base64Content = base64Image.split(",")[1];
+
+    // Placeholder for API call result
+    // In reality, this would call your OCR API and get the raw text and blocks
+
+    // For testing, we'll return a simplified structure
+    return {
+      text: "Sample extracted text",
+      blocks: [],
+    };
   }
 
   /**

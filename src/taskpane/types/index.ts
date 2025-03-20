@@ -4,6 +4,7 @@ export interface StudentMarks {
   fard1: number | null;
   fard2: number | null;
   fard3: number | null;
+  fard4: number | null; // Added for الفرض 4
   activities: number | null;
   [key: string]: number | null; // To allow dynamic access
 }
@@ -39,6 +40,7 @@ export interface DetectedMarkTypes {
   hasFard1: boolean;
   hasFard2: boolean;
   hasFard3: boolean;
+  hasFard4: boolean; // Added for الفرض 4
   hasActivities: boolean;
 }
 
