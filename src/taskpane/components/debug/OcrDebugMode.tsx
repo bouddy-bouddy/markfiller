@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Card, Text, Button, Divider, Checkbox, Slider } from "@fluentui/react-components";
-import { Bug24Regular, ImageStar24Regular } from "@fluentui/react-icons";
+import { Bug24Regular, Image24Regular } from "@fluentui/react-icons";
 import styled from "styled-components";
 
 const DebugCard = styled(Card)`
@@ -130,7 +130,7 @@ const OcrDebugMode: React.FC<OcrDebugModeProps> = ({ onSendFeedback, imagePrevie
       </DebugSection>
 
       <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <Button appearance="primary" icon={<ImageStar24Regular />} onClick={handleSubmitFeedback}>
+        <Button appearance="primary" icon={<Image24Regular />} onClick={handleSubmitFeedback}>
           إرسال الملاحظات
         </Button>
         <Button appearance="subtle" onClick={() => setDebugEnabled(false)}>

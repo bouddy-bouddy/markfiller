@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { createGlobalStyle } from "styled-components";
-import enhancedOcrService from "../services/ocrService";
+import enhancedOcrService from "../services/enhancedOCRService";
 import excelService from "../services/excelService";
 import OCREdgeCasesHandler from "../services/ocrEdgeCaseHandler";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
@@ -492,7 +492,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // Handle feedback for OCR improvements
   const handleOcrFeedback = async (feedback: any) => {
     try {
-      await feedbackService.sendOcrFeedback(feedback, imagePreview);
+      await feedbackService.sendOcrFeedback(feedback, imagePreview || undefined);
       setSuccessMessage("شكرًا لك! تم إرسال ملاحظاتك وستساعد في تحسين دقة التعرف الضوئي.");
     } catch (error) {
       setError("حدث خطأ أثناء إرسال الملاحظات. يرجى المحاولة مرة أخرى.");

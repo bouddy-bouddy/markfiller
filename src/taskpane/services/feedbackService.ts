@@ -21,10 +21,11 @@ class FeedbackService {
 
       // Store in local storage for development/testing
       const storedFeedback = JSON.parse(localStorage.getItem("ocrFeedback") || "[]");
+      const resizedImage = imageData ? await this.resizeImageData(imageData, 100) : undefined;
       storedFeedback.push({
         ...feedback,
         // Only include a small thumbnail of the image to save space
-        imageData: imageData ? this.resizeImageData(imageData, 100) : undefined,
+        imageData: resizedImage,
       });
       localStorage.setItem("ocrFeedback", JSON.stringify(storedFeedback));
 
@@ -38,7 +39,7 @@ class FeedbackService {
   /**
    * Resize image data to a smaller size for storage
    */
-  private resizeImageData(imageData: string, maxDimension: number): string {
+  private async resizeImageData(imageData: string, maxDimension: number): Promise<string> {
     return new Promise<string>((resolve) => {
       const img = new Image();
       img.onload = () => {
