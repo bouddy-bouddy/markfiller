@@ -101,6 +101,7 @@ class OCRService {
         hasFard1: true,
         hasFard2: true,
         hasFard3: true,
+        hasFard4: false,
         hasActivities: true,
       };
 
@@ -124,6 +125,7 @@ class OCRService {
             fard3: marks.length > 1 ? this.cleanMarkValue(marks[1] || null) : null,
             fard2: marks.length > 2 ? this.cleanMarkValue(marks[2] || null) : null,
             fard1: marks.length > 3 ? this.cleanMarkValue(marks[3] || null) : null,
+            fard4: null, // Not used in this format
           },
         };
 
@@ -142,6 +144,7 @@ class OCRService {
           hasFard1: false,
           hasFard2: false,
           hasFard3: false,
+          hasFard4: false,
           hasActivities: false,
         },
       };
@@ -295,6 +298,7 @@ class OCRService {
             fard1: this.formatMarkToDecimal(marks[0]) || null,
             fard2: this.formatMarkToDecimal(marks[1]) || null,
             fard3: this.formatMarkToDecimal(marks[2]) || null,
+            fard4: null, // Not used in this format
             activities: this.formatMarkToDecimal(marks[3]) || null,
           },
         });

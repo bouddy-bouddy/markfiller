@@ -138,19 +138,19 @@ class EnhancedOCRService {
       };
 
       // Assign marks based on position (assuming order is: fard1, fard2, fard3, fard4, activities)
-      if (markPatterns.length >= 1) {
+      if (markPatterns.length >= 1 && markPatterns[0]) {
         marks.fard1 = this.parseHandwrittenMark(markPatterns[0]);
       }
-      if (markPatterns.length >= 2) {
+      if (markPatterns.length >= 2 && markPatterns[1]) {
         marks.fard2 = this.parseHandwrittenMark(markPatterns[1]);
       }
-      if (markPatterns.length >= 3) {
+      if (markPatterns.length >= 3 && markPatterns[2]) {
         marks.fard3 = this.parseHandwrittenMark(markPatterns[2]);
       }
-      if (markPatterns.length >= 4) {
+      if (markPatterns.length >= 4 && markPatterns[3]) {
         marks.fard4 = this.parseHandwrittenMark(markPatterns[3]);
       }
-      if (markPatterns.length >= 5) {
+      if (markPatterns.length >= 5 && markPatterns[4]) {
         marks.activities = this.parseHandwrittenMark(markPatterns[4]);
       }
 
@@ -498,6 +498,7 @@ class EnhancedOCRService {
       hasFard1: false,
       hasFard2: false,
       hasFard3: false,
+      hasFard4: false,
       hasActivities: false,
     };
 
@@ -595,6 +596,7 @@ class EnhancedOCRService {
           fard1: null,
           fard2: null,
           fard3: null,
+          fard4: null,
           activities: null,
         },
       };
@@ -652,6 +654,7 @@ class EnhancedOCRService {
         hasFard1: false,
         hasFard2: false,
         hasFard3: false,
+        hasFard4: false,
         hasActivities: false,
       };
 
@@ -706,6 +709,7 @@ class EnhancedOCRService {
         hasFard1: false,
         hasFard2: false,
         hasFard3: false,
+        hasFard4: false,
         hasActivities: false,
       };
 
@@ -747,17 +751,18 @@ class EnhancedOCRService {
                 fard1: validMarks[0] || null,
                 fard2: validMarks[1] || null,
                 fard3: validMarks[2] || null,
-                activities: validMarks[3] || null,
+                fard4: validMarks[3] || null,
+                activities: validMarks[4] || null,
               },
             };
 
             students.push(currentStudent);
 
             // Update detected types based on available marks
-            if (currentStudent.marks.fard1 !== null) detectedMarkTypes.hasFard1 = true;
-            if (currentStudent.marks.fard2 !== null) detectedMarkTypes.hasFard2 = true;
-            if (currentStudent.marks.fard3 !== null) detectedMarkTypes.hasFard3 = true;
-            if (currentStudent.marks.activities !== null) detectedMarkTypes.hasActivities = true;
+            if (currentStudent && currentStudent.marks.fard1 !== null) detectedMarkTypes.hasFard1 = true;
+            if (currentStudent && currentStudent.marks.fard2 !== null) detectedMarkTypes.hasFard2 = true;
+            if (currentStudent && currentStudent.marks.fard3 !== null) detectedMarkTypes.hasFard3 = true;
+            if (currentStudent && currentStudent.marks.activities !== null) detectedMarkTypes.hasActivities = true;
           }
         }
         // If we have a current student but the line just has numbers,
@@ -769,16 +774,16 @@ class EnhancedOCRService {
 
           if (additionalMarks.length > 0) {
             // Fill in any missing marks
-            if (currentStudent.marks.fard1 === null) {
+            if (currentStudent && currentStudent.marks.fard1 === null) {
               currentStudent.marks.fard1 = additionalMarks[0];
               detectedMarkTypes.hasFard1 = true;
-            } else if (currentStudent.marks.fard2 === null) {
+            } else if (currentStudent && currentStudent.marks.fard2 === null) {
               currentStudent.marks.fard2 = additionalMarks[0];
               detectedMarkTypes.hasFard2 = true;
-            } else if (currentStudent.marks.fard3 === null) {
+            } else if (currentStudent && currentStudent.marks.fard3 === null) {
               currentStudent.marks.fard3 = additionalMarks[0];
               detectedMarkTypes.hasFard3 = true;
-            } else if (currentStudent.marks.activities === null) {
+            } else if (currentStudent && currentStudent.marks.activities === null) {
               currentStudent.marks.activities = additionalMarks[0];
               detectedMarkTypes.hasActivities = true;
             }
@@ -881,6 +886,7 @@ class EnhancedOCRService {
             fard1: null,
             fard2: null,
             fard3: null,
+            fard4: null,
             activities: null,
           },
         };
@@ -971,7 +977,8 @@ class EnhancedOCRService {
             fard1: marks.length > 0 ? marks[0] : null,
             fard2: marks.length > 1 ? marks[1] : null,
             fard3: marks.length > 2 ? marks[2] : null,
-            activities: marks.length > 3 ? marks[3] : null,
+            fard4: marks.length > 3 ? marks[3] : null,
+            activities: marks.length > 4 ? marks[4] : null,
           },
         };
 

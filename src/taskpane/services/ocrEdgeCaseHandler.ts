@@ -433,6 +433,7 @@ export class OCREdgeCasesHandler {
             fard1: existingStudent.marks.fard1 !== null ? existingStudent.marks.fard1 : student.marks.fard1,
             fard2: existingStudent.marks.fard2 !== null ? existingStudent.marks.fard2 : student.marks.fard2,
             fard3: existingStudent.marks.fard3 !== null ? existingStudent.marks.fard3 : student.marks.fard3,
+            fard4: existingStudent.marks.fard4 !== null ? existingStudent.marks.fard4 : student.marks.fard4,
             activities:
               existingStudent.marks.activities !== null ? existingStudent.marks.activities : student.marks.activities,
           };

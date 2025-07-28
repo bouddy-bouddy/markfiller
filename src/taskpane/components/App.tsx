@@ -245,6 +245,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     hasFard1: false,
     hasFard2: false,
     hasFard3: false,
+    hasFard4: false,
     hasActivities: false,
   });
 

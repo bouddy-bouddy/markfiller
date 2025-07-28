@@ -4,15 +4,16 @@ import { Student, DetectedMarkTypes } from "../taskpane/types";
 
 // Mock data for testing
 const testMarks: Student[] = [
-  { number: 1, name: "أحمد محمد", marks: { fard1: 15.5, fard2: 16.0, fard3: null, activities: 18.0 } },
-  { number: 2, name: "فاطمة الزهراء", marks: { fard1: 17.5, fard2: 16.5, fard3: null, activities: 19.0 } },
-  { number: 3, name: "يوسف علي", marks: { fard1: 14.0, fard2: 13.5, fard3: null, activities: 16.0 } },
+  { number: 1, name: "أحمد محمد", marks: { fard1: 15.5, fard2: 16.0, fard3: null, fard4: null, activities: 18.0 } },
+  { number: 2, name: "فاطمة الزهراء", marks: { fard1: 17.5, fard2: 16.5, fard3: null, fard4: null, activities: 19.0 } },
+  { number: 3, name: "يوسف علي", marks: { fard1: 14.0, fard2: 13.5, fard3: null, fard4: null, activities: 16.0 } },
 ];
 
 const testDetectedTypes: DetectedMarkTypes = {
   hasFard1: true,
   hasFard2: true,
   hasFard3: false,
+  hasFard4: false,
   hasActivities: true,
 };
 
@@ -43,7 +44,7 @@ async function testOcrService() {
     testDataWithOutlier.push({
       number: 4,
       name: "علي حسن",
-      marks: { fard1: 1.0, fard2: 2.0, fard3: null, activities: 3.0 }, // Outlier
+      marks: { fard1: 1.0, fard2: 2.0, fard3: null, fard4: null, activities: 3.0 }, // Outlier
     });
 
     // This method would need to be exposed or modified for testing
