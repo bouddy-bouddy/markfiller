@@ -11,6 +11,8 @@ export async function insertText(text: string) {
       await context.sync();
     });
   } catch (error) {
-    console.log("Error: " + error);
+    // Silently handle errors in production
+    // In development, you can uncomment the line below for debugging
+    // console.error("Error inserting text:", error);
   }
 }

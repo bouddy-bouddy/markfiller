@@ -539,8 +539,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
 
-      // Log detected mark types for debugging
-      console.log("Detected mark types:", enhancedResults.detectedMarkTypes);
+      // Detected mark types available for processing
 
       // Show success message with intelligent mark detection
       const detectedTypes = [];
@@ -713,7 +712,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم.`);
 
         if (results.notFoundStudents.length > 0) {
-          console.log("Students not found:", results.notFoundStudents);
+          // Students not found - this information is available in the results object
         }
       } else {
         setSuccessMessage(`تم إدخال ${results.success} علامة بنجاح في عمود "${markType}"`);

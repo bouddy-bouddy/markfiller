@@ -8,8 +8,6 @@ interface CurrentRow {
 class OCRService {
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     try {
-      console.log("Starting Vision AI OCR processing...");
-
       // Convert image to base64
       const base64Image = await this.fileToBase64(imageFile);
       // Remove the data URL prefix
@@ -24,8 +22,6 @@ class OCRService {
 
       // Vision AI API endpoint
       const apiUrl = `https://vision.googleapis.com/v1p2beta1/files:annotate?key=${apiKey}`;
-
-      console.log("Sending request to Vision AI API...");
 
       // Prepare request to Vision AI API
       const response = await fetch(apiUrl, {
@@ -72,12 +68,9 @@ class OCRService {
       }
 
       const extractedText = data.responses[0].fullTextAnnotation.text;
-      console.log("OCR completed, raw text:", extractedText);
 
       // Extract structured student data from the OCR result
       const { students, detectedMarkTypes } = this.extractStructuredData(extractedText);
-      console.log("Structured data:", students);
-      console.log("Detected mark types:", detectedMarkTypes);
 
       if (students.length === 0) {
         throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
@@ -94,8 +87,6 @@ class OCRService {
 
   extractStructuredData(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
     try {
-      console.log("Extracting structured data from OCR text");
-
       // Default detected mark types for this document format
       const detectedMarkTypes: DetectedMarkTypes = {
         hasFard1: true,
@@ -107,7 +98,6 @@ class OCRService {
 
       // Extract student names and mark rows
       const { names, markRows } = this.extractMarksFromTable(text);
-      console.log(`Extracted ${names.length} student names and mark rows`);
 
       // Map to Student objects
       const students: Student[] = [];
@@ -131,9 +121,6 @@ class OCRService {
 
         students.push(student);
       }
-
-      // Log the extraction results
-      console.log("Extracted students:", students);
 
       return { students, detectedMarkTypes };
     } catch (error) {
@@ -367,13 +354,7 @@ class OCRService {
     });
   }
 
-  private debug = true;
-  private logDebug(message: string, data?: any) {
-    if (this.debug) {
-      console.log(`[DEBUG] ${message}`);
-      if (data !== undefined) console.log(data);
-    }
-  }
+  // Debug logging removed for production
 }
 
 export default new OCRService();

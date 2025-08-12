@@ -16,18 +16,9 @@ interface TextBlock {
   boundingPoly: BoundingBox;
 }
 
-interface TableCell {
-  text: string;
-  row: number;
-  col: number;
-  confidence: number;
-}
+// TableCell interface removed as it's not used
 
-interface ProcessedTable {
-  headers: string[];
-  rows: TableCell[][];
-  confidenceScore: number;
-}
+// ProcessedTable interface removed as it's not used
 
 // Configuration for mark detection patterns
 const MARK_PATTERNS = {
@@ -81,7 +72,7 @@ class EnhancedOCRService {
 
     try {
       // Process with the existing OCR first to get raw text
-      const { text, blocks } = await this.getRawOcrData(imageFile);
+      const { text } = await this.getRawOcrData(imageFile);
 
       // Parse the text to extract rows
       const rows = this.extractTableRows(text);
@@ -235,17 +226,16 @@ class EnhancedOCRService {
   private async processWithMultipleStrategies(
     imageFile: File
   ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
-    // Try table detection first (more structured approach)
+    // Try table detection first
     try {
       const tableResult = await this.processWithTableDetection(imageFile);
 
       // If we get a good number of students with marks, use this result
       if (tableResult.students.length >= 5 && this.hasValidMarks(tableResult.students)) {
-        console.log("Table detection succeeded with good quality results");
         return tableResult;
       }
     } catch (tableError) {
-      console.log("Table detection failed, will try text detection", tableError);
+      // Table detection failed, will try text detection
     }
 
     // Try text detection as fallback
@@ -254,11 +244,10 @@ class EnhancedOCRService {
 
       // If we get any students with marks, use this result
       if (textResult.students.length > 0) {
-        console.log("Text detection succeeded with usable results");
         return textResult;
       }
     } catch (textError) {
-      console.log("Text detection failed", textError);
+      // Text detection failed
     }
 
     // If both methods fail, try one more time with more aggressive settings
@@ -512,7 +501,6 @@ class EnhancedOCRService {
     });
 
     if (headerBlocks.length === 0) {
-      console.log("No header blocks found, falling back to text-based extraction");
       return this.extractStructuredData(fullText);
     }
 
@@ -647,8 +635,6 @@ class EnhancedOCRService {
    */
   private extractStructuredData(text: string): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     return new Promise((resolve) => {
-      console.log("Extracting structured data from OCR text");
-
       // Default detected mark types
       const detectedMarkTypes: DetectedMarkTypes = {
         hasFard1: false,
@@ -702,8 +688,6 @@ class EnhancedOCRService {
     text: string
   ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     return new Promise((resolve) => {
-      console.log("Extracting structured data with aggressive settings");
-
       // Default detected mark types
       const detectedMarkTypes: DetectedMarkTypes = {
         hasFard1: false,
@@ -1405,7 +1389,6 @@ class EnhancedOCRService {
     try {
       // In a production environment, you would check with your server
       // For now, we'll simulate an update check
-      console.log("Checking for OCR service updates...");
 
       // Current version
       const currentVersion = "1.0.0";

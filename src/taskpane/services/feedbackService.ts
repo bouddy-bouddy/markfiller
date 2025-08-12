@@ -16,8 +16,7 @@ class FeedbackService {
   async sendOcrFeedback(feedback: OcrFeedback, imageData?: string): Promise<boolean> {
     try {
       // In a production environment, you would send this to your backend
-      // For now, we'll log it to console
-      console.log("OCR Feedback received:", feedback);
+      // For now, we'll store it locally without console logging
 
       // Store in local storage for development/testing
       const storedFeedback = JSON.parse(localStorage.getItem("ocrFeedback") || "[]");

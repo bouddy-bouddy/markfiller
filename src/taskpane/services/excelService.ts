@@ -18,8 +18,6 @@ class ExcelService {
   async validateExcelFile(): Promise<boolean> {
     try {
       return await Excel.run(async (context) => {
-        console.log("Validating Excel file with intelligent analysis...");
-
         // Get the active worksheet
         const sheet = context.workbook.worksheets.getActiveWorksheet();
         sheet.load("name");
@@ -30,28 +28,21 @@ class ExcelService {
 
         await context.sync();
 
-        console.log(`Active sheet name: ${sheet.name}`);
-        console.log("Range values sample:", range.values.slice(0, 3));
-
         // First check if the file has any data
         if (!range.values || range.values.length < 5) {
-          console.log("File has insufficient data rows");
           return false;
         }
 
         // Start with basic analysis - recognize Massar file format
         const isMassarFormat = this.detectMassarFormat(range.values);
         if (!isMassarFormat) {
-          console.log("Could not identify file as Massar export, attempting generic format analysis");
           // Try generic format detection (non-Massar)
           const isGenericFormat = this.analyzeGenericFormat(range.values);
           if (!isGenericFormat) {
-            console.log("Could not identify a valid student marks format");
             return false;
           }
         }
 
-        console.log("Excel file structure analyzed successfully:", this.worksheetStructure);
         return true;
       });
     } catch (error) {
@@ -78,13 +69,10 @@ class ExcelService {
           // Check if any of our indicators is contained in this cell
           for (let indicator of massarIndicators) {
             if (cell.toString().includes(indicator)) {
-              console.log(`Found Massar indicator: ${indicator} in cell value: ${cell}`);
               foundIndicators++;
 
               // If we found at least 2 indicators, it's likely a Massar file
               if (foundIndicators >= 2) {
-                console.log("Confirmed Massar file based on indicators");
-
                 // Intelligently analyze the structure
                 this.analyzeMassarStructure(values);
                 return true;
@@ -560,7 +548,6 @@ class ExcelService {
             cell && typeof cell === "string" && headerKeywords.some((keyword) => cell.toString().includes(keyword))
         )
       ) {
-        console.log(`Found header row at index ${i}`);
         return row.map((cell) => (cell ? cell.toString() : ""));
       }
     }
@@ -725,7 +712,6 @@ class ExcelService {
             const availableType = this.findAvailableMarkType(detectedMarkTypes);
 
             if (availableType) {
-              console.log(`Requested mark type ${markType} not detected, using ${availableType} instead`);
               internalMarkType = availableType;
             }
           }
