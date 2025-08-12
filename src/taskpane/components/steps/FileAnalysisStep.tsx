@@ -181,6 +181,7 @@ const InfoList = styled.ol`
   padding-right: 24px;
   margin: 16px 0;
   counter-reset: step-counter;
+  list-style: none;
 `;
 
 const InfoListItem = styled.li`

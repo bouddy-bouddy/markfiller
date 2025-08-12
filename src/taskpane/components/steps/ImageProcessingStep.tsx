@@ -188,6 +188,7 @@ const InfoList = styled.ol`
   padding-right: 24px;
   margin: 0;
   counter-reset: tip-counter;
+  list-style: none;
 `;
 
 const InfoListItem = styled.li`
@@ -465,10 +466,12 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             <div>
               <InfoTitle>للحصول على أفضل النتائج:</InfoTitle>
               <InfoList>
-                <InfoListItem>التقط صورة لورقة النقط باستخدام الهاتف أو ماسح ضوئي</InfoListItem>
+                <InfoListItem>
+                  ينصح باستخدام <strong>CamScanner</strong> للتقاط الصورة
+                </InfoListItem>
                 <InfoListItem>تأكد من أن الصورة واضحة وجميع الأرقام مقروءة</InfoListItem>
                 <InfoListItem>تجنب الظلال والانعكاسات عند التقاط الصورة</InfoListItem>
-                <InfoListItem>سيتم تحليل الصورة باستخدام تقنية OCR للدقة العالية</InfoListItem>
+                <InfoListItem>سيتم تحليل الصورة بدقة عالية</InfoListItem>
               </InfoList>
             </div>
           </div>
@@ -576,7 +579,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
         )}
 
         {/* OCR Quality Tips added here */}
-        {isActive && !isProcessing && !isCompleted && <OcrQualityTips />}
+        {/* {isActive && !isProcessing && !isCompleted && <OcrQualityTips />} */}
 
         {children}
       </div>

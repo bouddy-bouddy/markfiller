@@ -67,6 +67,7 @@ const TipsList = styled.ul`
   margin: 0;
   padding: 0 24px 0 0;
   counter-reset: tip-counter;
+  list-style: none;
 `;
 
 const TipsListItem = styled.li`

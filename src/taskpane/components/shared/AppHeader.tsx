@@ -8,7 +8,7 @@ const HeaderContainer = styled.div`
   align-items: center;
   justify-content: space-between;
   padding: 20px 32px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 50%, #059669 100%);
+  background: linear-gradient(135deg, #064e3b 0%, #0e7c42 40%, #065f46 70%, #047857 100%);
   color: white;
   border-top-left-radius: 16px;
   border-top-right-radius: 16px;
@@ -150,7 +150,7 @@ const AppHeader: React.FC<AppHeaderProps> = ({ title }) => {
           <MainTitle as="h1" size={600}>
             {title}
           </MainTitle>
-          <Subtitle>نظام استيراد النقط الذكي</Subtitle>
+          <Subtitle>نظام ادخال النقط الذكي بدقة عالية الخاص بمسار</Subtitle>
         </TitleText>
       </TitleContainer>
       <Version>إصدار 1.0.0</Version>
