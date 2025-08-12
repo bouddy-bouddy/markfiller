@@ -194,7 +194,7 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
           <CloudIcon>
             <CloudSync24Regular style={{ fontSize: "18px" }} />
           </CloudIcon>
-          نستخدم تقنية التعرف البصري على النصوص للحصول على دقة أعلى في استخراج النقط
+          يتم استخدام افضل التقنيات للحصول على دقة عالية في استخراج النقط
         </CloudProcessingText>
       )}
     </SpinnerCard>
