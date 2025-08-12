@@ -6,8 +6,6 @@ import {
   ErrorCircle24Regular,
   ArrowSyncRegular,
 } from "@fluentui/react-icons";
-import StepIndicator from "../shared/StepIndicator";
-import StatusAlert from "../shared/StatusAlert";
 import { ExcelStatus } from "../../types";
 import styled from "styled-components";
 
@@ -18,36 +16,219 @@ interface StatusCardProps {
 const StatusCard = styled(Card)<StatusCardProps>`
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  background-color: ${(props) => (props.isValid ? "#f0f9ff" : "#fff5f5")};
-  border: 1px solid ${(props) => (props.isValid ? "#bae6fd" : "#fed7d7")};
+  gap: 20px;
+  padding: 24px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+  background: ${(props) =>
+    props.isValid
+      ? "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)"
+      : "linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)"};
+  border: 2px solid ${(props) => (props.isValid ? "rgba(14, 124, 66, 0.2)" : "rgba(239, 68, 68, 0.2)")};
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: ${(props) =>
+      props.isValid
+        ? "linear-gradient(90deg, #0e7c42 0%, #10b981 100%)"
+        : "linear-gradient(90deg, #ef4444 0%, #f87171 100%)"};
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+`;
+
+const StatusIcon = styled.div<{ isValid: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: ${(props) =>
+    props.isValid
+      ? "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)"
+      : "linear-gradient(135deg, #ef4444 0%, #f87171 100%)"};
+  box-shadow: 0 8px 16px -4px ${(props) => (props.isValid ? "rgba(14, 124, 66, 0.3)" : "rgba(239, 68, 68, 0.3)")};
+  flex-shrink: 0;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    transform: scale(1.05);
+  }
+`;
+
+const StatusContent = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const StatusTitle = styled(Text)`
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  color: #1f2937 !important;
+  margin: 0 !important;
+`;
+
+const StatusMessage = styled(Text)`
+  color: #6b7280 !important;
+  font-size: 14px !important;
+  line-height: 1.5 !important;
+  margin: 0 !important;
+`;
+
+const ActionButton = styled(Button)`
+  margin-right: auto !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 8px 20px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  &:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
 `;
 
 const StepTitle = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px 0;
+`;
+
+const StepIcon = styled.div<{ isActive: boolean; isCompleted: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: ${(props) => {
+    if (props.isCompleted) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    if (props.isActive) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    return "linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)";
+  }};
+  color: ${(props) => {
+    if (props.isCompleted || props.isActive) return "white";
+    return "#6b7280";
+  }};
+  box-shadow: ${(props) => {
+    if (props.isCompleted || props.isActive) {
+      return "0 8px 16px -4px rgba(14, 124, 66, 0.3)";
+    }
+    return "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
+  }};
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+`;
+
+const StepTitleText = styled(Text)`
+  font-weight: 700 !important;
+  font-size: 20px !important;
+  color: #1f2937 !important;
+  margin: 0 !important;
+  letter-spacing: -0.025em;
 `;
 
 const InfoCard = styled(Card)`
-  padding: 16px;
-  border-radius: 8px;
-  margin-top: 20px;
-  background-color: #f9fafb;
-  border: 1px solid #e5e7eb;
+  padding: 24px;
+  border-radius: 16px;
+  margin-top: 24px;
+  background: linear-gradient(135deg, #f9fafb 0%, #f3f4f6 100%);
+  border: 2px solid rgba(14, 124, 66, 0.1);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+`;
+
+const InfoTitle = styled(Text)`
+  font-weight: 700 !important;
+  font-size: 16px !important;
+  color: #1f2937 !important;
+  margin: 0 0 16px 0 !important;
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
 `;
 
 const InfoList = styled.ol`
-  padding-right: 20px;
-  margin: 12px 0;
+  padding-right: 24px;
+  margin: 16px 0;
+  counter-reset: step-counter;
 `;
 
 const InfoListItem = styled.li`
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  position: relative;
+  padding-right: 32px;
+  line-height: 1.6;
+  color: #4b5563;
+  font-weight: 500;
+
+  &::before {
+    counter-increment: step-counter;
+    content: counter(step-counter);
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 24px;
+    height: 24px;
+    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2);
+  }
+`;
+
+const ContinueButton = styled(Button)`
+  margin-top: 24px !important;
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 32px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+  &:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+  }
+
+  &:active {
+    transform: translateY(0) !important;
+  }
 `;
 
 interface FileAnalysisStepProps {
@@ -61,57 +242,44 @@ const FileAnalysisStep: React.FC<FileAnalysisStepProps> = ({ isActive, isComplet
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
-        <DocumentTable24Regular
-          style={{
-            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#666",
-            fontSize: "24px",
-          }}
-        />
-        <Text
-          size={600}
-          weight="semibold"
-          style={{
-            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#333",
-          }}
-        >
-          تحقق من ملف مسار
-        </Text>
+        <StepIcon isActive={isActive} isCompleted={isCompleted}>
+          <DocumentTable24Regular style={{ fontSize: "24px" }} />
+        </StepIcon>
+        <StepTitleText>تحقق من ملف مسار</StepTitleText>
       </StepTitle>
 
       <div className="step-content">
-        <Text style={{ marginBottom: "20px", display: "block" }}>
+        <Text style={{ marginBottom: "24px", display: "block", lineHeight: "1.6", color: "#4b5563" }}>
           يجب فتح ملف مسار المناسب في Excel قبل استيراد العلامات. سيتم تحليل هيكل الملف للتأكد من وجود الأعمدة المطلوبة.
         </Text>
 
         <StatusCard isValid={excelStatus.isValid}>
-          {excelStatus.isValid ? (
-            <CheckmarkCircle24Regular style={{ color: "#0e7c42", fontSize: "24px", flexShrink: 0 }} />
-          ) : (
-            <ErrorCircle24Regular style={{ color: "#e53e3e", fontSize: "24px", flexShrink: 0 }} />
-          )}
+          <StatusIcon isValid={excelStatus.isValid}>
+            {excelStatus.isValid ? (
+              <CheckmarkCircle24Regular style={{ color: "white", fontSize: "28px" }} />
+            ) : (
+              <ErrorCircle24Regular style={{ color: "white", fontSize: "28px" }} />
+            )}
+          </StatusIcon>
 
-          <div>
-            <Text weight="semibold" style={{ display: "block", marginBottom: "4px" }}>
+          <StatusContent>
+            <StatusTitle>
               {excelStatus.isValid ? "تم التحقق من ملف مسار بنجاح" : "لم يتم التحقق من ملف مسار"}
-            </Text>
+            </StatusTitle>
 
-            <Text size={200} style={{ color: excelStatus.isValid ? "#0e7c42" : "#e53e3e" }}>
+            <StatusMessage>
               {excelStatus.isValid ? "ملف مسار جاهز لاستيراد العلامات" : "يرجى فتح ملف مسار المناسب في Excel"}
-            </Text>
-          </div>
+            </StatusMessage>
+          </StatusContent>
 
-          <div style={{ marginRight: "auto" }}>
-            <Button appearance="subtle" icon={<ArrowSyncRegular />} onClick={onValidateExcel}>
-              تحديث الحالة
-            </Button>
-          </div>
+          <ActionButton appearance="subtle" icon={<ArrowSyncRegular />} onClick={onValidateExcel}>
+            تحديث الحالة
+          </ActionButton>
         </StatusCard>
 
         {!excelStatus.isValid && (
           <InfoCard>
-            <Text weight="semibold" style={{ display: "block", marginBottom: "12px" }}>
-              خطوات فتح ملف مسار:
-            </Text>
+            <InfoTitle>📋 خطوات فتح ملف مسار:</InfoTitle>
 
             <InfoList>
               <InfoListItem>قم بتسجيل الدخول إلى منصة مسار</InfoListItem>
@@ -124,10 +292,10 @@ const FileAnalysisStep: React.FC<FileAnalysisStepProps> = ({ isActive, isComplet
         )}
 
         {isActive && excelStatus.isValid && (
-          <div style={{ marginTop: "20px", textAlign: "left" }}>
-            <Button appearance="primary" onClick={() => onValidateExcel && onValidateExcel()}>
+          <div style={{ marginTop: "24px", textAlign: "left" }}>
+            <ContinueButton appearance="primary" onClick={() => onValidateExcel && onValidateExcel()}>
               متابعة
-            </Button>
+            </ContinueButton>
           </div>
         )}
       </div>

@@ -12,6 +12,7 @@ import {
 } from "@fluentui/react-components";
 import { Edit24Regular, Warning16Regular } from "@fluentui/react-icons";
 import { Student, StudentMarks } from "../../types";
+import styled from "styled-components";
 
 interface DataTableProps {
   data: Student[];
@@ -23,6 +24,161 @@ interface EditingCell {
   studentIndex: number;
   markType: keyof StudentMarks;
 }
+
+const TableContainer = styled.div`
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 16px;
+  border: 2px solid rgba(14, 124, 66, 0.1);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow:
+    0 4px 6px -1px rgba(0, 0, 0, 0.1),
+    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    box-shadow:
+      0 20px 25px -5px rgba(0, 0, 0, 0.1),
+      0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Custom scrollbar */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #0e7c42 0%, #10b981 100%);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #065f46 0%, #0e7c42 100%);
+  }
+`;
+
+const StyledTable = styled(Table)`
+  .fui-TableHeader {
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+    border-bottom: 2px solid rgba(14, 124, 66, 0.2);
+  }
+
+  .fui-TableHeaderCell {
+    font-weight: 700 !important;
+    color: #0e7c42 !important;
+    padding: 16px 12px !important;
+    font-size: 14px !important;
+    text-align: center !important;
+    border-right: 1px solid rgba(14, 124, 66, 0.1);
+
+    &:last-child {
+      border-right: none;
+    }
+  }
+
+  .fui-TableRow {
+    transition: all 0.2s ease;
+
+    &:hover {
+      background: linear-gradient(135deg, rgba(14, 124, 66, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%) !important;
+      transform: scale(1.001);
+    }
+  }
+
+  .fui-TableCell {
+    padding: 12px !important;
+    text-align: center !important;
+    border-right: 1px solid rgba(14, 124, 66, 0.05);
+    font-weight: 500 !important;
+
+    &:last-child {
+      border-right: none;
+    }
+  }
+`;
+
+const EditableCell = styled.div<{ isSuspicious: boolean }>`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  background: ${(props) => (props.isSuspicious ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "transparent")};
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid ${(props) => (props.isSuspicious ? "rgba(239, 68, 68, 0.2)" : "transparent")};
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: ${(props) =>
+      props.isSuspicious
+        ? "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)"
+        : "linear-gradient(135deg, rgba(14, 124, 66, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)"};
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+`;
+
+const MarkValue = styled.span<{ isSuspicious: boolean }>`
+  font-weight: 600;
+  color: ${(props) => (props.isSuspicious ? "#dc2626" : "#1f2937")};
+  font-size: 14px;
+`;
+
+const CellActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+`;
+
+const WarningIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
+  border-radius: 50%;
+  color: white;
+  font-size: 10px;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+`;
+
+const EditIcon = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+  border-radius: 6px;
+  color: white;
+  opacity: 0;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2);
+
+  ${EditableCell}:hover & {
+    opacity: 1;
+  }
+`;
+
+const StyledInput = styled(Input)`
+  width: 70px !important;
+  border-radius: 8px !important;
+  border: 2px solid #0e7c42 !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  box-shadow: 0 4px 6px -1px rgba(14, 124, 66, 0.2) !important;
+
+  &:focus {
+    border-color: #10b981 !important;
+    box-shadow: 0 0 0 3px rgba(14, 124, 66, 0.1) !important;
+  }
+`;
 
 const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMarks = [] }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
@@ -134,13 +290,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
 
     if (isEditing) {
       return (
-        <Input
+        <StyledInput
           autoFocus
           defaultValue={value !== null ? value.toString() : ""}
-          style={{
-            width: "60px",
-            backgroundColor: isSuspicious ? "#fff5f5" : undefined,
-          }}
           onKeyDown={(e) => handleKeyPress(e, index, markType)}
           onBlur={(e) => {
             const isValid = handleMarkEdit(index, markType, e.target.value);
@@ -153,50 +305,27 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     }
 
     return (
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          cursor: "pointer",
-          backgroundColor: isSuspicious ? "#fff5f5" : undefined,
-          padding: "4px",
-          borderRadius: "4px",
-        }}
-        onClick={() => setEditingCell({ studentIndex: index, markType })}
-      >
-        <span>{formatMark(value)}</span>
-        <div style={{ display: "flex", alignItems: "center" }}>
+      <EditableCell isSuspicious={isSuspicious} onClick={() => setEditingCell({ studentIndex: index, markType })}>
+        <MarkValue isSuspicious={isSuspicious}>{formatMark(value)}</MarkValue>
+        <CellActions>
           {isSuspicious && (
             <Tooltip content="علامة غير معتادة. تحقق منها." relationship="label">
-              <Warning16Regular
-                style={{
-                  marginRight: "4px",
-                  color: "#e53e3e",
-                  fontSize: "14px",
-                }}
-              />
+              <WarningIcon>
+                <Warning16Regular style={{ fontSize: "12px" }} />
+              </WarningIcon>
             </Tooltip>
           )}
-          <Edit24Regular
-            style={{
-              visibility: "hidden",
-              marginRight: "4px",
-              color: "#0078D4",
-              fontSize: "14px",
-            }}
-          />
-        </div>
-      </div>
+          <EditIcon>
+            <Edit24Regular style={{ fontSize: "16px" }} />
+          </EditIcon>
+        </CellActions>
+      </EditableCell>
     );
   };
 
   return (
-    <div
-      className="table-container"
-      style={{ maxHeight: "400px", overflowY: "auto", borderRadius: "4px", border: "1px solid #e0e0e0" }}
-    >
-      <Table>
+    <TableContainer>
+      <StyledTable>
         <TableHeader>
           <TableRow>
             <TableHeaderCell>رقم</TableHeaderCell>
@@ -212,7 +341,7 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
             <TableRow
               key={`student-${student.number}-${index}`}
               style={{
-                backgroundColor: index % 2 === 0 ? "#f9f9f9" : "white",
+                backgroundColor: index % 2 === 0 ? "rgba(14, 124, 66, 0.02)" : "rgba(255, 255, 255, 0.8)",
               }}
             >
               <TableCell>{student.number}</TableCell>
@@ -224,8 +353,8 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
             </TableRow>
           ))}
         </TableBody>
-      </Table>
-    </div>
+      </StyledTable>
+    </TableContainer>
   );
 };
 
