@@ -21,7 +21,7 @@ class OCRService {
       }
 
       // Vision AI API endpoint
-      const apiUrl = `https://vision.googleapis.com/v1p2beta1/files:annotate?key=${apiKey}`;
+      const apiUrl = `https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`;
 
       // Prepare request to Vision AI API
       const response = await fetch(apiUrl, {
