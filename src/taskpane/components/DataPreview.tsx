@@ -1,17 +1,58 @@
 import React, { useState } from "react";
 import {
+  Button,
+  Text,
   Table,
   TableHeader,
-  TableBody,
   TableRow,
-  TableCell,
   TableHeaderCell,
-  Button,
+  TableBody,
+  TableCell,
   Input,
-  Text,
 } from "@fluentui/react-components";
-import { Edit24Regular, CheckmarkCircle24Regular } from "@fluentui/react-icons";
+import { CheckmarkCircle24Regular, Edit24Regular } from "@fluentui/react-icons";
 import { Student, StudentMarks } from "../types";
+import styled from "styled-components";
+
+const ButtonContainer = styled.div`
+  margin-top: 20px;
+  display: flex;
+  gap: 16px;
+  justify-content: flex-end;
+`;
+
+const PrimaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 140px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) !important;
+  }
+`;
+
+const SecondaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 100px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
+`;
 
 interface DataPreviewProps {
   data: Student[];
@@ -28,12 +69,6 @@ interface EditingCell {
 const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, onDataUpdate }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-
-  const validateMark = (value: string | number | null): boolean => {
-    if (value === "" || value === null) return true;
-    const num = typeof value === "string" ? parseFloat(value) : value;
-    return !isNaN(num) && num >= 0 && num <= 20;
-  };
 
   const formatMark = (value: number | null): string => {
     if (value === null) return "";
@@ -84,11 +119,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
     return true;
   };
 
-  const handleKeyPress = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    studentIndex: number,
-    markType: keyof StudentMarks
-  ): void => {
+  const handleKeyPress = (e: React.KeyboardEvent, studentIndex: number, markType: keyof StudentMarks): void => {
     if (e.key === "Enter") {
       const isValid = handleMarkEdit(studentIndex, markType, e.currentTarget.value);
       if (isValid) {
@@ -111,7 +142,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
           style={{ width: "60px" }}
           onKeyDown={(e) => handleKeyPress(e, index, markType)}
           onBlur={(e) => {
-            const isValid = handleMarkEdit(index, markType, e.target.value);
+            const isValid = handleMarkEdit(index, markType, e.currentTarget.value);
             if (isValid) {
               setEditingCell(null);
             }
@@ -188,22 +219,14 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
         </Table>
       </div>
 
-      <div
-        className="button-container"
-        style={{
-          marginTop: "20px",
-          display: "flex",
-          gap: "10px",
-          justifyContent: "flex-end",
-        }}
-      >
-        <Button appearance="primary" onClick={() => onConfirm(editableData)}>
+      <ButtonContainer>
+        <PrimaryButton appearance="primary" onClick={() => onConfirm(editableData)}>
           تأكيد وإدخال في Excel
-        </Button>
-        <Button appearance="secondary" onClick={onCancel}>
+        </PrimaryButton>
+        <SecondaryButton appearance="secondary" onClick={onCancel}>
           إلغاء
-        </Button>
-      </div>
+        </SecondaryButton>
+      </ButtonContainer>
     </div>
   );
 };

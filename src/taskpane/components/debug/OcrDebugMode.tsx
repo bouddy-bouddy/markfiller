@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import { Card, Text, Button, Divider, Checkbox, Slider } from "@fluentui/react-components";
-import { Bug24Regular, Image24Regular } from "@fluentui/react-icons";
+import { Button, Text, Card, Divider, Slider, Checkbox, Badge } from "@fluentui/react-components";
+import { Bug24Regular, Image24Regular, CheckmarkCircle24Regular, DismissCircle24Regular } from "@fluentui/react-icons";
 import styled from "styled-components";
 
 const DebugCard = styled(Card)`
@@ -12,6 +12,43 @@ const DebugCard = styled(Card)`
 
 const DebugSection = styled.div`
   margin-bottom: 16px;
+`;
+
+const PrimaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 140px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) !important;
+  }
+
+  .fui-Button__icon {
+    margin-left: 8px !important;
+  }
+`;
+
+const SecondaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 100px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
 `;
 
 interface OcrDebugModeProps {
@@ -129,13 +166,13 @@ const OcrDebugMode: React.FC<OcrDebugModeProps> = ({ onSendFeedback, imagePrevie
         />
       </DebugSection>
 
-      <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
-        <Button appearance="primary" icon={<Image24Regular />} onClick={handleSubmitFeedback}>
+      <div style={{ display: "flex", gap: "16px", marginTop: "16px" }}>
+        <PrimaryButton appearance="primary" icon={<Image24Regular />} onClick={handleSubmitFeedback}>
           إرسال الملاحظات
-        </Button>
-        <Button appearance="subtle" onClick={() => setDebugEnabled(false)}>
+        </PrimaryButton>
+        <SecondaryButton appearance="subtle" onClick={() => setDebugEnabled(false)}>
           إلغاء
-        </Button>
+        </SecondaryButton>
       </div>
     </DebugCard>
   );

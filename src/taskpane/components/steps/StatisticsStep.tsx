@@ -70,6 +70,30 @@ const ButtonContainer = styled.div`
   gap: 12px;
 `;
 
+const PrimaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 140px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) !important;
+  }
+
+  .fui-Button__icon {
+    margin-left: 8px !important;
+  }
+`;
+
 const SuspiciousMarksCard = styled(Card)`
   margin-top: 20px;
   padding: 16px;
@@ -352,7 +376,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         )}
 
         <ButtonContainer>
-          <Button
+          <PrimaryButton
             appearance="primary"
             icon={<DocumentAdd24Regular />}
             onClick={() => {
@@ -361,7 +385,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             }}
           >
             إنشاء علية استيراد جديدة
-          </Button>
+          </PrimaryButton>
         </ButtonContainer>
       </div>
     </div>

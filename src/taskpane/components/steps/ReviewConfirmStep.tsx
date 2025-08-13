@@ -45,8 +45,49 @@ const BadgesContainer = styled.div`
 const ButtonContainer = styled.div`
   margin-top: 20px;
   display: flex;
-  gap: 10px;
+  gap: 16px;
   justify-content: flex-start;
+`;
+
+const PrimaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border: none !important;
+  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 140px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+  }
+
+  &:active:not(:disabled) {
+    transform: translateY(0) !important;
+  }
+
+  .fui-Button__icon {
+    margin-left: 8px !important;
+  }
+`;
+
+const SecondaryButton = styled(Button)`
+  border-radius: 12px !important;
+  font-weight: 600 !important;
+  padding: 12px 24px !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  min-width: 100px !important;
+
+  &:hover:not(:disabled) {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
+  }
+
+  .fui-Button__icon {
+    margin-left: 8px !important;
+  }
 `;
 
 const ConfidenceIndicator = styled.span<{ confidence: "high" | "medium" | "low" }>`
@@ -234,13 +275,13 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
             <DataTable data={data} onDataUpdate={onDataUpdate} suspiciousMarks={suspiciousMarks} />
 
             <ButtonContainer>
-              <Button appearance="primary" onClick={onConfirm} icon={<CheckmarkCircle24Regular />}>
+              <PrimaryButton appearance="primary" onClick={onConfirm} icon={<CheckmarkCircle24Regular />}>
                 تأكيد وإدخال في Excel
-              </Button>
+              </PrimaryButton>
 
-              <Button appearance="secondary" onClick={onCancel} icon={<DismissCircle24Regular />}>
+              <SecondaryButton appearance="secondary" onClick={onCancel} icon={<DismissCircle24Regular />}>
                 إلغاء
-              </Button>
+              </SecondaryButton>
             </ButtonContainer>
 
             {/* Additional helping text */}
