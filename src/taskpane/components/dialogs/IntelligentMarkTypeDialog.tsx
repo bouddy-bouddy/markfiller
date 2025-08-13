@@ -10,11 +10,10 @@ import {
   RadioGroup,
   Text,
   Badge,
-  Tooltip,
 } from "@fluentui/react-components";
 import { ClipboardTask24Regular, InfoRegular, CheckmarkCircle16Regular } from "@fluentui/react-icons";
 import LoadingSpinner from "../shared/LoadingSpinner";
-import { DetectedMarkTypes, markTypeNames } from "../../types";
+import { DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
 
 interface IntelligentMarkTypeDialogProps {
@@ -27,13 +26,18 @@ interface IntelligentMarkTypeDialogProps {
 
 const StyledDialogSurface = styled(DialogSurface)`
   min-width: 500px !important;
+  max-width: 600px !important;
+  max-height: 80vh !important;
+  min-height: 400px !important;
   border-radius: 20px !important;
   border: 2px solid rgba(14, 124, 66, 0.1) !important;
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.25),
     0 0 0 1px rgba(255, 255, 255, 0.1) !important;
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  overflow: hidden !important;
+  position: relative !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 
   &::before {
     content: "";
@@ -44,6 +48,19 @@ const StyledDialogSurface = styled(DialogSurface)`
     height: 4px;
     background: linear-gradient(90deg, #0e7c42 0%, #10b981 100%);
     opacity: 0.8;
+  }
+
+  /* Global overrides for all children */
+  * {
+    box-sizing: border-box !important;
+  }
+
+  /* Override Fluent UI DialogSurface */
+  .fui-DialogSurface {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
   }
 `;
 
@@ -77,6 +94,46 @@ const TitleText = styled(Text)`
 
 const StyledDialogBody = styled(DialogBody)`
   padding: 24px !important;
+  overflow-y: auto !important;
+  max-height: calc(80vh - 200px) !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+
+  /* Custom scrollbar styling */
+  &::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, #0e7c42 0%, #10b981 100%);
+    border-radius: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(180deg, #065f46 0%, #0e7c42 100%);
+  }
+
+  /* Override Fluent UI default styles */
+  .fui-DialogBody {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+`;
+
+const ContentWrapper = styled.div`
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
 `;
 
 const DescriptionText = styled(Text)`
@@ -87,34 +144,103 @@ const DescriptionText = styled(Text)`
   font-size: 15px !important;
   line-height: 1.6 !important;
   background: rgba(14, 124, 66, 0.05);
-  padding: 16px;
-  border-radius: 12px;
-  border: 1px solid rgba(14, 124, 66, 0.1);
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(14, 124, 66, 0.1) !important;
+  text-align: right !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 `;
 
 const StyledRadioGroup = styled(RadioGroup)`
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 16px !important;
-  padding: 16px 0 !important;
+  display: block !important;
+  margin-bottom: 24px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+
+  /* Override Fluent UI default styles */
+  .fui-RadioGroup {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Override individual radio items */
+  .fui-Radio {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 100% !important;
+    box-sizing: border-box !important;
+  }
 `;
 
 const RadioOption = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 16px;
-  border-radius: 12px;
-  border: 2px solid transparent;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  display: block !important;
+  margin-bottom: 16px !important;
+  padding: 16px !important;
+  border-radius: 12px !important;
+  border: 2px solid transparent !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
+  min-height: 60px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 
   &:hover {
-    border-color: rgba(14, 124, 66, 0.2);
-    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    border-color: rgba(14, 124, 66, 0.2) !important;
+    background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1) !important;
   }
+
+  &:last-child {
+    margin-bottom: 0 !important;
+  }
+`;
+
+const RadioOptionContent = styled.div`
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-bottom: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  justify-content: space-between !important;
+  box-sizing: border-box !important;
+
+  /* Override Fluent UI Radio component */
+  .fui-Radio {
+    width: auto !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Override Fluent UI Radio label */
+  .fui-Radio__label {
+    flex: 1 !important;
+    width: auto !important;
+  }
+`;
+
+const RadioOptionBadge = styled.div`
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  margin-top: 8px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
 `;
 
 const StyledBadge = styled(Badge)`
@@ -128,30 +254,36 @@ const StyledBadge = styled(Badge)`
   font-weight: 600 !important;
   font-size: 12px !important;
   box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2) !important;
+  width: fit-content !important;
+  max-width: fit-content !important;
 `;
 
 const InfoBox = styled.div`
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 16px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border-radius: 12px;
-  margin-top: 20px;
-  border: 2px solid rgba(14, 124, 66, 0.1);
+  display: block !important;
+  padding: 16px !important;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%) !important;
+  border-radius: 12px !important;
+  border: 2px solid rgba(14, 124, 66, 0.1) !important;
+  margin-top: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 `;
 
 const InfoIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  border-radius: 8px;
-  color: white;
-  flex-shrink: 0;
-  box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2);
+  display: inline-block !important;
+  width: 32px !important;
+  height: 32px !important;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+  border-radius: 8px !important;
+  color: white !important;
+  box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2) !important;
+  margin-bottom: 12px !important;
+  text-align: center !important;
+  line-height: 32px !important;
 `;
 
 const InfoText = styled(Text)`
@@ -160,13 +292,29 @@ const InfoText = styled(Text)`
   line-height: 1.6 !important;
   margin: 0 !important;
   font-weight: 500 !important;
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 `;
 
 const StyledDialogActions = styled(DialogActions)`
   padding: 24px !important;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
   border-top: 1px solid rgba(14, 124, 66, 0.1) !important;
-  gap: 12px !important;
+  gap: 16px !important;
+  justify-content: flex-end !important;
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  box-sizing: border-box !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 `;
 
 const ConfirmButton = styled(Button)`
@@ -260,7 +408,7 @@ const IntelligentMarkTypeDialog: React.FC<IntelligentMarkTypeDialogProps> = ({
           {isSaving ? (
             <LoadingSpinner message="جاري إدخال العلامات في Excel..." />
           ) : (
-            <>
+            <ContentWrapper>
               <DescriptionText>
                 لقد قمنا بتحليل الصورة واكتشاف أنواع العلامات الموجودة فيها تلقائيًا. الأنواع المكتشفة مميزة بإشارة
                 خضراء.
@@ -268,42 +416,58 @@ const IntelligentMarkTypeDialog: React.FC<IntelligentMarkTypeDialogProps> = ({
 
               <StyledRadioGroup value={selectedType} onChange={(e, data) => setSelectedType(data.value)}>
                 <RadioOption>
-                  <Radio value="الفرض 1" label="الفرض 1" />
+                  <RadioOptionContent>
+                    <Radio value="الفرض 1" label="الفرض 1" />
+                  </RadioOptionContent>
                   {isDetected("الفرض 1") && (
-                    <StyledBadge appearance="filled" color="success">
-                      <CheckmarkCircle16Regular />
-                      <span>تم الكشف</span>
-                    </StyledBadge>
+                    <RadioOptionBadge>
+                      <StyledBadge appearance="filled" color="success">
+                        <CheckmarkCircle16Regular />
+                        <span>تم الكشف</span>
+                      </StyledBadge>
+                    </RadioOptionBadge>
                   )}
                 </RadioOption>
 
                 <RadioOption>
-                  <Radio value="الفرض 2" label="الفرض 2" />
+                  <RadioOptionContent>
+                    <Radio value="الفرض 2" label="الفرض 2" />
+                  </RadioOptionContent>
                   {isDetected("الفرض 2") && (
-                    <StyledBadge appearance="filled" color="success">
-                      <CheckmarkCircle16Regular />
-                      <span>تم الكشف</span>
-                    </StyledBadge>
+                    <RadioOptionBadge>
+                      <StyledBadge appearance="filled" color="success">
+                        <CheckmarkCircle16Regular />
+                        <span>تم الكشف</span>
+                      </StyledBadge>
+                    </RadioOptionBadge>
                   )}
                 </RadioOption>
 
                 <RadioOption>
-                  <Radio value="الفرض 3" label="الفرض 3" />
+                  <RadioOptionContent>
+                    <Radio value="الفرض 3" label="الفرض 3" />
+                  </RadioOptionContent>
                   {isDetected("الفرض 3") && (
-                    <StyledBadge appearance="filled" color="success">
-                      <CheckmarkCircle16Regular />
-                      <span>تم الكشف</span>
-                    </StyledBadge>
+                    <RadioOptionBadge>
+                      <StyledBadge appearance="filled" color="success">
+                        <CheckmarkCircle16Regular />
+                        <span>تم الكشف</span>
+                      </StyledBadge>
+                    </RadioOptionBadge>
                   )}
                 </RadioOption>
 
                 <RadioOption>
-                  <Radio value="الأنشطة" label="الأنشطة" />
+                  <RadioOptionContent>
+                    <Radio value="الأنشطة" label="الأنشطة" />
+                  </RadioOptionContent>
                   {isDetected("الأنشطة") && (
-                    <StyledBadge appearance="filled" color="success">
-                      <CheckmarkCircle16Regular />
-                      <span>تم الكشف</span>
-                    </StyledBadge>
+                    <RadioOptionBadge>
+                      <StyledBadge appearance="filled" color="success">
+                        <CheckmarkCircle16Regular />
+                        <span>تم الكشف</span>
+                      </StyledBadge>
+                    </RadioOptionBadge>
                   )}
                 </RadioOption>
               </StyledRadioGroup>
@@ -317,7 +481,7 @@ const IntelligentMarkTypeDialog: React.FC<IntelligentMarkTypeDialogProps> = ({
                   مختلفًا، سنحاول ملاءمة العلامات المستخرجة مع العمود المطلوب.
                 </InfoText>
               </InfoBox>
-            </>
+            </ContentWrapper>
           )}
         </StyledDialogBody>
 

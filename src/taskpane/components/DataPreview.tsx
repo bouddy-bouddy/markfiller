@@ -69,6 +69,7 @@ interface EditingCell {
 const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, onDataUpdate }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [editingValue, setEditingValue] = useState<string>("");
 
   const formatMark = (value: number | null): string => {
     if (value === null) return "";
@@ -121,13 +122,20 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
 
   const handleKeyPress = (e: React.KeyboardEvent, studentIndex: number, markType: keyof StudentMarks): void => {
     if (e.key === "Enter") {
-      const isValid = handleMarkEdit(studentIndex, markType, e.currentTarget.value);
+      const isValid = handleMarkEdit(studentIndex, markType, editingValue);
       if (isValid) {
         setEditingCell(null);
+        setEditingValue("");
       }
     } else if (e.key === "Escape") {
       setEditingCell(null);
+      setEditingValue("");
     }
+  };
+
+  const handleEditStart = (studentIndex: number, markType: keyof StudentMarks, currentValue: number | null) => {
+    setEditingCell({ studentIndex, markType });
+    setEditingValue(currentValue !== null ? currentValue.toString() : "");
   };
 
   const renderCell = (student: Student, index: number, markType: keyof StudentMarks) => {
@@ -138,13 +146,15 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
       return (
         <Input
           autoFocus
-          defaultValue={value !== null ? value.toString() : ""}
+          value={editingValue}
+          onChange={(e, data) => setEditingValue(data.value)}
           style={{ width: "60px" }}
           onKeyDown={(e) => handleKeyPress(e, index, markType)}
-          onBlur={(e) => {
-            const isValid = handleMarkEdit(index, markType, e.currentTarget.value);
+          onBlur={() => {
+            const isValid = handleMarkEdit(index, markType, editingValue);
             if (isValid) {
               setEditingCell(null);
+              setEditingValue("");
             }
           }}
         />
@@ -159,7 +169,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
           justifyContent: "space-between",
           cursor: "pointer",
         }}
-        onClick={() => setEditingCell({ studentIndex: index, markType })}
+        onClick={() => handleEditStart(index, markType, value)}
       >
         <span>{formatMark(value)}</span>
         <Edit24Regular
