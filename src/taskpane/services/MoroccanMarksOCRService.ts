@@ -3,6 +3,14 @@
 
 import { Student, DetectedMarkTypes, StudentMarks } from "../types";
 
+// Add global type declarations for browser APIs
+declare global {
+  interface Window {
+    File: typeof File;
+    console: typeof console;
+  }
+}
+
 interface OCRConfig {
   confidenceThreshold: number;
   maxRetries: number;
@@ -203,9 +211,9 @@ export class MoroccanMarksOCRService {
     const textBlocks = blocks.slice(1);
 
     // Sort by Y coordinate
-    textBlocks.sort((a, b) => {
-      const aY = Math.min(...a.boundingPoly.vertices.map((v) => v.y));
-      const bY = Math.min(...b.boundingPoly.vertices.map((v) => v.y));
+    textBlocks.sort((a: any, b: any) => {
+      const aY = Math.min(...a.boundingPoly.vertices.map((v: any) => v.y));
+      const bY = Math.min(...b.boundingPoly.vertices.map((v: any) => v.y));
       return aY - bY;
     });
 
@@ -216,7 +224,7 @@ export class MoroccanMarksOCRService {
     const Y_TOLERANCE = 20; // pixels
 
     for (const block of textBlocks) {
-      const blockY = Math.min(...block.boundingPoly.vertices.map((v) => v.y));
+      const blockY = Math.min(...block.boundingPoly.vertices.map((v: any) => v.y));
 
       if (currentY === -1 || Math.abs(blockY - currentY) <= Y_TOLERANCE) {
         currentRow.push(block);
@@ -224,9 +232,9 @@ export class MoroccanMarksOCRService {
       } else {
         if (currentRow.length > 0) {
           // Sort row by X coordinate
-          currentRow.sort((a, b) => {
-            const aX = Math.min(...a.boundingPoly.vertices.map((v) => v.x));
-            const bX = Math.min(...b.boundingPoly.vertices.map((v) => v.x));
+          currentRow.sort((a: any, b: any) => {
+            const aX = Math.min(...a.boundingPoly.vertices.map((v: any) => v.x));
+            const bX = Math.min(...b.boundingPoly.vertices.map((v: any) => v.x));
             return aX - bX;
           });
           rows.push(currentRow);
@@ -237,9 +245,9 @@ export class MoroccanMarksOCRService {
     }
 
     if (currentRow.length > 0) {
-      currentRow.sort((a, b) => {
-        const aX = Math.min(...a.boundingPoly.vertices.map((v) => v.x));
-        const bX = Math.min(...b.boundingPoly.vertices.map((v) => v.x));
+      currentRow.sort((a: any, b: any) => {
+        const aX = Math.min(...a.boundingPoly.vertices.map((v: any) => v.x));
+        const bX = Math.min(...b.boundingPoly.vertices.map((v: any) => v.x));
         return aX - bX;
       });
       rows.push(currentRow);
@@ -314,7 +322,7 @@ export class MoroccanMarksOCRService {
       };
 
       // Map cells to mark types based on column index
-      for (const [colIndex, markType] of table.markColumnsMap.entries()) {
+      for (const [colIndex, markType] of table.markColumnsMap) {
         const markCell = row.find((cell) => cell.col === colIndex && cell.cellType === "mark");
         if (markCell) {
           marks[markType] = this.parseMarkValue(markCell.text);
@@ -429,7 +437,7 @@ export class MoroccanMarksOCRService {
     });
 
     const fullText = apiResponse.responses[0].textAnnotations?.[0]?.description || "";
-    const lines = fullText.split("\n").filter((line) => line.trim());
+    const lines: string[] = fullText.split("\n").filter((line: string) => line.trim());
 
     const students: Student[] = [];
     const detectedMarkTypes: DetectedMarkTypes = {
@@ -666,7 +674,7 @@ export class MoroccanMarksOCRService {
   /**
    * Check if a line is a header line
    */
-  private isHeaderLine(line: string): boolean {
+  private isHeaderLine(line: any): boolean {
     const headerPatterns = [/الاسم|اسم|الطالب/, /الفرض|فرض/, /الأنشطة|النشاط/, /العدد|رقم/, /المجموع|المعدل/];
 
     return headerPatterns.some((pattern) => pattern.test(line));
