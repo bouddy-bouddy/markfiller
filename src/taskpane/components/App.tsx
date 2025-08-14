@@ -14,8 +14,6 @@ import StatisticsStep from "./steps/StatisticsStep";
 import IntelligentMarkTypeDialog from "./dialogs/IntelligentMarkTypeDialog";
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
-import feedbackService from "../services/feedbackService";
-import OcrDebugMode from "./debug/OcrDebugMode";
 
 // GlobalStyle for App.tsx
 const GlobalStyle = createGlobalStyle`
@@ -661,16 +659,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setSuspiciousMarks(suspicious);
   };
 
-  // Handle feedback for OCR improvements
-  const handleOcrFeedback = async (feedback: any) => {
-    try {
-      await feedbackService.sendOcrFeedback(feedback, imagePreview || undefined);
-      setSuccessMessage("شكرًا لك! تم إرسال ملاحظاتك وستساعد في تحسين دقة التعرف الضوئي.");
-    } catch (error) {
-      setError("حدث خطأ أثناء إرسال الملاحظات. يرجى المحاولة مرة أخرى.");
-    }
-  };
-
   // Handle image removal
   const handleRemoveImage = () => {
     setSelectedImage(null);
@@ -824,11 +812,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onRemoveImage={handleRemoveImage}
                 fileInputRef={fileInputRef}
                 detectedMarkTypes={detectedMarkTypes}
-              >
-                {selectedImage && !isProcessing && (
-                  <OcrDebugMode onSendFeedback={handleOcrFeedback} imagePreview={imagePreview} />
-                )}
-              </ImageProcessingStep>
+              ></ImageProcessingStep>
             )}
 
             {/* Review and Confirm Step */}
