@@ -25,8 +25,8 @@ interface IntelligentMarkTypeDialogProps {
 }
 
 const StyledDialogSurface = styled(DialogSurface)`
-  min-width: 500px !important;
-  max-width: 600px !important;
+  min-width: 600px !important;
+  max-width: 800px !important;
   max-height: 80vh !important;
   min-height: 400px !important;
   border-radius: 20px !important;
@@ -306,7 +306,7 @@ const StyledDialogActions = styled(DialogActions)`
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%) !important;
   border-top: 1px solid rgba(14, 124, 66, 0.1) !important;
   gap: 16px !important;
-  justify-content: flex-end !important;
+  justify-content: space-between !important;
   display: flex !important;
   align-items: center !important;
   width: 100% !important;
@@ -318,7 +318,8 @@ const StyledDialogActions = styled(DialogActions)`
 `;
 
 const ConfirmButton = styled(Button)`
-  min-width: 120px !important;
+  min-width: 140px !important;
+  flex: 1 !important;
   border-radius: 12px !important;
   font-weight: 600 !important;
   padding: 12px 24px !important;
@@ -338,7 +339,8 @@ const ConfirmButton = styled(Button)`
 `;
 
 const CancelButton = styled(Button)`
-  min-width: 100px !important;
+  min-width: 120px !important;
+  flex: 1 !important;
   border-radius: 12px !important;
   font-weight: 600 !important;
   padding: 12px 20px !important;

@@ -1,6 +1,6 @@
 import React from "react";
 import { Text, Card, Button, Badge } from "@fluentui/react-components";
-import { ChartMultiple24Regular, ArrowReset24Regular, DocumentAdd24Regular } from "@fluentui/react-icons";
+import { ChartMultiple24Regular, DocumentAdd24Regular } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
 
@@ -16,6 +16,7 @@ const StatsGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+  width: 100%;
 `;
 
 const StatCard = styled(Card)`
@@ -43,6 +44,7 @@ const DistributionGrid = styled.div`
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 16px;
   margin-bottom: 20px;
+  width: 100%;
 `;
 
 const DistributionBar = styled.div`
@@ -68,6 +70,8 @@ const ButtonContainer = styled.div`
   margin-top: 24px;
   display: flex;
   gap: 12px;
+  width: 100%;
+  justify-content: center;
 `;
 
 const PrimaryButton = styled(Button)`
@@ -78,7 +82,8 @@ const PrimaryButton = styled(Button)`
   border: none !important;
   box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  min-width: 140px !important;
+  width: 100% !important;
+  max-width: 400px !important;
 
   &:hover:not(:disabled) {
     transform: translateY(-2px) !important;
@@ -98,6 +103,7 @@ const SuspiciousMarksCard = styled(Card)`
   margin-top: 20px;
   padding: 16px;
   background-color: #fff5f5;
+  width: 100%;
   border: 1px solid #fed7d7;
 `;
 
@@ -234,14 +240,18 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         </Text>
       </StepTitle>
 
-      <div className="step-content">
-        <Text style={{ marginBottom: "20px", display: "block" }}>
+      <div className="step-content" style={{ width: "100%", maxWidth: "100%" }}>
+        <Text style={{ marginBottom: "20px", display: "block", width: "100%", textAlign: "right" }}>
           فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
           صحة البيانات قبل إدخالها في Excel.
         </Text>
 
         {/* Summary Stats */}
-        <Text size={500} weight="semibold" style={{ display: "block", marginBottom: "12px" }}>
+        <Text
+          size={500}
+          weight="semibold"
+          style={{ display: "block", marginBottom: "12px", width: "100%", textAlign: "right" }}
+        >
           ملخص البيانات
         </Text>
 
@@ -279,7 +289,11 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         </StatsGrid>
 
         {/* Distribution */}
-        <Text size={500} weight="semibold" style={{ display: "block", marginBottom: "12px", marginTop: "24px" }}>
+        <Text
+          size={500}
+          weight="semibold"
+          style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+        >
           توزيع العلامات
         </Text>
 
@@ -344,11 +358,15 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         {/* Suspicious Marks */}
         {statistics.suspiciousMarks && statistics.suspiciousMarks.length > 0 && (
           <SuspiciousMarksCard>
-            <Text size={400} weight="semibold" style={{ marginBottom: "12px", color: "#e53e3e" }}>
+            <Text
+              size={400}
+              weight="semibold"
+              style={{ marginBottom: "12px", color: "#e53e3e", width: "100%", textAlign: "right" }}
+            >
               علامات مشكوك فيها ({statistics.suspiciousMarks.length})
             </Text>
 
-            <Text size={300} style={{ marginBottom: "12px" }}>
+            <Text size={300} style={{ marginBottom: "12px", width: "100%", textAlign: "right" }}>
               تم اكتشاف العلامات التالية كعلامات غير معتادة (أقل من 3 أو أكثر من 18). يمكنك الرجوع للخطوة السابقة للتحقق
               من صحتها.
             </Text>
@@ -384,7 +402,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               onReset();
             }}
           >
-            إنشاء علية استيراد جديدة
+            إنشاء عملية استخراج بيانات جديدة
           </PrimaryButton>
         </ButtonContainer>
       </div>
