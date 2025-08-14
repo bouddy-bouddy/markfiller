@@ -5,7 +5,7 @@ import enhancedOcrService from "../services/enhancedOCRService";
 import excelService from "../services/excelService";
 import OCREdgeCasesHandler from "../services/ocrEdgeCaseHandler";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
-import StatusAlert from "./shared/StatusAlert";
+
 import OcrErrorDisplay from "./shared/OcrErrorDisplay";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
@@ -397,7 +397,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string>("UNKNOWN_ERROR");
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Data and steps
   const [extractedData, setExtractedData] = useState<Student[] | null>(null);
@@ -537,21 +536,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
 
-      // Detected mark types available for processing
-
-      // Show success message with intelligent mark detection
-      const detectedTypes = [];
-      if (enhancedResults.detectedMarkTypes.hasFard1) detectedTypes.push("الفرض 1");
-      if (enhancedResults.detectedMarkTypes.hasFard2) detectedTypes.push("الفرض 2");
-      if (enhancedResults.detectedMarkTypes.hasFard3) detectedTypes.push("الفرض 3");
-      if (enhancedResults.detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
-
-      if (detectedTypes.length > 0) {
-        setSuccessMessage(`تم اكتشاف العلامات التالية: ${detectedTypes.join("، ")}`);
-      } else {
-        setSuccessMessage("تم استخراج البيانات بنجاح");
-      }
-
       // Generate statistics for the data
       generateMarkStatistics(enhancedResults.students);
     } catch (err) {
@@ -664,7 +648,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setSelectedImage(null);
     setImagePreview(null);
     setError(null);
-    setSuccessMessage(null);
   };
 
   const handleConfirmData = async () => {
@@ -703,7 +686,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           // Students not found - this information is available in the results object
         }
       } else {
-        setSuccessMessage(`تم إدخال ${results.success} علامة بنجاح في عمود "${markType}"`);
         setError(null);
       }
 
@@ -765,7 +747,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
         <div className="app-content">
           {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
-          {successMessage && <StatusAlert type="success" message={successMessage} />}
 
           <div className="steps-container">
             {/* Conditionally render the step that is currently active */}
