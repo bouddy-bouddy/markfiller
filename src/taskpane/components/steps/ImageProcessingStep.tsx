@@ -18,7 +18,7 @@ const StepTitle = styled.div`
   padding: 16px 0;
 `;
 
-const StepIcon = styled.div<{ isActive: boolean; isCompleted: boolean }>`
+const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -26,16 +26,16 @@ const StepIcon = styled.div<{ isActive: boolean; isCompleted: boolean }>`
   height: 48px;
   border-radius: 12px;
   background: ${(props) => {
-    if (props.isCompleted) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
-    if (props.isActive) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    if (props.$isCompleted) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    if (props.$isActive) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
     return "linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)";
   }};
   color: ${(props) => {
-    if (props.isCompleted || props.isActive) return "white";
+    if (props.$isCompleted || props.$isActive) return "white";
     return "#6b7280";
   }};
   box-shadow: ${(props) => {
-    if (props.isCompleted || props.isActive) {
+    if (props.$isCompleted || props.$isActive) {
       return "0 8px 16px -4px rgba(14, 124, 66, 0.3)";
     }
     return "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
@@ -380,7 +380,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
-        <StepIcon isActive={isActive} isCompleted={isCompleted}>
+        <StepIcon $isActive={isActive} $isCompleted={isCompleted}>
           <Image24Regular style={{ fontSize: "24px" }} />
         </StepIcon>
         <StepTitleText>معالجة الصورة</StepTitleText>

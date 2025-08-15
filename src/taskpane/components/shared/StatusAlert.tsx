@@ -99,7 +99,7 @@ const AlertCard = styled(Card)<AlertCardProps>`
   }
 `;
 
-const IconWrapper = styled.div<{ type: AlertType }>`
+const IconWrapper = styled.div<{ $type: AlertType }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -107,7 +107,7 @@ const IconWrapper = styled.div<{ type: AlertType }>`
   height: 48px;
   border-radius: 12px;
   background: ${(props) => {
-    switch (props.type) {
+    switch (props.$type) {
       case "error":
         return "linear-gradient(135deg, #ef4444 0%, #f87171 100%)";
       case "warning":
@@ -128,10 +128,10 @@ const IconWrapper = styled.div<{ type: AlertType }>`
   }
 `;
 
-const MessageText = styled(Text)<{ type: AlertType }>`
+const MessageText = styled(Text)<{ $type: AlertType }>`
   flex: 1 !important;
   color: ${(props) => {
-    switch (props.type) {
+    switch (props.$type) {
       case "error":
         return "#991b1b !important";
       case "warning":
@@ -169,8 +169,8 @@ const StatusAlert: React.FC<StatusAlertProps> = ({ type, message }) => {
 
   return (
     <AlertCard type={type}>
-      <IconWrapper type={type}>{getIcon()}</IconWrapper>
-      <MessageText type={type}>{message}</MessageText>
+      <IconWrapper $type={type}>{getIcon()}</IconWrapper>
+      <MessageText $type={type}>{message}</MessageText>
     </AlertCard>
   );
 };

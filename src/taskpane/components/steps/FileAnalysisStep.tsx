@@ -10,7 +10,7 @@ import { ExcelStatus } from "../../types";
 import styled from "styled-components";
 
 interface StatusCardProps {
-  isValid: boolean;
+  $isValid: boolean;
 }
 
 const StatusCard = styled(Card)<StatusCardProps>`
@@ -21,10 +21,10 @@ const StatusCard = styled(Card)<StatusCardProps>`
   border-radius: 16px;
   margin-bottom: 24px;
   background: ${(props) =>
-    props.isValid
+    props.$isValid
       ? "linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)"
       : "linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)"};
-  border: 2px solid ${(props) => (props.isValid ? "rgba(14, 124, 66, 0.2)" : "rgba(239, 68, 68, 0.2)")};
+  border: 2px solid ${(props) => (props.$isValid ? "rgba(14, 124, 66, 0.2)" : "rgba(239, 68, 68, 0.2)")};
   box-shadow:
     0 4px 6px -1px rgba(0, 0, 0, 0.1),
     0 2px 4px -1px rgba(0, 0, 0, 0.06);
@@ -40,7 +40,7 @@ const StatusCard = styled(Card)<StatusCardProps>`
     right: 0;
     height: 4px;
     background: ${(props) =>
-      props.isValid
+      props.$isValid
         ? "linear-gradient(90deg, #0e7c42 0%, #10b981 100%)"
         : "linear-gradient(90deg, #ef4444 0%, #f87171 100%)"};
   }
@@ -53,7 +53,7 @@ const StatusCard = styled(Card)<StatusCardProps>`
   }
 `;
 
-const StatusIcon = styled.div<{ isValid: boolean }>`
+const StatusIcon = styled.div<{ $isValid: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -61,10 +61,10 @@ const StatusIcon = styled.div<{ isValid: boolean }>`
   height: 56px;
   border-radius: 16px;
   background: ${(props) =>
-    props.isValid
+    props.$isValid
       ? "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)"
       : "linear-gradient(135deg, #ef4444 0%, #f87171 100%)"};
-  box-shadow: 0 8px 16px -4px ${(props) => (props.isValid ? "rgba(14, 124, 66, 0.3)" : "rgba(239, 68, 68, 0.3)")};
+  box-shadow: 0 8px 16px -4px ${(props) => (props.$isValid ? "rgba(14, 124, 66, 0.3)" : "rgba(239, 68, 68, 0.3)")};
   flex-shrink: 0;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
@@ -115,7 +115,7 @@ const StepTitle = styled.div`
   padding: 16px 0;
 `;
 
-const StepIcon = styled.div<{ isActive: boolean; isCompleted: boolean }>`
+const StepIcon = styled.div<{ $isActive: boolean; $isCompleted: boolean }>`
   display: flex;
   align-items: center;
   justify-content: center;
@@ -123,16 +123,16 @@ const StepIcon = styled.div<{ isActive: boolean; isCompleted: boolean }>`
   height: 48px;
   border-radius: 12px;
   background: ${(props) => {
-    if (props.isCompleted) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
-    if (props.isActive) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    if (props.$isCompleted) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
+    if (props.$isActive) return "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)";
     return "linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)";
   }};
   color: ${(props) => {
-    if (props.isCompleted || props.isActive) return "white";
+    if (props.$isCompleted || props.$isActive) return "white";
     return "#6b7280";
   }};
   box-shadow: ${(props) => {
-    if (props.isCompleted || props.isActive) {
+    if (props.$isCompleted || props.$isActive) {
       return "0 8px 16px -4px rgba(14, 124, 66, 0.3)";
     }
     return "0 4px 6px -1px rgba(0, 0, 0, 0.1)";
@@ -243,7 +243,7 @@ const FileAnalysisStep: React.FC<FileAnalysisStepProps> = ({ isActive, isComplet
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
-        <StepIcon isActive={isActive} isCompleted={isCompleted}>
+        <StepIcon $isActive={isActive} $isCompleted={isCompleted}>
           <DocumentTable24Regular style={{ fontSize: "24px" }} />
         </StepIcon>
         <StepTitleText>تحقق من ملف مسار</StepTitleText>
@@ -254,8 +254,8 @@ const FileAnalysisStep: React.FC<FileAnalysisStepProps> = ({ isActive, isComplet
           يجب فتح ملف مسار المناسب في Excel قبل استيراد العلامات. سيتم تحليل هيكل الملف للتأكد من وجود الأعمدة المطلوبة.
         </Text>
 
-        <StatusCard isValid={excelStatus.isValid}>
-          <StatusIcon isValid={excelStatus.isValid}>
+        <StatusCard $isValid={excelStatus.isValid}>
+          <StatusIcon $isValid={excelStatus.isValid}>
             {excelStatus.isValid ? (
               <CheckmarkCircle24Regular style={{ color: "white", fontSize: "28px" }} />
             ) : (

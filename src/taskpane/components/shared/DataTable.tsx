@@ -102,20 +102,20 @@ const StyledTable = styled(Table)`
   }
 `;
 
-const EditableCell = styled.div<{ isSuspicious: boolean }>`
+const EditableCell = styled.div<{ $isSuspicious: boolean }>`
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  background: ${(props) => (props.isSuspicious ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "transparent")};
+  background: ${(props) => (props.$isSuspicious ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "transparent")};
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid ${(props) => (props.isSuspicious ? "rgba(239, 68, 68, 0.2)" : "transparent")};
+  border: 1px solid ${(props) => (props.$isSuspicious ? "rgba(239, 68, 68, 0.2)" : "transparent")};
   transition: all 0.2s ease;
 
   &:hover {
     background: ${(props) =>
-      props.isSuspicious
+      props.$isSuspicious
         ? "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)"
         : "linear-gradient(135deg, rgba(14, 124, 66, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)"};
     transform: translateY(-1px);
@@ -123,9 +123,9 @@ const EditableCell = styled.div<{ isSuspicious: boolean }>`
   }
 `;
 
-const MarkValue = styled.span<{ isSuspicious: boolean }>`
+const MarkValue = styled.span<{ $isSuspicious: boolean }>`
   font-weight: 600;
-  color: ${(props) => (props.isSuspicious ? "#dc2626" : "#1f2937")};
+  color: ${(props) => (props.$isSuspicious ? "#dc2626" : "#1f2937")};
   font-size: 14px;
 `;
 
@@ -305,8 +305,8 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     }
 
     return (
-      <EditableCell isSuspicious={isSuspicious} onClick={() => setEditingCell({ studentIndex: index, markType })}>
-        <MarkValue isSuspicious={isSuspicious}>{formatMark(value)}</MarkValue>
+      <EditableCell $isSuspicious={isSuspicious} onClick={() => setEditingCell({ studentIndex: index, markType })}>
+        <MarkValue $isSuspicious={isSuspicious}>{formatMark(value)}</MarkValue>
         <CellActions>
           {isSuspicious && (
             <Tooltip content="علامة غير معتادة. تحقق منها." relationship="label">
