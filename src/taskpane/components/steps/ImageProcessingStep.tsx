@@ -1,15 +1,13 @@
 import React, { useState } from "react";
-import { Button, Text, Badge, Card } from "@fluentui/react-components";
+import { Button, Text, Card } from "@fluentui/react-components";
 import {
   Image24Regular,
   ArrowRight24Regular,
-  ListRegular,
   CloudArrowUp24Regular,
   DocumentRegular,
   DeleteRegular,
 } from "@fluentui/react-icons";
 import LoadingSpinner from "../shared/LoadingSpinner";
-import { DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
 
 const StepTitle = styled.div`
@@ -295,55 +293,6 @@ const SecondaryButton = styled(Button)`
   }
 `;
 
-const DetectedTypesContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 20px;
-  padding: 20px;
-  background: linear-gradient(135deg, #f0fff4 0%, #ecfdf5 100%);
-  border-radius: 12px;
-  border: 2px solid rgba(14, 124, 66, 0.2);
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-`;
-
-const DetectedIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  border-radius: 12px;
-  color: white;
-  flex-shrink: 0;
-  box-shadow: 0 4px 6px -1px rgba(14, 124, 66, 0.2);
-`;
-
-const DetectedTitle = styled(Text)`
-  font-weight: 700 !important;
-  color: #0e7c42 !important;
-  display: block !important;
-  margin-bottom: 8px !important;
-  font-size: 16px !important;
-`;
-
-const BadgesContainer = styled.div`
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-`;
-
-const StyledBadge = styled(Badge)`
-  border-radius: 20px !important;
-  font-weight: 600 !important;
-  padding: 6px 16px !important;
-  font-size: 13px !important;
-  box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2) !important;
-`;
-
 interface ImageProcessingStepProps {
   isActive: boolean;
   isCompleted: boolean;
@@ -354,7 +303,6 @@ interface ImageProcessingStepProps {
   onProcessImage: () => void;
   onRemoveImage?: () => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
-  detectedMarkTypes: DetectedMarkTypes;
   children?: React.ReactNode;
 }
 
@@ -368,7 +316,6 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   onProcessImage,
   onRemoveImage,
   fileInputRef,
-  detectedMarkTypes,
   children,
 }) => {
   // State for processing stages
@@ -428,23 +375,6 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
 
     // Run the simulation in parallel with actual processing
     simulateStages();
-  };
-
-  // Check if any mark type was detected
-  const hasDetectedTypes =
-    detectedMarkTypes.hasFard1 ||
-    detectedMarkTypes.hasFard2 ||
-    detectedMarkTypes.hasFard3 ||
-    detectedMarkTypes.hasActivities;
-
-  // Get detected mark types as string array
-  const getDetectedTypesText = (): string[] => {
-    const types: string[] = [];
-    if (detectedMarkTypes.hasFard1) types.push("الفرض 1");
-    if (detectedMarkTypes.hasFard2) types.push("الفرض 2");
-    if (detectedMarkTypes.hasFard3) types.push("الفرض 3");
-    if (detectedMarkTypes.hasActivities) types.push("الأنشطة");
-    return types;
   };
 
   return (
@@ -557,7 +487,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             )}
 
             {/* Show detected mark types if completed and types were detected */}
-            {isCompleted && hasDetectedTypes && (
+            {/* {isCompleted && hasDetectedTypes && (
               <DetectedTypesContainer>
                 <DetectedIcon>
                   <ListRegular style={{ fontSize: "20px" }} />
@@ -573,7 +503,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
                   </BadgesContainer>
                 </div>
               </DetectedTypesContainer>
-            )}
+            )} */}
           </PreviewContainer>
         )}
 

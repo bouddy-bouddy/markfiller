@@ -792,7 +792,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onProcessImage={processImage}
                 onRemoveImage={handleRemoveImage}
                 fileInputRef={fileInputRef}
-                detectedMarkTypes={detectedMarkTypes}
               ></ImageProcessingStep>
             )}
 
@@ -806,7 +805,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onCancel={resetApp}
                 onDataUpdate={handleDataUpdate}
                 suspiciousMarks={suspiciousMarks}
-                detectedMarkTypes={detectedMarkTypes}
               />
             )}
 
