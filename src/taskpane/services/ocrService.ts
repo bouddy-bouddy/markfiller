@@ -63,6 +63,36 @@ class OCRService {
 
       const data = await response.json();
 
+      // ===== GOOGLE VISION API RAW RESPONSE LOGGING =====
+      console.log("🔍 GOOGLE VISION API - COMPLETE RAW RESPONSE:");
+      console.log("Full API Response:", JSON.stringify(data, null, 2));
+
+      if (data.responses && data.responses[0]) {
+        console.log("📝 GOOGLE VISION API - RESPONSE BREAKDOWN:");
+        console.log("Number of responses:", data.responses.length);
+        console.log("First response:", data.responses[0]);
+
+        if (data.responses[0].fullTextAnnotation) {
+          console.log("📖 GOOGLE VISION API - FULL TEXT ANNOTATION:");
+          console.log("Full text annotation:", data.responses[0].fullTextAnnotation);
+          console.log("Raw extracted text:", data.responses[0].fullTextAnnotation.text);
+
+          // Log individual text blocks if available
+          if (data.responses[0].textAnnotations) {
+            console.log("🔤 GOOGLE VISION API - INDIVIDUAL TEXT BLOCKS:");
+            console.log("Text annotations:", data.responses[0].textAnnotations);
+          }
+
+          // Log pages if available
+          if (data.responses[0].fullTextAnnotation.pages) {
+            console.log("📄 GOOGLE VISION API - PAGE BREAKDOWN:");
+            console.log("Pages:", data.responses[0].fullTextAnnotation.pages);
+          }
+        }
+      }
+
+      // ===== END GOOGLE VISION API LOGGING =====
+
       if (!data.responses || !data.responses[0] || !data.responses[0].fullTextAnnotation) {
         throw new Error("لم يتم التعرف على أي نص في الصورة");
       }

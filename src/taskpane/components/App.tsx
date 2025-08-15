@@ -522,7 +522,22 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       }
 
       // Process the image using enhanced OCR service
+      console.log("🚀 STARTING OCR PROCESSING - About to call Google Vision API");
+      console.log("📸 Image file details:", {
+        name: selectedImage.name,
+        size: selectedImage.size,
+        type: selectedImage.type,
+        lastModified: new Date(selectedImage.lastModified).toISOString(),
+      });
+
       const { students, detectedMarkTypes } = await enhancedOcrService.processImage(selectedImage);
+
+      console.log("✅ OCR PROCESSING COMPLETED - Google Vision API response processed");
+      console.log("📊 Extracted data summary:", {
+        studentsCount: students.length,
+        detectedMarkTypes,
+        sampleStudent: students[0] || null,
+      });
 
       // Final stage complete
       updateStage(stages.length - 1);

@@ -874,6 +874,30 @@ export class MoroccanMarksOCRService {
       }
     }
 
-    return response.json();
+    const data = await response.json();
+
+    // ===== MOROCCAN MARKS OCR - GOOGLE VISION API RAW RESPONSE LOGGING =====
+    console.log("🔍 MOROCCAN MARKS OCR - GOOGLE VISION API RAW RESPONSE:");
+    console.log("Full API Response:", JSON.stringify(data, null, 2));
+
+    if (data.responses && data.responses[0]) {
+      console.log("📝 MOROCCAN MARKS OCR - RESPONSE BREAKDOWN:");
+      console.log("Number of responses:", data.responses.length);
+      console.log("First response:", data.responses[0]);
+
+      if (data.responses[0].fullTextAnnotation) {
+        console.log("📖 MOROCCAN MARKS OCR - FULL TEXT ANNOTATION:");
+        console.log("Full text annotation:", data.responses[0].fullTextAnnotation);
+        console.log("Raw extracted text:", data.responses[0].fullTextAnnotation.text);
+      }
+
+      if (data.responses[0].textAnnotations) {
+        console.log("🔤 MOROCCAN MARKS OCR - TEXT ANNOTATIONS:");
+        console.log("Text annotations:", data.responses[0].textAnnotations);
+      }
+    }
+    // ===== END MOROCCAN MARKS OCR LOGGING =====
+
+    return data;
   }
 }

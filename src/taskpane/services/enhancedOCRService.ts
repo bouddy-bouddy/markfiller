@@ -318,6 +318,28 @@ class EnhancedOCRService {
 
     const data = await response.json();
 
+    // ===== ENHANCED OCR - GOOGLE VISION API RAW RESPONSE LOGGING =====
+    console.log("🔍 ENHANCED OCR - GOOGLE VISION API RAW RESPONSE (TABLE DETECTION):");
+    console.log("Full API Response:", JSON.stringify(data, null, 2));
+
+    if (data.responses && data.responses[0]) {
+      console.log("📝 ENHANCED OCR - RESPONSE BREAKDOWN (TABLE DETECTION):");
+      console.log("Number of responses:", data.responses.length);
+      console.log("First response:", data.responses[0]);
+
+      if (data.responses[0].fullTextAnnotation) {
+        console.log("📖 ENHANCED OCR - FULL TEXT ANNOTATION (TABLE DETECTION):");
+        console.log("Full text annotation:", data.responses[0].fullTextAnnotation);
+        console.log("Raw extracted text:", data.responses[0].fullTextAnnotation.text);
+      }
+
+      if (data.responses[0].textAnnotations) {
+        console.log("🔤 ENHANCED OCR - TEXT ANNOTATIONS (TABLE DETECTION):");
+        console.log("Text annotations:", data.responses[0].textAnnotations);
+      }
+    }
+    // ===== END ENHANCED OCR LOGGING =====
+
     if (!data.responses || !data.responses[0]) {
       throw new Error("لم يتم التعرف على أي نص في الصورة");
     }
@@ -380,6 +402,28 @@ class EnhancedOCRService {
     }
 
     const data = await response.json();
+
+    // ===== ENHANCED OCR - GOOGLE VISION API RAW RESPONSE LOGGING =====
+    console.log("🔍 ENHANCED OCR - GOOGLE VISION API RAW RESPONSE (TEXT DETECTION):");
+    console.log("Full API Response:", JSON.stringify(data, null, 2));
+
+    if (data.responses && data.responses[0]) {
+      console.log("📝 ENHANCED OCR - RESPONSE BREAKDOWN (TEXT DETECTION):");
+      console.log("Number of responses:", data.responses.length);
+      console.log("First response:", data.responses[0]);
+
+      if (data.responses[0].fullTextAnnotation) {
+        console.log("📖 ENHANCED OCR - FULL TEXT ANNOTATION (TEXT DETECTION):");
+        console.log("Full text annotation:", data.responses[0].fullTextAnnotation);
+        console.log("Raw extracted text:", data.responses[0].fullTextAnnotation.text);
+      }
+
+      if (data.responses[0].textAnnotations) {
+        console.log("🔤 ENHANCED OCR - TEXT ANNOTATIONS (TEXT DETECTION):");
+        console.log("Text annotations:", data.responses[0].textAnnotations);
+      }
+    }
+    // ===== END ENHANCED OCR LOGGING =====
 
     if (!data.responses || !data.responses[0]) {
       throw new Error("لم يتم التعرف على أي نص في الصورة");
@@ -444,6 +488,28 @@ class EnhancedOCRService {
     }
 
     const data = await response.json();
+
+    // ===== ENHANCED OCR - GOOGLE VISION API RAW RESPONSE LOGGING =====
+    console.log("🔍 ENHANCED OCR - GOOGLE VISION API RAW RESPONSE (AGGRESSIVE PROCESSING):");
+    console.log("Full API Response:", JSON.stringify(data, null, 2));
+
+    if (data.responses && data.responses[0]) {
+      console.log("📝 ENHANCED OCR - RESPONSE BREAKDOWN (AGGRESSIVE PROCESSING):");
+      console.log("Number of responses:", data.responses.length);
+      console.log("First response:", data.responses[0]);
+
+      if (data.responses[0].fullTextAnnotation) {
+        console.log("📖 ENHANCED OCR - FULL TEXT ANNOTATION (AGGRESSIVE PROCESSING):");
+        console.log("Full text annotation:", data.responses[0].fullTextAnnotation);
+        console.log("Raw extracted text:", data.responses[0].fullTextAnnotation.text);
+      }
+
+      if (data.responses[0].textAnnotations) {
+        console.log("🔤 ENHANCED OCR - TEXT ANNOTATIONS (AGGRESSIVE PROCESSING):");
+        console.log("Text annotations:", data.responses[0].textAnnotations);
+      }
+    }
+    // ===== END ENHANCED OCR LOGGING =====
 
     if (!data.responses || !data.responses[0]) {
       throw new Error("لم يتم التعرف على أي نص في الصورة");
