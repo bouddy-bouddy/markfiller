@@ -4,6 +4,7 @@ import { createGlobalStyle } from "styled-components";
 import enhancedOcrService from "../services/enhancedOCRService";
 import excelService from "../services/excelService";
 import OCREdgeCasesHandler from "../services/ocrEdgeCaseHandler";
+import studentNameCorrectionService from "../services/studentNameCorrectionService";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
 
 import OcrErrorDisplay from "./shared/OcrErrorDisplay";
@@ -12,6 +13,7 @@ import ImageProcessingStep from "./steps/ImageProcessingStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
 import StatisticsStep from "./steps/StatisticsStep";
 import IntelligentMarkTypeDialog from "./dialogs/IntelligentMarkTypeDialog";
+import StudentNameCorrectionDialog from "./shared/StudentNameCorrectionDialog";
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
 
@@ -422,6 +424,13 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   const [showMarkTypeDialog, setShowMarkTypeDialog] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
 
+  // Student name correction states
+  const [showNameCorrectionDialog, setShowNameCorrectionDialog] = useState<boolean>(false);
+  const [nameCorrectionResults, setNameCorrectionResults] = useState<any>(null);
+  const [isNameCorrectionLoading, setIsNameCorrectionLoading] = useState<boolean>(false);
+  const [correctedExtractedData, setCorrectedExtractedData] = useState<Student[] | null>(null);
+  const [tableKey, setTableKey] = useState<number>(0); // Force re-render key
+
   // Statistics
   const [markStats, setMarkStats] = useState<Statistics | null>(null);
 
@@ -447,6 +456,14 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         });
 
         if (isValid) {
+          // Initialize student name correction service with Massar file data
+          try {
+            await studentNameCorrectionService.initializeFromMassarFile();
+            console.log("✅ Student name correction service initialized successfully");
+          } catch (error) {
+            console.warn("⚠️ Could not initialize student name correction service:", error);
+          }
+
           completeStep(AppStep.FileAnalysis);
           advanceToStep(AppStep.ImageProcessing);
         }
@@ -545,14 +562,45 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       // Apply edge case handling to improve results
       const enhancedResults = OCREdgeCasesHandler.enhanceExtractedData(students, detectedMarkTypes);
 
-      // Show preview of extracted data
-      setExtractedData(enhancedResults.students);
-      setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
-      completeStep(AppStep.ImageProcessing);
-      advanceToStep(AppStep.ReviewConfirm);
+      // Check if student name correction service is available and apply corrections
+      if (studentNameCorrectionService.isInitialized()) {
+        try {
+          console.log("🔍 Starting student name correction process...");
+          const correctionResults = await studentNameCorrectionService.correctStudentNames(enhancedResults.students);
 
-      // Generate statistics for the data
-      generateMarkStatistics(enhancedResults.students);
+          if (correctionResults.totalCorrections > 0) {
+            console.log(`✅ Found ${correctionResults.totalCorrections} name corrections`);
+            // Show correction dialog
+            setNameCorrectionResults(correctionResults);
+            setCorrectedExtractedData(correctionResults.correctedStudents);
+            setExtractedData(enhancedResults.students); // Keep original for comparison
+            setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
+            setShowNameCorrectionDialog(true);
+          } else {
+            console.log("✅ No name corrections needed");
+            setExtractedData(enhancedResults.students);
+            setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
+            completeStep(AppStep.ImageProcessing);
+            advanceToStep(AppStep.ReviewConfirm);
+            generateMarkStatistics(enhancedResults.students);
+          }
+        } catch (error) {
+          console.warn("⚠️ Student name correction failed, proceeding with original data:", error);
+          setExtractedData(enhancedResults.students);
+          setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
+          completeStep(AppStep.ImageProcessing);
+          advanceToStep(AppStep.ReviewConfirm);
+          generateMarkStatistics(enhancedResults.students);
+        }
+      } else {
+        // Service not available, proceed with original data
+        console.log("ℹ️ Student name correction service not available, proceeding with original data");
+        setExtractedData(enhancedResults.students);
+        setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
+        completeStep(AppStep.ImageProcessing);
+        advanceToStep(AppStep.ReviewConfirm);
+        generateMarkStatistics(enhancedResults.students);
+      }
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
@@ -722,6 +770,147 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     generateMarkStatistics(newData);
   };
 
+  // Handle applying student name corrections
+  const handleApplyNameCorrections = (selectedCorrections: any[]) => {
+    try {
+      if (!extractedData || !nameCorrectionResults) {
+        throw new Error("Missing data for applying corrections");
+      }
+
+      console.log(`🔧 Applying ${selectedCorrections.length} selected name corrections`);
+
+      // Create a map of corrections to apply
+      const correctionMap = new Map<string, string>();
+      selectedCorrections.forEach((correction) => {
+        correctionMap.set(correction.originalName, correction.correctedName);
+      });
+
+      // Apply corrections to the extracted data
+      let updatedData = extractedData.map((student) => {
+        const correctedName = correctionMap.get(student.name);
+        if (correctedName) {
+          console.log(`✅ Correcting: "${student.name}" → "${correctedName}"`);
+          return { ...student, name: correctedName };
+        }
+        return student;
+      });
+
+      // If Massar service is initialized, reorder to match Massar order and force Massar names
+      if (studentNameCorrectionService.isInitialized()) {
+        try {
+          updatedData = studentNameCorrectionService.reorderStudentsToMatchMassarOrder(updatedData);
+        } catch (e) {
+          console.warn("Could not reorder students to match Massar order:", e);
+        }
+      }
+
+      // Update the state with corrected data
+      console.log("🔄 Updating extracted data with corrected names...");
+      console.log(
+        "📊 Before update:",
+        extractedData.map((s) => s.name)
+      );
+      console.log(
+        "📊 After update:",
+        updatedData.map((s) => s.name)
+      );
+
+      setExtractedData(updatedData);
+      setDetectedMarkTypes(detectedMarkTypes);
+      setShowNameCorrectionDialog(false);
+
+      // Force table re-render by changing key
+      setTableKey((prev) => prev + 1);
+      console.log("🔄 Forced table re-render with new key");
+
+      // Force a small delay to ensure state update is processed
+      setTimeout(() => {
+        console.log("🎯 State should be updated now");
+      }, 100);
+
+      completeStep(AppStep.ImageProcessing);
+      advanceToStep(AppStep.ReviewConfirm);
+      generateMarkStatistics(updatedData);
+
+      console.log(`✅ Successfully applied ${selectedCorrections.length} name corrections`);
+      console.log(`📊 Updated student data with corrected names`);
+
+      // Show success message to user
+      const correctionSummary = selectedCorrections.map((c) => `"${c.originalName}" → "${c.correctedName}"`).join(", ");
+      console.log(`📝 Applied corrections: ${correctionSummary}`);
+
+      // Clear correction state
+      setNameCorrectionResults(null);
+      setCorrectedExtractedData(null);
+    } catch (error) {
+      console.error("Error applying name corrections:", error);
+      setError("حدث خطأ أثناء تطبيق تصحيحات الأسماء");
+    }
+  };
+
+  // Handle skipping student name corrections
+  const handleSkipNameCorrections = () => {
+    try {
+      // Use original data and proceed
+      setShowNameCorrectionDialog(false);
+      completeStep(AppStep.ImageProcessing);
+      advanceToStep(AppStep.ReviewConfirm);
+      generateMarkStatistics(extractedData || []);
+
+      console.log("⏭️ Skipped name corrections, using original data");
+    } catch (error) {
+      console.error("Error skipping name corrections:", error);
+      setError("حدث خطأ أثناء تخطي تصحيحات الأسماء");
+    }
+  };
+
+  // Handle manual name correction trigger
+  const handleManualNameCorrection = async () => {
+    if (!extractedData || extractedData.length === 0) {
+      setError("لا توجد بيانات طلاب للتصحيح");
+      return;
+    }
+
+    setIsNameCorrectionLoading(true);
+
+    try {
+      console.log("🔧 Manual name correction triggered from UI");
+
+      // First, try to initialize the service from the Massar file
+      if (!studentNameCorrectionService.isInitialized()) {
+        console.log("🔄 Initializing name correction service from Massar file...");
+        await studentNameCorrectionService.initializeFromMassarFile();
+      }
+
+      // Validate service state
+      const validation = studentNameCorrectionService.validateService();
+      if (!validation.isValid) {
+        throw new Error(`Service validation failed: ${validation.issues.join(", ")}`);
+      }
+
+      // Trigger manual correction
+      const correctionResults = await studentNameCorrectionService.manualCorrection(extractedData);
+
+      if (correctionResults.totalCorrections > 0) {
+        console.log(`✅ Found ${correctionResults.totalCorrections} name corrections`);
+
+        // Set the correction results and show dialog
+        setNameCorrectionResults(correctionResults);
+        setCorrectedExtractedData(correctionResults.correctedStudents);
+        setShowNameCorrectionDialog(true);
+      } else {
+        console.log("ℹ️ No name corrections found");
+        setError("لم يتم العثور على أي تصحيحات مطلوبة للأسماء");
+      }
+    } catch (error) {
+      console.error("❌ Manual name correction failed:", error);
+      const errorMessage = error instanceof Error ? error.message : "خطأ غير معروف";
+      setError(`فشل في تصحيح الأسماء: ${errorMessage}`);
+    } finally {
+      setIsNameCorrectionLoading(false);
+    }
+  };
+
   // Step navigation helpers
   const advanceToStep = (step: AppStep) => {
     setCurrentStep(step);
@@ -747,6 +936,10 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setCompletedSteps(new Set());
     setSuspiciousMarks([]);
     setMarkStats(null);
+    // Reset student name correction states
+    setShowNameCorrectionDialog(false);
+    setNameCorrectionResults(null);
+    setCorrectedExtractedData(null);
     // Keep detected mark types for the next run
   };
 
@@ -813,6 +1006,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             {/* Review and Confirm Step */}
             {currentStep === AppStep.ReviewConfirm && extractedData && (
               <ReviewConfirmStep
+                key={`review-${tableKey}`}
                 isActive={true}
                 isCompleted={isStepCompleted(AppStep.ReviewConfirm)}
                 data={extractedData}
@@ -820,6 +1014,34 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onCancel={resetApp}
                 onDataUpdate={handleDataUpdate}
                 suspiciousMarks={suspiciousMarks}
+                onTriggerNameCorrection={handleManualNameCorrection}
+                isNameCorrectionLoading={isNameCorrectionLoading}
+                hasNameCorrectionAvailable={studentNameCorrectionService.isInitialized()}
+                tableKey={tableKey}
+                onRefreshNamesFromMassar={async () => {
+                  try {
+                    setIsNameCorrectionLoading(true);
+                    if (!extractedData) return;
+                    // Reload Massar names to ensure we use the latest open worksheet state
+                    await studentNameCorrectionService.initializeFromMassarFile();
+                    // Prefer strict number-based alignment when possible
+                    let updated: Student[];
+                    try {
+                      updated = studentNameCorrectionService.forceExactNamesByRowNumber(extractedData);
+                    } catch {
+                      // Fallback to similarity-based order alignment
+                      updated = studentNameCorrectionService.reorderStudentsToMatchMassarOrder(extractedData);
+                    }
+                    setExtractedData(updated);
+                    setTableKey((prev) => prev + 1);
+                    generateMarkStatistics(updated);
+                    setShowNameCorrectionDialog(false);
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setIsNameCorrectionLoading(false);
+                  }
+                }}
               />
             )}
 
@@ -842,6 +1064,16 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             onConfirm={handleMarkTypeSelected}
             isSaving={isSaving}
             detectedMarkTypes={detectedMarkTypes}
+          />
+
+          {/* Student Name Correction Dialog */}
+          <StudentNameCorrectionDialog
+            isOpen={showNameCorrectionDialog}
+            onClose={() => setShowNameCorrectionDialog(false)}
+            correctionResults={nameCorrectionResults}
+            onApplyCorrections={handleApplyNameCorrections}
+            onSkipCorrections={handleSkipNameCorrections}
+            isLoading={isNameCorrectionLoading}
           />
         </div>
       </div>

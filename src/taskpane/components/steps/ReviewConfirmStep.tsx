@@ -83,6 +83,11 @@ interface ReviewConfirmStepProps {
   onCancel: () => void;
   onDataUpdate: (data: Student[]) => void;
   suspiciousMarks: Student[];
+  onTriggerNameCorrection?: () => void;
+  isNameCorrectionLoading?: boolean;
+  hasNameCorrectionAvailable?: boolean;
+  tableKey?: number;
+  onRefreshNamesFromMassar?: () => void;
 }
 
 const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
@@ -93,6 +98,11 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
   onCancel,
   onDataUpdate,
   suspiciousMarks,
+  onTriggerNameCorrection,
+  isNameCorrectionLoading = false,
+  hasNameCorrectionAvailable,
+  tableKey = 0,
+  onRefreshNamesFromMassar,
 }) => {
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
@@ -133,13 +143,58 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
           </InfoCard>
         )}
 
+        {/* Student Name Correction Option */}
+        {hasNameCorrectionAvailable && (
+          <InfoCard type="success">
+            <CheckmarkCircle24Regular style={{ color: "#10b981", flexShrink: 0, marginTop: "4px" }} />
+            <div>
+              <Text weight="semibold" style={{ color: "#10b981", display: "block", marginBottom: "8px" }}>
+                تصحيح أسماء الطلاب متاح:
+              </Text>
+              <Text size={200} style={{ color: "#065f46" }}>
+                يمكنك استخدام بيانات ملف مسار لتصحيح أسماء الطلاب المستخرجة من الصورة.
+              </Text>
+              <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+                <Button appearance="secondary" onClick={onTriggerNameCorrection} disabled={isNameCorrectionLoading}>
+                  {isNameCorrectionLoading ? "جاري التصحيح..." : "تصحيح الأسماء"}
+                </Button>
+                {onRefreshNamesFromMassar && (
+                  <Button appearance="secondary" onClick={onRefreshNamesFromMassar} disabled={isNameCorrectionLoading}>
+                    {isNameCorrectionLoading ? "جاري التحديث..." : "تحديث الأسماء من مسار"}
+                  </Button>
+                )}
+                <Button
+                  appearance="outline"
+                  onClick={() => {
+                    // Test the name correction service
+                    const service = (window as any).studentNameCorrectionService;
+                    if (service && typeof service.testNameCorrection === "function") {
+                      service.testNameCorrection();
+                    } else {
+                      console.log("Student name correction service not available for testing");
+                    }
+                  }}
+                  style={{ fontSize: "12px", padding: "4px 8px" }}
+                >
+                  اختبار
+                </Button>
+              </div>
+            </div>
+          </InfoCard>
+        )}
+
         <Text size={300} style={{ marginBottom: "16px", color: "#666", display: "block" }}>
           يمكنك تصحيح أي علامة غير صحيحة بالنقر عليها
         </Text>
 
         {data && data.length > 0 && (
           <>
-            <DataTable data={data} onDataUpdate={onDataUpdate} suspiciousMarks={suspiciousMarks} />
+            <DataTable
+              key={`datatable-${tableKey}`}
+              data={data}
+              onDataUpdate={onDataUpdate}
+              suspiciousMarks={suspiciousMarks}
+            />
 
             <ButtonContainer>
               <PrimaryButton appearance="primary" onClick={onConfirm} icon={<CheckmarkCircle24Regular />}>

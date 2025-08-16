@@ -215,7 +215,12 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
 
   // Update editableData when data changes
   useEffect(() => {
+    console.log(
+      "📊 DataTable: Received new data prop:",
+      data.map((s) => s.name)
+    );
     setEditableData(data);
+    console.log("📊 DataTable: Updated editableData state");
   }, [data]);
 
   const validateMark = (value: string | null): boolean => {
