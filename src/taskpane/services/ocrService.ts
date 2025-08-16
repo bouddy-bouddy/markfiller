@@ -1,10 +1,5 @@
 import { Student, DetectedMarkTypes } from "../types";
 
-interface CurrentRow {
-  text: string;
-  lineNumber: number;
-}
-
 class OCRService {
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     try {
@@ -65,14 +60,15 @@ class OCRService {
       }
 
       const extractedText = data.responses[0].fullTextAnnotation.text;
+      console.log("📄 Extracted text:", extractedText);
 
       // Try multiple extraction strategies
       let result = this.extractStructuredData(extractedText);
 
-      // If column-based extraction didn't work well, try alternative methods
-      if (result.students.length === 0) {
-        console.log("⚠️ Primary extraction failed, trying alternative method...");
-        result = this.extractWithAlternativeMethod(extractedText);
+      // If we didn't get enough students, try alternative methods
+      if (result.students.length < 10) {
+        console.log("⚠️ Found only " + result.students.length + " students, trying comprehensive extraction...");
+        result = this.comprehensiveExtraction(extractedText);
       }
 
       if (result.students.length === 0) {
@@ -118,64 +114,17 @@ class OCRService {
         detectedMarkTypes.hasActivities = true;
       }
 
-      // Extract using column-based approach
-      const { names, markRows } = this.extractMarksFromTable(text);
-
-      // Create Student objects
-      const students: Student[] = [];
-
-      for (let i = 0; i < names.length; i++) {
-        const marks = markRows[i] || [];
-
-        let markValue: number | null = null;
-        if (marks.length > 0 && marks[0]) {
-          markValue = this.cleanMarkValue(marks[0]);
-        }
-
-        const student: Student = {
-          number: i + 1,
-          name: names[i].trim(),
-          marks: {
-            fard1: detectedMarkTypes.hasFard1 ? markValue : null,
-            fard2: detectedMarkTypes.hasFard2 && !detectedMarkTypes.hasFard1 ? markValue : null,
-            fard3:
-              detectedMarkTypes.hasFard3 && !detectedMarkTypes.hasFard1 && !detectedMarkTypes.hasFard2
-                ? markValue
-                : null,
-            fard4: null,
-            activities:
-              detectedMarkTypes.hasActivities &&
-              !detectedMarkTypes.hasFard1 &&
-              !detectedMarkTypes.hasFard2 &&
-              !detectedMarkTypes.hasFard3
-                ? markValue
-                : null,
-          },
-        };
-
-        students.push(student);
-      }
+      // Extract using comprehensive approach
+      const students = this.comprehensiveExtraction(text).students;
 
       // Default to fard1 if no specific type detected
       if (
         !detectedMarkTypes.hasFard1 &&
         !detectedMarkTypes.hasFard2 &&
         !detectedMarkTypes.hasFard3 &&
-        !detectedMarkTypes.hasActivities &&
-        students.length > 0
+        !detectedMarkTypes.hasActivities
       ) {
         detectedMarkTypes.hasFard1 = true;
-        students.forEach((s) => {
-          if (
-            s.marks.fard1 === null &&
-            (s.marks.fard2 !== null || s.marks.fard3 !== null || s.marks.activities !== null)
-          ) {
-            s.marks.fard1 = s.marks.fard2 || s.marks.fard3 || s.marks.activities;
-            s.marks.fard2 = null;
-            s.marks.fard3 = null;
-            s.marks.activities = null;
-          }
-        });
       }
 
       console.log(`✅ Successfully extracted ${students.length} students`);
@@ -195,60 +144,117 @@ class OCRService {
     }
   }
 
-  private extractMarksFromTable(text: string): { names: string[]; markRows: string[][] } {
+  private comprehensiveExtraction(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
+    console.log("🔄 Using comprehensive extraction method...");
+
     const lines = text.split("\n").map((line) => this.normalizeArabicNumber(line.trim()));
 
-    const names: string[] = [];
-    const marks: string[] = [];
-    let currentSection: "none" | "names" | "marks" = "none";
+    const allNames: string[] = [];
+    const allMarks: string[] = [];
 
-    console.log("🔍 Processing lines for column-based structure...");
-
+    // First pass: collect ALL names and marks from the entire document
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
       if (!line || line.length === 0) continue;
 
-      // Detect section headers
-      if (line.includes("اسم التلميذ") || line.includes("الاسم")) {
-        currentSection = "names";
-        console.log("📝 Entering names section");
+      // Skip headers
+      if (line.includes("اسم التلميذ") || line.includes("الفرض") || line.includes("رقم") || line === "حد 07") {
         continue;
       }
 
-      if (line.includes("الفرض") || line.includes("فرض")) {
-        currentSection = "marks";
-        console.log("📊 Entering marks section");
-        continue;
+      // Check if it's a mark (format: XX,00 or XX.00 or XX100)
+      const markPattern = /^\d{1,2}[,\.]\d{2}$|^\d{1,2}100$/;
+      if (markPattern.test(line)) {
+        allMarks.push(line);
+        console.log(`📊 Found mark: ${line}`);
       }
-
-      // Process based on content type
-      const isArabicName = /[\u0600-\u06FF]{2,}/.test(line) && !line.match(/^\d/);
-      const isMark = /^\d+[,\.]\d+$/.test(line);
-
-      if (currentSection === "names" && isArabicName) {
-        names.push(line);
-        console.log(`✅ Added name: ${line}`);
-      } else if (currentSection === "marks" && isMark) {
-        marks.push(line);
-        console.log(`📊 Added mark: ${line}`);
-      } else if (currentSection === "none") {
-        // Auto-detect based on content
-        if (isArabicName) {
-          currentSection = "names";
-          names.push(line);
-        } else if (isMark) {
-          currentSection = "marks";
-          marks.push(line);
+      // Check if it's an Arabic name (at least 2 Arabic characters)
+      else if (/[\u0600-\u06FF]{2,}/.test(line)) {
+        // Additional check: exclude lines that look like headers or labels
+        if (!line.includes("التلميذ") && !line.includes("الاسم") && !line.includes("الفرض")) {
+          allNames.push(line);
+          console.log(`👤 Found name: ${line}`);
         }
-      } else if (isMark && currentSection === "names") {
-        // Switch to marks section
-        currentSection = "marks";
-        marks.push(line);
       }
     }
 
-    console.log(`📋 Found ${names.length} names and ${marks.length} marks`);
+    console.log(`📋 Total names collected: ${allNames.length}`);
+    console.log(`📊 Total marks collected: ${allMarks.length}`);
+
+    // Create students by pairing names with marks
+    const students: Student[] = [];
+    const maxCount = Math.max(allNames.length, allMarks.length);
+
+    for (let i = 0; i < maxCount; i++) {
+      if (i < allNames.length) {
+        const markValue = i < allMarks.length ? this.cleanMarkValue(allMarks[i]) : null;
+
+        students.push({
+          number: i + 1,
+          name: allNames[i].trim(),
+          marks: {
+            fard1: markValue, // Since we detected الفرض 1
+            fard2: null,
+            fard3: null,
+            fard4: null,
+            activities: null,
+          },
+        });
+
+        console.log(`✅ Created student ${i + 1}: ${allNames[i]} with mark: ${markValue}`);
+      }
+    }
+
+    const detectedMarkTypes: DetectedMarkTypes = {
+      hasFard1: true, // We found الفرض 1 in the header
+      hasFard2: false,
+      hasFard3: false,
+      hasFard4: false,
+      hasActivities: false,
+    };
+
+    console.log(`✅ Total students extracted: ${students.length}`);
+
+    return { students, detectedMarkTypes };
+  }
+
+  private extractMarksFromTable(text: string): { names: string[]; markRows: string[][] } {
+    const lines = text.split("\n").map((line) => this.normalizeArabicNumber(line.trim()));
+
+    const names: string[] = [];
+    const marks: string[] = [];
+
+    console.log("🔍 Extracting all names and marks from document...");
+
+    // Process all lines and extract names and marks regardless of position
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+
+      if (!line || line.length === 0) continue;
+
+      // Skip known headers and special markers
+      if (line.includes("اسم التلميذ") || line.includes("الفرض") || line.includes("رقم") || line === "حد 07") {
+        continue;
+      }
+
+      // Check if it's a mark (XX,00 or XX.00 or XX100 format)
+      const markPattern = /^\d{1,2}[,\.]\d{2}$|^\d{1,2}100$/;
+      if (markPattern.test(line)) {
+        marks.push(line);
+        console.log(`📊 Found mark: ${line}`);
+      }
+      // Check if it's an Arabic name
+      else if (/[\u0600-\u06FF]{2,}/.test(line) && !line.match(/^\d/)) {
+        // Filter out headers and labels
+        if (!line.includes("التلميذ") && !line.includes("الاسم")) {
+          names.push(line);
+          console.log(`👤 Found name: ${line}`);
+        }
+      }
+    }
+
+    console.log(`📋 Total: ${names.length} names and ${marks.length} marks`);
 
     // Map marks to students in order
     const markRows: string[][] = [];
@@ -259,78 +265,37 @@ class OCRService {
     return { names, markRows };
   }
 
-  // Alternative extraction method for different OCR patterns
-  private extractWithAlternativeMethod(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
-    console.log("🔄 Trying alternative extraction method...");
-
-    const lines = text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line);
-    const students: Student[] = [];
-    const detectedMarkTypes: DetectedMarkTypes = {
-      hasFard1: true, // Default to fard1
-      hasFard2: false,
-      hasFard3: false,
-      hasFard4: false,
-      hasActivities: false,
-    };
-
-    let studentNumber = 1;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = this.normalizeArabicNumber(lines[i]);
-
-      // Skip headers
-      if (line.includes("اسم التلميذ") || line.includes("الفرض")) continue;
-
-      // Check if line contains Arabic name
-      if (/[\u0600-\u06FF]{2,}/.test(line)) {
-        // Look ahead for a mark in the next few lines
-        let markValue: number | null = null;
-
-        for (let j = 1; j <= 3 && i + j < lines.length; j++) {
-          const nextLine = this.normalizeArabicNumber(lines[i + j]);
-          if (/^\d+[,\.]\d+$/.test(nextLine)) {
-            markValue = this.cleanMarkValue(nextLine);
-            break;
-          }
-        }
-
-        students.push({
-          number: studentNumber++,
-          name: line,
-          marks: {
-            fard1: markValue,
-            fard2: null,
-            fard3: null,
-            fard4: null,
-            activities: null,
-          },
-        });
-      }
-    }
-
-    return { students, detectedMarkTypes };
-  }
-
   cleanMarkValue(mark: string | null): number | null {
     if (!mark) return null;
 
-    // Remove any non-numeric characters except dots and commas
-    const cleaned = mark.replace(/[^\d.,]/g, "");
+    // Handle special format like "25,00" or "108,00" or "10100"
+    let cleaned = mark.replace(/[^\d.,]/g, "");
 
-    // Convert comma to dot for decimal
-    const normalized = cleaned.replace(",", ".");
-
-    // Parse the number
-    const num = parseFloat(normalized);
-
-    // Validate the mark is within reasonable range (0-20)
-    if (!isNaN(num) && num >= 0 && num <= 20) {
-      return Number(num.toFixed(2));
+    // Handle the "XXX00" format (like "10100" which should be 10.00)
+    if (/^\d{3,}00$/.test(cleaned)) {
+      // Remove the last two zeros and add decimal point
+      cleaned = cleaned.slice(0, -2) + ".00";
     }
 
+    // Convert comma to dot for decimal
+    cleaned = cleaned.replace(",", ".");
+
+    // Parse the number
+    const num = parseFloat(cleaned);
+
+    // Validate the mark is within reasonable range (0-20)
+    // Note: Some marks might be higher (like 25.00), but we'll cap at 20
+    if (!isNaN(num)) {
+      if (num > 20) {
+        console.warn(`⚠️ Mark ${num} exceeds 20, capping at 20`);
+        return 20;
+      }
+      if (num >= 0) {
+        return Number(num.toFixed(2));
+      }
+    }
+
+    console.warn(`⚠️ Invalid mark value: ${mark}`);
     return null;
   }
 
