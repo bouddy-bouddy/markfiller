@@ -635,9 +635,9 @@ export class StudentNameCorrectionService {
 
     // Construct reordered list following Massar order
     const massarToStudent = new Map<number, number>();
-    for (const [sIdx, mIdx] of studentToMassar.entries()) {
+    studentToMassar.forEach((mIdx, sIdx) => {
       massarToStudent.set(mIdx, sIdx);
-    }
+    });
 
     const reordered: Student[] = [];
     for (let mi = 0; mi < this.massarStudentNames.length; mi++) {
