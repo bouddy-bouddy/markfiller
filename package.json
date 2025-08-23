@@ -30,6 +30,7 @@
   "dependencies": {
     "@fluentui/react-components": "^9.58.3",
     "@fluentui/react-icons": "^2.0.274",
+    "@google/generative-ai": "^0.24.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "@microsoft/office-js": "^1.1.106",
     "core-js": "^3.36.0",
