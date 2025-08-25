@@ -1,9 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { createGlobalStyle } from "styled-components";
-import enhancedOcrService from "../services/enhancedOCRService";
+import geminiOcrService from "../services/geminiOcrService";
 import excelService from "../services/excelService";
-import OCREdgeCasesHandler from "../services/ocrEdgeCaseHandler";
 import studentNameCorrectionService from "../services/studentNameCorrectionService";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
 
@@ -547,7 +546,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         lastModified: new Date(selectedImage.lastModified).toISOString(),
       });
 
-      const { students, detectedMarkTypes } = await enhancedOcrService.processImage(selectedImage);
+      const { students, detectedMarkTypes } = await geminiOcrService.processImage(selectedImage);
 
       console.log("✅ OCR PROCESSING COMPLETED - Google Vision API response processed");
       console.log("📊 Extracted data summary:", {
@@ -559,8 +558,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       // Final stage complete
       updateStage(stages.length - 1);
 
-      // Apply edge case handling to improve results
-      const enhancedResults = OCREdgeCasesHandler.enhanceExtractedData(students, detectedMarkTypes);
+      // Results are already processed by Gemini service
+      const enhancedResults = { students, detectedMarkTypes };
 
       // Check if student name correction service is available and apply corrections
       if (studentNameCorrectionService.isInitialized()) {
