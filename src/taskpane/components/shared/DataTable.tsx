@@ -364,6 +364,17 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     return activeTypes;
   };
 
+  // Helper function to get student name header
+  const getStudentNameHeader = (): string => {
+    // Check if any mark type contains "اسم", "الاسم", or "إسم" patterns
+    const hasNamePattern = Object.values(detectedMarkTypes).some(
+      (value) =>
+        typeof value === "string" && (value.includes("اسم") || value.includes("الاسم") || value.includes("إسم"))
+    );
+
+    return "إسم التلميذ";
+  };
+
   const activeMarkTypes = getActiveMarkTypes();
 
   return (
@@ -372,7 +383,7 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
         <TableHeader>
           <TableRow>
             <TableHeaderCell>رقم</TableHeaderCell>
-            <TableHeaderCell>الاسم</TableHeaderCell>
+            <TableHeaderCell>{getStudentNameHeader()}</TableHeaderCell>
             {activeMarkTypes.map(({ key, label }) => (
               <TableHeaderCell key={key}>{label}</TableHeaderCell>
             ))}
