@@ -7,17 +7,17 @@ import {
   TableCell,
   TableHeaderCell,
   Input,
-  Text,
   Tooltip,
 } from "@fluentui/react-components";
 import { Edit24Regular, Warning16Regular } from "@fluentui/react-icons";
-import { Student, StudentMarks } from "../../types";
+import { Student, StudentMarks, DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
 
 interface DataTableProps {
   data: Student[];
   onDataUpdate: (newData: Student[]) => void;
   suspiciousMarks?: Student[];
+  detectedMarkTypes: DetectedMarkTypes;
 }
 
 interface EditingCell {
@@ -180,7 +180,7 @@ const StyledInput = styled(Input)`
   }
 `;
 
-const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMarks = [] }) => {
+const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMarks = [], detectedMarkTypes }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
 
@@ -328,6 +328,31 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     );
   };
 
+  // Helper function to get active mark types
+  const getActiveMarkTypes = (): Array<{ key: keyof StudentMarks; label: string }> => {
+    const activeTypes: Array<{ key: keyof StudentMarks; label: string }> = [];
+    
+    if (detectedMarkTypes.hasFard1) {
+      activeTypes.push({ key: 'fard1', label: 'الفرض 1' });
+    }
+    if (detectedMarkTypes.hasFard2) {
+      activeTypes.push({ key: 'fard2', label: 'الفرض 2' });
+    }
+    if (detectedMarkTypes.hasFard3) {
+      activeTypes.push({ key: 'fard3', label: 'الفرض 3' });
+    }
+    if (detectedMarkTypes.hasFard4) {
+      activeTypes.push({ key: 'fard4', label: 'الفرض 4' });
+    }
+    if (detectedMarkTypes.hasActivities) {
+      activeTypes.push({ key: 'activities', label: 'الأنشطة' });
+    }
+    
+    return activeTypes;
+  };
+
+  const activeMarkTypes = getActiveMarkTypes();
+
   return (
     <TableContainer>
       <StyledTable>
@@ -335,10 +360,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
           <TableRow>
             <TableHeaderCell>رقم</TableHeaderCell>
             <TableHeaderCell>الاسم</TableHeaderCell>
-            <TableHeaderCell>الفرض 1</TableHeaderCell>
-            <TableHeaderCell>الفرض 2</TableHeaderCell>
-            <TableHeaderCell>الفرض 3</TableHeaderCell>
-            <TableHeaderCell>الأنشطة</TableHeaderCell>
+            {activeMarkTypes.map(({ key, label }) => (
+              <TableHeaderCell key={key}>{label}</TableHeaderCell>
+            ))}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -351,10 +375,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
             >
               <TableCell>{student.number}</TableCell>
               <TableCell>{student.name}</TableCell>
-              <TableCell>{renderCell(student, index, "fard1")}</TableCell>
-              <TableCell>{renderCell(student, index, "fard2")}</TableCell>
-              <TableCell>{renderCell(student, index, "fard3")}</TableCell>
-              <TableCell>{renderCell(student, index, "activities")}</TableCell>
+              {activeMarkTypes.map(({ key }) => (
+                <TableCell key={key}>{renderCell(student, index, key)}</TableCell>
+              ))}
             </TableRow>
           ))}
         </TableBody>

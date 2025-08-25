@@ -26,4 +26,51 @@ declare global {
   }
 
   const console: Console;
+  
+  // Add process for environment variables
+  const process: {
+    env: {
+      [key: string]: string | undefined;
+    };
+  };
+  
+  // Add fetch for API calls
+  function fetch(url: string, options?: RequestInit): Promise<Response>;
+  
+  // Add RequestInit interface
+  interface RequestInit {
+    method?: string;
+    headers?: HeadersInit;
+    body?: string | FormData | ArrayBuffer | ArrayBufferView | Blob | File | URLSearchParams | ReadableStream<Uint8Array>;
+  }
+  
+  // Add HeadersInit interface
+  type HeadersInit = Headers | string[][] | Record<string, string>;
+  
+  // Add Response interface
+  interface Response {
+    ok: boolean;
+    status: number;
+    json(): Promise<any>;
+    text(): Promise<string>;
+  }
+  
+  // Add Headers interface
+  interface Headers {
+    append(name: string, value: string): void;
+    delete(name: string): void;
+    get(name: string): string | null;
+    has(name: string): boolean;
+    set(name: string, value: string): void;
+  }
+  
+  // Add HTMLElement interface
+  interface HTMLElement extends Element {
+    value?: string;
+  }
+  
+  // Add HTMLInputElement interface
+  interface HTMLInputElement extends HTMLElement {
+    value: string;
+  }
 }
