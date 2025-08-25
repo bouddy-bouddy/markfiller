@@ -330,24 +330,37 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
 
   // Helper function to get active mark types
   const getActiveMarkTypes = (): Array<{ key: keyof StudentMarks; label: string }> => {
+    const toOrdinal = (n: 1 | 2 | 3 | 4) => {
+      switch (n) {
+        case 1:
+          return "الأول";
+        case 2:
+          return "الثاني";
+        case 3:
+          return "الثالث";
+        case 4:
+          return "الرابع";
+      }
+    };
+
     const activeTypes: Array<{ key: keyof StudentMarks; label: string }> = [];
-    
+
     if (detectedMarkTypes.hasFard1) {
-      activeTypes.push({ key: 'fard1', label: 'الفرض 1' });
+      activeTypes.push({ key: "fard1", label: `الفرض ${toOrdinal(1)}` });
     }
     if (detectedMarkTypes.hasFard2) {
-      activeTypes.push({ key: 'fard2', label: 'الفرض 2' });
+      activeTypes.push({ key: "fard2", label: `الفرض ${toOrdinal(2)}` });
     }
     if (detectedMarkTypes.hasFard3) {
-      activeTypes.push({ key: 'fard3', label: 'الفرض 3' });
+      activeTypes.push({ key: "fard3", label: `الفرض ${toOrdinal(3)}` });
     }
     if (detectedMarkTypes.hasFard4) {
-      activeTypes.push({ key: 'fard4', label: 'الفرض 4' });
+      activeTypes.push({ key: "fard4", label: `الفرض ${toOrdinal(4)}` });
     }
     if (detectedMarkTypes.hasActivities) {
-      activeTypes.push({ key: 'activities', label: 'الأنشطة' });
+      activeTypes.push({ key: "activities", label: "الأنشطة" });
     }
-    
+
     return activeTypes;
   };
 

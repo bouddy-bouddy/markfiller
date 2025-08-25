@@ -348,25 +348,45 @@ Return only the extracted text without any additional commentary or formatting.`
    * Parse row into cells with intelligent separator handling
    */
   private parseRowIntoCells(row: string): string[] {
-    // First try splitting by common table separators
-    let cells = row
-      .split(/[\s\t|،]+/)
-      .map((cell) => cell.trim())
-      .filter((cell) => cell.length > 0);
+    // Normalize spaces
+    let working = row.replace(/\s+/g, " ").trim();
 
-    // If we get too few cells, try alternative splitting strategies
-    if (cells.length < 3) {
-      // Try splitting by multiple spaces
-      cells = row
-        .split(/\s{2,}/)
-        .map((cell) => cell.trim())
-        .filter((cell) => cell.length > 0);
+    // 1) Extract leading student number if present
+    const leadingNumMatch = working.match(/^\s*(\d{1,3})\s+/);
+    const cells: string[] = [];
+    if (leadingNumMatch) {
+      cells.push(leadingNumMatch[1]);
+      working = working.slice(leadingNumMatch[0].length).trim();
     }
 
-    // If still too few, try splitting by any whitespace and then grouping
-    if (cells.length < 3) {
-      const allParts = row.split(/\s+/).filter((part) => part.length > 0);
-      cells = this.groupPartsIntoCells(allParts);
+    // 2) First split on strong separators (pipes, tabs, Arabic comma). This preserves spaces inside names
+    let segments = working
+      .split(/[|\t،]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
+    // If no strong separators found, keep the whole remainder as one segment
+    if (segments.length === 0) {
+      segments = [working];
+    }
+
+    // 3) For each segment, if it's clearly a mark keep as-is; otherwise treat as text (name) even if multi-word
+    const markLike = /^(?:\d{1,2})(?:[\.,]\d{1,2})?$/;
+
+    for (const seg of segments) {
+      if (markLike.test(this.normalizeArabicNumber(seg))) {
+        cells.push(seg);
+      } else {
+        // Some OCR rows may still contain extra spaces between name parts – keep full name segment
+        // but trim trailing punctuation
+        cells.push(seg.replace(/[:؛]$/, "").trim());
+      }
+    }
+
+    // 4) As a safety, if after this we still have < 2 cells, fallback to grouping by numeric boundaries
+    if (cells.length < 2) {
+      const parts = working.split(/\s+/).filter((p) => p.length > 0);
+      return this.groupPartsIntoCells(parts);
     }
 
     return cells;
