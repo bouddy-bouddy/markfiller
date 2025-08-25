@@ -10,7 +10,7 @@ import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
 import StatisticsStep from "./steps/StatisticsStep";
-import IntelligentMarkTypeDialog from "./dialogs/IntelligentMarkTypeDialog";
+// IntelligentMarkTypeDialog removed
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
 
@@ -417,9 +417,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     hasActivities: false,
   });
 
-  // Dialog states
-  const [showMarkTypeDialog, setShowMarkTypeDialog] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
+  // Dialog states removed
 
   // Student name correction states
   const [tableKey, setTableKey] = useState<number>(0); // Force re-render key
@@ -667,54 +665,44 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   const handleConfirmData = async () => {
     try {
-      // First validate Excel file
       const isValidFile = await excelService.validateExcelFile();
       if (!isValidFile) {
         setError("يرجى التأكد من فتح ملف مسار صحيح في Excel");
         return;
       }
 
-      // Show mark type selection dialog with intelligent recommendations
-      setShowMarkTypeDialog(true);
-    } catch (err) {
-      setError("حدث خطأ أثناء التحقق من ملف Excel");
-      console.error(err);
-    }
-  };
-
-  // Handle mark type selection
-  const handleMarkTypeSelected = async (markType: string) => {
-    setIsSaving(true);
-    try {
       if (!extractedData) {
-        throw new Error("No data to save");
+        setError("لا توجد بيانات لإدخالها");
+        return;
       }
 
-      // Insert marks with detected mark types information
-      const results = await excelService.insertMarks(extractedData, markType, detectedMarkTypes);
+      // Choose mark type automatically based on detectedMarkTypes
+      const chooseArabicMarkType = (): string => {
+        if (detectedMarkTypes.hasFard1) return "الفرض الأول";
+        if (detectedMarkTypes.hasFard2) return "الفرض الثاني";
+        if (detectedMarkTypes.hasFard3) return "الفرض الثالث";
+        if (detectedMarkTypes.hasActivities) return "الأنشطة";
+        return "الفرض الأول";
+      };
 
-      // Show results
+      const selectedArabicType = chooseArabicMarkType();
+      const results = await excelService.insertMarks(extractedData, selectedArabicType, detectedMarkTypes);
+
       if (results.notFound > 0) {
         setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم.`);
-
-        if (results.notFoundStudents.length > 0) {
-          // Students not found - this information is available in the results object
-        }
       } else {
         setError(null);
       }
 
-      // Close dialogs and mark step as completed
-      setShowMarkTypeDialog(false);
       completeStep(AppStep.ReviewConfirm);
       advanceToStep(AppStep.Statistics);
     } catch (err) {
       setError("حدث خطأ أثناء إدخال البيانات في Excel");
       console.error(err);
-    } finally {
-      setIsSaving(false);
     }
   };
+
+  // Dialog handler removed
 
   // Update extracted data
   const handleDataUpdate = (newData: Student[]) => {
@@ -840,14 +828,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             )}
           </div>
 
-          {/* Intelligent Mark Type Dialog */}
-          <IntelligentMarkTypeDialog
-            isOpen={showMarkTypeDialog}
-            onClose={() => setShowMarkTypeDialog(false)}
-            onConfirm={handleMarkTypeSelected}
-            isSaving={isSaving}
-            detectedMarkTypes={detectedMarkTypes}
-          />
+          {/* Intelligent Mark Type Dialog removed */}
 
           {/* Student Name Correction Dialog */}
         </div>
