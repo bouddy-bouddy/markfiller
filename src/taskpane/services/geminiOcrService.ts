@@ -23,7 +23,7 @@ class GeminiOCRService {
         throw new Error("Gemini API key not found. Please check your environment configuration.");
       }
 
-      // Use Gemini Pro Vision model for image analysis
+      // Use Gemini Vision-capable model for image analysis
       const response = await this.callGeminiAPI(base64Content);
 
       if (!response || !response.text) {
@@ -53,7 +53,10 @@ class GeminiOCRService {
    * Call Gemini API with optimized prompt for student marks sheets
    */
   private async callGeminiAPI(base64Image: string): Promise<{ text: string }> {
-    const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro-vision:generateContent";
+    // Use a valid, image-capable Gemini model to avoid 404 errors
+    // Options: "gemini-1.5-flash", "gemini-1.5-pro", or legacy "gemini-1.0-pro-vision-latest"
+    const model = "gemini-1.5-flash";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
     const prompt = `Analyze this image of a student marks sheet and extract all the text content in the exact order it appears.
 
@@ -107,7 +110,7 @@ Return only the extracted text without any additional commentary or formatting.`
           threshold: "BLOCK_MEDIUM_AND_ABOVE",
         },
       ],
-    };
+    } as const;
 
     const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
       method: "POST",
@@ -118,13 +121,15 @@ Return only the extracted text without any additional commentary or formatting.`
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
+      const errorData = await response.json().catch(() => ({}));
       console.error("Gemini API error:", errorData);
 
       if (response.status === 400) {
         throw new Error("فشل الاتصال بخدمة Gemini: خطأ في طلب API. يرجى التحقق من الصورة.");
       } else if (response.status === 403) {
         throw new Error("فشل الاتصال بخدمة Gemini: خطأ في المصادقة. يرجى التحقق من مفتاح API.");
+      } else if (response.status === 404) {
+        throw new Error("فشل الاتصال بخدمة Gemini: نموذج غير موجود. تم تحديث النموذج إلى إصدار مدعوم.");
       } else {
         throw new Error("فشل الاتصال بخدمة Gemini. يرجى المحاولة مرة أخرى.");
       }
