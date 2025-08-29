@@ -91,6 +91,12 @@ const StyledTable = styled(Table)`
       text-align: right !important;
       padding-right: 12px !important;
       padding-left: 8px !important;
+      /* Strong vertical separator between name and marks */
+      border-right: 2px solid rgba(14, 124, 66, 0.35);
+    }
+    /* Separator on the right side of the first mark column (between name and fard1) */
+    &:nth-child(3) {
+      border-right: 2px solid rgba(14, 124, 66, 0.35);
     }
   }
 
@@ -124,6 +130,12 @@ const StyledTable = styled(Table)`
       text-align: right !important;
       padding-right: 12px !important;
       padding-left: 8px !important;
+      /* Strong vertical separator between name and marks */
+      border-right: 2px solid rgba(14, 124, 66, 0.3);
+    }
+    /* Separator on the right side of the first mark column (between name and fard1) */
+    &:nth-child(3) {
+      border-right: 2px solid rgba(14, 124, 66, 0.3);
     }
   }
 `;
