@@ -198,10 +198,12 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
       </Text>
 
       <div className="table-container" style={{ maxHeight: "400px", overflowY: "auto" }}>
-        <Table>
+        <Table style={{ tableLayout: "fixed", width: "100%" }}>
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>رقم التلميذ</TableHeaderCell>
+              <TableHeaderCell style={{ width: "60px", minWidth: "60px", maxWidth: "60px", whiteSpace: "nowrap" }}>
+                رقم التلميذ
+              </TableHeaderCell>
               <TableHeaderCell>الاسم</TableHeaderCell>
               <TableHeaderCell>الفرض 1</TableHeaderCell>
               <TableHeaderCell>الفرض 2</TableHeaderCell>
@@ -217,7 +219,9 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
                   backgroundColor: index % 2 === 0 ? "#f9f9f9" : "white",
                 }}
               >
-                <TableCell>{student.number}</TableCell>
+                <TableCell style={{ width: "60px", minWidth: "60px", maxWidth: "60px", whiteSpace: "nowrap" }}>
+                  {student.number}
+                </TableCell>
                 <TableCell>{student.name}</TableCell>
                 <TableCell>{renderCell(student, index, "fard1")}</TableCell>
                 <TableCell>{renderCell(student, index, "fard2")}</TableCell>

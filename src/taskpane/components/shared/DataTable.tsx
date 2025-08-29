@@ -79,6 +79,19 @@ const StyledTable = styled(Table)`
     &:last-child {
       border-right: none;
     }
+    /* Narrow width for the first column (student number) */
+    &:first-child {
+      width: 60px !important;
+      min-width: 60px !important;
+      max-width: 60px !important;
+      white-space: nowrap;
+    }
+    /* Right-align the student name header and tighten spacing */
+    &:nth-child(2) {
+      text-align: right !important;
+      padding-right: 12px !important;
+      padding-left: 8px !important;
+    }
   }
 
   .fui-TableRow {
@@ -98,6 +111,19 @@ const StyledTable = styled(Table)`
 
     &:last-child {
       border-right: none;
+    }
+    /* Match the first column width for body rows */
+    &:first-child {
+      width: 60px !important;
+      min-width: 60px !important;
+      max-width: 60px !important;
+      white-space: nowrap;
+    }
+    /* Right-align the student name cells and tighten spacing */
+    &:nth-child(2) {
+      text-align: right !important;
+      padding-right: 12px !important;
+      padding-left: 8px !important;
     }
   }
 `;
