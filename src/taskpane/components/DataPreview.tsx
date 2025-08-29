@@ -201,7 +201,7 @@ const DataPreview: React.FC<DataPreviewProps> = ({ data, onConfirm, onCancel, on
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHeaderCell>رقم</TableHeaderCell>
+              <TableHeaderCell>رقم التلميذ</TableHeaderCell>
               <TableHeaderCell>الاسم</TableHeaderCell>
               <TableHeaderCell>الفرض 1</TableHeaderCell>
               <TableHeaderCell>الفرض 2</TableHeaderCell>

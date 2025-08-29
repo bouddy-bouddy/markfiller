@@ -382,7 +382,7 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
       <StyledTable>
         <TableHeader>
           <TableRow>
-            <TableHeaderCell>رقم</TableHeaderCell>
+            <TableHeaderCell>رقم التلميذ</TableHeaderCell>
             <TableHeaderCell>{getStudentNameHeader()}</TableHeaderCell>
             {activeMarkTypes.map(({ key, label }) => (
               <TableHeaderCell key={key}>{label}</TableHeaderCell>
