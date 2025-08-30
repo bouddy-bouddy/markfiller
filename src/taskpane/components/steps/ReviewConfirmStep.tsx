@@ -82,7 +82,7 @@ interface ReviewConfirmStepProps {
   onConfirm: () => void;
   onCancel: () => void;
   onDataUpdate: (data: Student[]) => void;
-  suspiciousMarks: Student[];
+
   onTriggerNameCorrection?: () => void;
   isNameCorrectionLoading?: boolean;
   hasNameCorrectionAvailable?: boolean;
@@ -98,7 +98,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
   onConfirm,
   onCancel,
   onDataUpdate,
-  suspiciousMarks,
+
   onTriggerNameCorrection,
   isNameCorrectionLoading = false,
   hasNameCorrectionAvailable,
@@ -127,24 +127,6 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
       </StepTitle>
 
       <div className="step-content">
-        {/* Statistics & Potential Issues */}
-        {suspiciousMarks.length > 0 && (
-          <InfoCard type="warning">
-            <WarningRegular style={{ color: "#e53e3e", flexShrink: 0, marginTop: "4px" }} />
-            <div>
-              <Text weight="semibold" style={{ color: "#e53e3e", display: "block", marginBottom: "8px" }}>
-                تم اكتشاف علامات غير معتادة:
-              </Text>
-              <Text size={200} style={{ color: "#c53030" }}>
-                هناك {suspiciousMarks.length} علامة تبدو خارج النطاق المعتاد. يرجى مراجعتها قبل التأكيد.
-              </Text>
-              <Text size={200} style={{ color: "#c53030", marginTop: "8px" }}>
-                العلامات المشكوك فيها مميزة بخلفية حمراء خفيفة في الجدول. انقر على أي علامة لتعديلها.
-              </Text>
-            </div>
-          </InfoCard>
-        )}
-
         <Text size={300} style={{ marginBottom: "16px", color: "#666", display: "block" }}>
           يمكنك تصحيح أي علامة غير صحيحة بالنقر عليها
         </Text>
@@ -155,7 +137,6 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
               key={`datatable-${tableKey}`}
               data={data}
               onDataUpdate={onDataUpdate}
-              suspiciousMarks={suspiciousMarks}
               detectedMarkTypes={detectedMarkTypes}
             />
 

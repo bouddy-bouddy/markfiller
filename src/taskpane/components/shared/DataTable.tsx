@@ -9,14 +9,13 @@ import {
   Input,
   Tooltip,
 } from "@fluentui/react-components";
-import { Edit24Regular, Warning16Regular } from "@fluentui/react-icons";
+import { Edit24Regular } from "@fluentui/react-icons";
 import { Student, StudentMarks, DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
 
 interface DataTableProps {
   data: Student[];
   onDataUpdate: (newData: Student[]) => void;
-  suspiciousMarks?: Student[];
   detectedMarkTypes: DetectedMarkTypes;
 }
 
@@ -140,30 +139,27 @@ const StyledTable = styled(Table)`
   }
 `;
 
-const EditableCell = styled.div<{ $isSuspicious: boolean }>`
+const EditableCell = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
   cursor: pointer;
-  background: ${(props) => (props.$isSuspicious ? "linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)" : "transparent")};
+  background: transparent;
   padding: 8px 12px;
   border-radius: 8px;
-  border: 1px solid ${(props) => (props.$isSuspicious ? "rgba(239, 68, 68, 0.2)" : "transparent")};
+  border: 1px solid transparent;
   transition: all 0.2s ease;
 
   &:hover {
-    background: ${(props) =>
-      props.$isSuspicious
-        ? "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)"
-        : "linear-gradient(135deg, rgba(14, 124, 66, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%)"};
+    background: linear-gradient(135deg, rgba(14, 124, 66, 0.05) 0%, rgba(16, 185, 129, 0.05) 100%);
     transform: translateY(-1px);
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   }
 `;
 
-const MarkValue = styled.span<{ $isSuspicious: boolean }>`
+const MarkValue = styled.span`
   font-weight: 600;
-  color: ${(props) => (props.$isSuspicious ? "#dc2626" : "#1f2937")};
+  color: #1f2937;
   font-size: 14px;
 `;
 
@@ -171,19 +167,6 @@ const CellActions = styled.div`
   display: flex;
   align-items: center;
   gap: 4px;
-`;
-
-const WarningIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
-  border-radius: 50%;
-  color: white;
-  font-size: 10px;
-  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
 `;
 
 const EditIcon = styled.div`
@@ -218,38 +201,9 @@ const StyledInput = styled(Input)`
   }
 `;
 
-const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMarks = [], detectedMarkTypes }) => {
+const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkTypes }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
-
-  // Map of suspicious students by ID for quick lookup
-  const [suspiciousMap, setSuspiciousMap] = useState<Record<string, Set<keyof StudentMarks>>>({});
-
-  // Update suspiciousMap when suspiciousMarks changes
-  useEffect(() => {
-    const newMap: Record<string, Set<keyof StudentMarks>> = {};
-
-    suspiciousMarks.forEach((student) => {
-      const key = `${student.number}-${student.name}`;
-      newMap[key] = new Set();
-
-      // Check which marks are suspicious (this is simplified; normally would come from validation)
-      if (student.marks.fard1 !== null && (student.marks.fard1 < 3 || student.marks.fard1 > 18)) {
-        newMap[key].add("fard1");
-      }
-      if (student.marks.fard2 !== null && (student.marks.fard2 < 3 || student.marks.fard2 > 18)) {
-        newMap[key].add("fard2");
-      }
-      if (student.marks.fard3 !== null && (student.marks.fard3 < 3 || student.marks.fard3 > 18)) {
-        newMap[key].add("fard3");
-      }
-      if (student.marks.activities !== null && (student.marks.activities < 5 || student.marks.activities > 19)) {
-        newMap[key].add("activities");
-      }
-    });
-
-    setSuspiciousMap(newMap);
-  }, [suspiciousMarks]);
 
   // Update editableData when data changes
   useEffect(() => {
@@ -321,15 +275,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     }
   };
 
-  const isMarkSuspicious = (student: Student, markType: keyof StudentMarks): boolean => {
-    const key = `${student.number}-${student.name}`;
-    return suspiciousMap[key]?.has(markType) || false;
-  };
-
   const renderCell = (student: Student, index: number, markType: keyof StudentMarks) => {
     const isEditing = editingCell?.studentIndex === index && editingCell?.markType === markType;
     const value = student.marks[markType];
-    const isSuspicious = isMarkSuspicious(student, markType);
 
     if (isEditing) {
       return (
@@ -348,16 +296,9 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, suspiciousMar
     }
 
     return (
-      <EditableCell $isSuspicious={isSuspicious} onClick={() => setEditingCell({ studentIndex: index, markType })}>
-        <MarkValue $isSuspicious={isSuspicious}>{formatMark(value)}</MarkValue>
+      <EditableCell onClick={() => setEditingCell({ studentIndex: index, markType })}>
+        <MarkValue>{formatMark(value)}</MarkValue>
         <CellActions>
-          {isSuspicious && (
-            <Tooltip content="علامة غير معتادة. تحقق منها." relationship="label">
-              <WarningIcon>
-                <Warning16Regular style={{ fontSize: "12px" }} />
-              </WarningIcon>
-            </Tooltip>
-          )}
           <EditIcon>
             <Edit24Regular style={{ fontSize: "16px" }} />
           </EditIcon>

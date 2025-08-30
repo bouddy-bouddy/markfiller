@@ -299,18 +299,33 @@ Return only the extracted text without any additional commentary or formatting.`
   private extractDataRows(lines: string[], headerRowIndex: number): string[] {
     const dataRows = lines.slice(headerRowIndex + 1);
 
-    return dataRows.filter((row) => {
+    const filteredRows = dataRows.filter((row) => {
       if (!row || row.trim().length === 0) return false;
 
-      // Skip summary rows
-      if (this.isSummaryRow(row)) return false;
+      // Skip summary rows (but be more specific)
+      if (this.isSummaryRow(row)) {
+        console.log(`🚫 Skipping summary row: "${row}"`);
+        return false;
+      }
 
       // Skip header-like rows that might appear after the main header
-      if (this.isAdvancedHeaderRow(row)) return false;
+      if (this.isAdvancedHeaderRow(row)) {
+        console.log(`🚫 Skipping header row: "${row}"`);
+        return false;
+      }
 
-      // Must contain at least some Arabic text (student names)
-      return /[\u0600-\u06FF]{2,}/.test(row);
+      // Must contain at least some Arabic text OR numbers (for student data)
+      const hasArabicOrNumbers = /[\u0600-\u06FF]/.test(row) || /\d/.test(row);
+      if (!hasArabicOrNumbers) {
+        console.log(`🚫 Skipping row without Arabic/numbers: "${row}"`);
+        return false;
+      }
+
+      return true;
     });
+
+    console.log(`📊 Filtered ${filteredRows.length} data rows from ${dataRows.length} total rows`);
+    return filteredRows;
   }
 
   /**
@@ -328,11 +343,30 @@ Return only the extracted text without any additional commentary or formatting.`
   ): Student | null {
     // Parse row into cells with better separator handling
     const cells = this.parseRowIntoCells(row);
-    if (cells.length < 2) return null;
+
+    // IMPROVED: More lenient cell count check - allow even single cell if it contains meaningful data
+    if (cells.length === 0) {
+      console.warn(`⚠️ No cells found in row: "${row}"`);
+      return null;
+    }
 
     // Find student name using multiple strategies
-    const studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
-    if (!studentName) return null;
+    let studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
+
+    // IMPROVED: If name extraction fails, try emergency fallback extraction
+    if (!studentName) {
+      studentName = this.emergencyNameExtraction(row, cells);
+      if (studentName) {
+        console.log(`🚨 Emergency name extraction successful: "${studentName}" from row: "${row}"`);
+      }
+    }
+
+    // IMPROVED: Only return null if we absolutely cannot find any name
+    if (!studentName) {
+      console.warn(`⚠️ Could not extract any student name from row: "${row}"`);
+      console.warn(`⚠️ Parsed cells were:`, cells);
+      return null;
+    }
 
     // Extract marks using the column mapping
     const marks = this.extractMarksAdvanced(cells, headerAnalysis, detectedMarkTypes);
@@ -345,7 +379,7 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
-   * Parse row into cells with intelligent separator handling
+   * Parse row into cells with intelligent separator handling - IMPROVED VERSION
    */
   private parseRowIntoCells(row: string): string[] {
     // Normalize spaces
@@ -383,10 +417,23 @@ Return only the extracted text without any additional commentary or formatting.`
       }
     }
 
-    // 4) As a safety, if after this we still have < 2 cells, fallback to grouping by numeric boundaries
-    if (cells.length < 2) {
+    // 4) IMPROVED: More aggressive fallback parsing
+    if (cells.length === 0) {
+      // Emergency: just split by spaces and try to find meaningful parts
       const parts = working.split(/\s+/).filter((p) => p.length > 0);
-      return this.groupPartsIntoCells(parts);
+      if (parts.length > 0) {
+        return this.groupPartsIntoCells(parts);
+      }
+      // Last resort: return the entire row as a single cell
+      return working.length > 0 ? [working] : [];
+    }
+
+    // 5) If we only have one cell and it's not a number, try to split it further
+    if (cells.length === 1 && !markLike.test(this.normalizeArabicNumber(cells[0]))) {
+      const parts = cells[0].split(/\s+/).filter((p) => p.length > 0);
+      if (parts.length > 1) {
+        return this.groupPartsIntoCells(parts);
+      }
     }
 
     return cells;
@@ -424,7 +471,7 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
-   * Extract student name using multiple strategies
+   * Extract student name using multiple strategies - IMPROVED VERSION
    */
   private extractStudentName(
     cells: string[],
@@ -451,10 +498,31 @@ Return only the extracted text without any additional commentary or formatting.`
       return this.cleanStudentName(bestName);
     }
 
-    // Strategy 3: Look for Arabic text in any cell
+    // Strategy 3: Look for Arabic text in any cell (more lenient)
     for (const cell of cells) {
-      if (/[\u0600-\u06FF]{2,}/.test(cell) && !this.isHeaderLike(cell)) {
+      if (/[\u0600-\u06FF]{2,}/.test(cell) && !this.isStrictHeaderLike(cell)) {
         return this.cleanStudentName(cell);
+      }
+    }
+
+    // Strategy 4: Even more lenient - any cell with Arabic characters
+    for (const cell of cells) {
+      const cleaned = cell.replace(/[^\u0600-\u06FF\s]/g, "").trim();
+      if (cleaned.length >= 2 && !this.isStrictHeaderLike(cell)) {
+        // IMPROVED: Reduced from 3 to 2 characters
+        console.log(`📝 Fallback name extraction: "${cell}" → "${cleaned}"`);
+        return this.cleanStudentName(cell);
+      }
+    }
+
+    // Strategy 5: IMPROVED - Ultra lenient: any cell with ANY Arabic character
+    for (const cell of cells) {
+      if (/[\u0600-\u06FF]/.test(cell) && !this.isStrictHeaderLike(cell)) {
+        const cleaned = this.cleanStudentName(cell);
+        if (cleaned.length > 0) {
+          console.log(`📝 Ultra-lenient name extraction: "${cell}" → "${cleaned}"`);
+          return cleaned;
+        }
       }
     }
 
@@ -462,19 +530,89 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
-   * Check if a string is a valid student name
+   * Emergency name extraction when all other strategies fail - NEW METHOD
+   */
+  private emergencyNameExtraction(originalRow: string, cells: string[]): string | null {
+    console.log(`🚨 Emergency name extraction for row: "${originalRow}"`);
+
+    // Emergency Strategy 1: Look for any text that's not purely numeric
+    for (const cell of cells) {
+      if (cell && cell.trim().length > 0 && !/^\d+([.,]\d+)?$/.test(cell.trim())) {
+        const cleaned = cell
+          .trim()
+          .replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "")
+          .trim();
+        if (cleaned.length >= 2) {
+          console.log(`🚨 Emergency extraction found: "${cleaned}" from cell: "${cell}"`);
+          return cleaned;
+        }
+      }
+    }
+
+    // Emergency Strategy 2: Extract from the original row directly
+    const rowText = originalRow.trim();
+
+    // Remove leading numbers (student numbers)
+    let workingText = rowText.replace(/^\d+\s*/, "");
+
+    // Look for Arabic text patterns
+    const arabicMatch = workingText.match(/[\u0600-\u06FF][^\d]*[\u0600-\u06FF]/);
+    if (arabicMatch) {
+      const extracted = arabicMatch[0]
+        .trim()
+        .replace(/[^\u0600-\u06FF\s]/g, "")
+        .trim();
+      if (extracted.length >= 2) {
+        console.log(`🚨 Emergency Arabic extraction: "${extracted}" from: "${workingText}"`);
+        return extracted;
+      }
+    }
+
+    // Emergency Strategy 3: Look for any sequence of letters (Arabic or Latin)
+    const letterMatch = workingText.match(/[^\d\s.,|]+/);
+    if (letterMatch) {
+      const extracted = letterMatch[0].trim();
+      if (extracted.length >= 2 && !/^[.,|]+$/.test(extracted)) {
+        console.log(`🚨 Emergency letter extraction: "${extracted}" from: "${workingText}"`);
+        return extracted;
+      }
+    }
+
+    // Emergency Strategy 4: Last resort - use the first meaningful part
+    const parts = workingText.split(/\s+/).filter((p) => p.length > 1 && !/^\d+([.,]\d+)?$/.test(p));
+    if (parts.length > 0) {
+      const extracted = parts[0].replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "").trim();
+      if (extracted.length >= 1) {
+        console.log(`🚨 Emergency part extraction: "${extracted}" from parts:`, parts);
+        return extracted;
+      }
+    }
+
+    console.log(`🚨 Emergency extraction failed completely for: "${originalRow}"`);
+    return null;
+  }
+
+  /**
+   * Check if a string is a valid student name - IMPROVED VERSION (More Lenient)
    */
   private isValidStudentName(name: string): boolean {
-    if (!name || name.length < 2) return false;
+    if (!name || name.length < 1) return false; // IMPROVED: Allow single character names
 
-    // Must contain Arabic text
-    if (!/[\u0600-\u06FF]{2,}/.test(name)) return false;
+    // IMPROVED: Allow names without Arabic text (for mixed language scenarios)
+    // Original strict check: if (!/[\u0600-\u06FF]/.test(name)) return false;
 
-    // Must not be header-like
-    if (this.isHeaderLike(name)) return false;
+    // Must not be header-like (but be more lenient)
+    if (this.isStrictHeaderLike(name)) return false;
 
     // Must not be purely numeric
-    if (/^\d+$/.test(name.replace(/[,\.]/g, ""))) return false;
+    if (/^\d+([.,]\d+)?$/.test(name.replace(/\s/g, ""))) return false;
+
+    // IMPROVED: More lenient validation after cleaning
+    const cleaned = name.replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "").trim();
+    if (cleaned.length < 1) return false; // IMPROVED: Allow single character after cleaning
+
+    // IMPROVED: Additional check - reject if it's only punctuation or symbols
+    if (/^[^\u0600-\u06FF\u0041-\u005A\u0061-\u007A\s]+$/.test(name)) return false;
 
     return true;
   }
@@ -501,6 +639,33 @@ Return only the extracted text without any additional commentary or formatting.`
     ];
 
     return headerKeywords.some((keyword) => text.toLowerCase().includes(keyword.toLowerCase()));
+  }
+
+  /**
+   * Stricter header check for name validation - IMPROVED VERSION (More Lenient)
+   */
+  private isStrictHeaderLike(text: string): boolean {
+    const strictHeaderKeywords = [
+      "الاسم الكامل",
+      "اسم التلميذ",
+      "الفرض الأول",
+      "الفرض الثاني",
+      "الفرض الثالث",
+      "الأنشطة المدمجة",
+      "المجموع العام",
+      "المعدل العام",
+      "المجموع",
+      "المعدل",
+      "total",
+      "average",
+    ];
+
+    // IMPROVED: Only reject if it's an EXACT match to header keywords
+    const lowerText = text.toLowerCase().trim();
+    return strictHeaderKeywords.some((keyword) => lowerText === keyword.toLowerCase());
+
+    // REMOVED: The partial match condition that was too aggressive:
+    // || (lowerText.includes(keyword.toLowerCase()) && text.length < 15)
   }
 
   /**
@@ -662,6 +827,58 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
+   * Emergency fallback when no students are extracted
+   */
+  private emergencyFallbackExtraction(dataRows: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
+    console.log("🆘 Using emergency fallback extraction");
+    const students: Student[] = [];
+
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i];
+      if (!row || row.trim().length === 0) continue;
+
+      const cells = this.parseRowIntoCells(row);
+      if (cells.length < 1) continue;
+
+      // Very lenient name extraction - any cell with Arabic text
+      let studentName: string | null = null;
+      for (const cell of cells) {
+        if (/[\u0600-\u06FF]/.test(cell)) {
+          studentName = this.cleanStudentName(cell);
+          break;
+        }
+      }
+
+      if (studentName) {
+        // Extract any numbers as potential marks
+        const marks: Student["marks"] = {
+          fard1: null,
+          fard2: null,
+          fard3: null,
+          fard4: null,
+          activities: null,
+        };
+
+        const numbers = cells.filter((cell) => this.isNumeric(cell));
+        if (numbers.length > 0 && detectedMarkTypes.hasFard1) marks.fard1 = this.parseMarkValue(numbers[0]);
+        if (numbers.length > 1 && detectedMarkTypes.hasFard2) marks.fard2 = this.parseMarkValue(numbers[1]);
+        if (numbers.length > 2 && detectedMarkTypes.hasFard3) marks.fard3 = this.parseMarkValue(numbers[2]);
+        if (numbers.length > 3 && detectedMarkTypes.hasActivities) marks.activities = this.parseMarkValue(numbers[3]);
+
+        students.push({
+          number: i + 1,
+          name: studentName,
+          marks,
+        });
+
+        console.log(`🆘 Emergency extracted: ${studentName} with ${numbers.length} marks`);
+      }
+    }
+
+    return students;
+  }
+
+  /**
    * Advanced fallback extraction when structured extraction fails
    */
   private advancedFallbackExtraction(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
@@ -732,24 +949,55 @@ Return only the extracted text without any additional commentary or formatting.`
     // Step 2: Extract and validate data rows
     const dataRows = this.extractDataRows(lines, headerAnalysis.headerRowIndex);
     console.log(`📊 Found ${dataRows.length} data rows`);
+    console.log(`📋 Sample data rows:`, dataRows.slice(0, 3));
 
     // Step 3: Process each data row with intelligent alignment
     for (let i = 0; i < dataRows.length; i++) {
       const row = dataRows[i];
       if (!row || row.trim().length === 0) continue;
 
-      // Skip summary rows
-      if (this.isSummaryRow(row)) continue;
+      // Skip summary rows (but be more careful about it)
+      if (this.isSummaryRow(row)) {
+        console.log(`📊 Skipping summary row ${i + 1}: "${row}"`);
+        continue;
+      }
 
       const student = this.extractStudentFromRowAdvanced(row, headerAnalysis, detectedMarkTypes, i + 1);
       if (student) {
         students.push(student);
         console.log(`✅ Extracted student ${i + 1}: ${student.name} with marks:`, student.marks);
+      } else {
+        console.warn(`⚠️ Failed to extract student from row ${i + 1}: "${row}"`);
+        // Log the parsed cells for debugging
+        const cells = this.parseRowIntoCells(row);
+        console.warn(`📋 Parsed cells:`, cells);
+
+        // IMPROVED: Try one more emergency attempt with a completely different approach
+        const emergencyStudent = this.lastResortStudentExtraction(row, i + 1);
+        if (emergencyStudent) {
+          students.push(emergencyStudent);
+          console.log(`🆘 Last resort extraction successful: ${emergencyStudent.name} from row ${i + 1}`);
+        } else {
+          console.error(`❌ Complete extraction failure for row ${i + 1}: "${row}"`);
+        }
       }
     }
 
+    console.log(`📊 Extracted ${students.length} students before validation`);
+
     // Step 4: Validate and fix alignment issues
     const validatedStudents = this.validateAndFixAlignment(students, detectedMarkTypes);
+
+    console.log(`📊 Final validated students: ${validatedStudents.length}`);
+    if (validatedStudents.length !== students.length) {
+      console.warn(`⚠️ Student count changed during validation: ${students.length} → ${validatedStudents.length}`);
+    }
+
+    // Final safety check: if we lost too many students, try fallback
+    if (validatedStudents.length === 0 && dataRows.length > 0) {
+      console.warn(`🚨 No students extracted despite having ${dataRows.length} data rows! Trying fallback...`);
+      return this.emergencyFallbackExtraction(dataRows, detectedMarkTypes);
+    }
 
     return validatedStudents;
   }
@@ -951,11 +1199,120 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
-   * Check if a row is a summary row (should be skipped)
+   * Check if a row is a summary row (should be skipped) - IMPROVED VERSION (More Precise)
    */
   private isSummaryRow(row: string): boolean {
-    const summaryKeywords = ["المجموع", "المعدل", "total", "average", "sum"];
-    return summaryKeywords.some((keyword) => row.toLowerCase().includes(keyword.toLowerCase()));
+    const summaryKeywords = ["المجموع", "المعدل", "total", "average", "sum", "إجمالي", "الإجمالي"];
+
+    // IMPROVED: Much more specific check - must be a clear summary row
+    const lowerRow = row.toLowerCase().trim();
+
+    // Only skip if the row STARTS with a summary keyword or is very short and contains only the keyword
+    return summaryKeywords.some((keyword) => {
+      const keywordLower = keyword.toLowerCase();
+      return (
+        lowerRow.startsWith(keywordLower) ||
+        lowerRow === keywordLower ||
+        (row.length < 20 && lowerRow.includes(keywordLower) && !this.containsArabicName(row))
+      );
+    });
+  }
+
+  /**
+   * Check if a row contains what looks like an Arabic name - NEW HELPER METHOD
+   */
+  private containsArabicName(row: string): boolean {
+    // Look for sequences of Arabic characters that could be names
+    const arabicSequences = row.match(/[\u0600-\u06FF]{3,}/g);
+    if (!arabicSequences) return false;
+
+    // If we find Arabic sequences that aren't just summary keywords, it's likely a name
+    const summaryKeywords = ["المجموع", "المعدل", "إجمالي", "الإجمالي"];
+    return arabicSequences.some((seq) => !summaryKeywords.some((keyword) => seq.includes(keyword)));
+  }
+
+  /**
+   * Last resort student extraction when all other methods fail - NEW METHOD
+   */
+  private lastResortStudentExtraction(row: string, studentNumber: number): Student | null {
+    console.log(`🆘 Last resort extraction for row ${studentNumber}: "${row}"`);
+
+    // Remove any leading student number
+    let workingRow = row.replace(/^\s*\d+\s*/, "").trim();
+
+    // If the row is too short, skip it
+    if (workingRow.length < 2) {
+      console.log(`🆘 Row too short after cleaning: "${workingRow}"`);
+      return null;
+    }
+
+    // Try to find ANY text that could be a name
+    let extractedName = "";
+
+    // Method 1: Look for Arabic text
+    const arabicMatch = workingRow.match(/[\u0600-\u06FF]+(?:\s+[\u0600-\u06FF]+)*/);
+    if (arabicMatch) {
+      extractedName = arabicMatch[0].trim();
+    }
+
+    // Method 2: If no Arabic, look for Latin letters
+    if (!extractedName) {
+      const latinMatch = workingRow.match(/[A-Za-z]+(?:\s+[A-Za-z]+)*/);
+      if (latinMatch) {
+        extractedName = latinMatch[0].trim();
+      }
+    }
+
+    // Method 3: Take the first non-numeric word
+    if (!extractedName) {
+      const words = workingRow.split(/\s+/);
+      for (const word of words) {
+        if (word.length > 1 && !/^\d+([.,]\d+)?$/.test(word) && !/^[.,|]+$/.test(word)) {
+          extractedName = word.trim();
+          break;
+        }
+      }
+    }
+
+    // If we still don't have a name, use a placeholder based on row content
+    if (!extractedName || extractedName.length === 0) {
+      // Create a meaningful placeholder name
+      const cleanRow = workingRow.replace(/[^\u0600-\u06FF\u0041-\u005A\u0061-\u007A\s]/g, "").trim();
+      if (cleanRow.length > 0) {
+        extractedName = cleanRow.substring(0, Math.min(20, cleanRow.length));
+      } else {
+        extractedName = `Student_${studentNumber}`;
+      }
+      console.log(`🆘 Using placeholder name: "${extractedName}" for row: "${row}"`);
+    }
+
+    // Extract any numeric values that could be marks
+    const numbers = workingRow.match(/\d+(?:[.,]\d+)?/g) || [];
+    const marks: Student["marks"] = {
+      fard1: null,
+      fard2: null,
+      fard3: null,
+      fard4: null,
+      activities: null,
+    };
+
+    // Assign numbers to marks in order
+    const markKeys: (keyof Student["marks"])[] = ["fard1", "fard2", "fard3", "activities"];
+    for (let i = 0; i < Math.min(numbers.length, markKeys.length); i++) {
+      const numValue = parseFloat(numbers[i].replace(",", "."));
+      if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
+        marks[markKeys[i]] = numValue;
+      }
+    }
+
+    const student: Student = {
+      number: studentNumber,
+      name: extractedName,
+      marks: marks,
+    };
+
+    console.log(`🆘 Last resort extraction created:`, student);
+    return student;
   }
 
   /**

@@ -372,19 +372,11 @@ interface MarkDistribution {
   "15-20": number;
 }
 
-// Type for suspicious mark
-interface SuspiciousMark {
-  student: string;
-  type: string;
-  value: number;
-}
-
 // Type for statistics object
 interface Statistics {
   totalStudents: number;
   markTypes: Record<MarkType, MarkTypeStats>;
   distribution: Record<MarkType, MarkDistribution>;
-  suspiciousMarks: SuspiciousMark[];
 }
 
 const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
@@ -424,9 +416,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   // Statistics
   const [markStats, setMarkStats] = useState<Statistics | null>(null);
-
-  // Suspicious marks detection
-  const [suspiciousMarks, setSuspiciousMarks] = useState<Student[]>([]);
 
   // Processing stages
   const [processingStage, setProcessingStage] = useState<number>(0);
@@ -599,7 +588,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         fard3: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         activities: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
       },
-      suspiciousMarks: [],
     };
 
     // Calculate basic statistics
@@ -620,15 +608,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           else if (value >= 5 && value < 10) stats.distribution[markType]["5-10"]++;
           else if (value >= 10 && value < 15) stats.distribution[markType]["10-15"]++;
           else if (value >= 15 && value <= 20) stats.distribution[markType]["15-20"]++;
-
-          // Check for suspicious marks (very low or very high)
-          if (value < 3 || value > 18) {
-            stats.suspiciousMarks.push({
-              student: student.name,
-              type: markType,
-              value,
-            });
-          }
         }
       });
     });
@@ -642,18 +621,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     });
 
     setMarkStats(stats);
-
-    // Identify suspicious marks for UI highlighting
-    const suspicious = students.filter((student) => {
-      return (
-        (student.marks.fard1 !== null && (student.marks.fard1 < 3 || student.marks.fard1 > 18)) ||
-        (student.marks.fard2 !== null && (student.marks.fard2 < 3 || student.marks.fard2 > 18)) ||
-        (student.marks.fard3 !== null && (student.marks.fard3 < 3 || student.marks.fard3 > 18)) ||
-        (student.marks.activities !== null && (student.marks.activities < 3 || student.marks.activities > 18))
-      );
-    });
-
-    setSuspiciousMarks(suspicious);
   };
 
   // Handle image removal
@@ -735,7 +702,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setExtractedData(null);
     setCurrentStep(AppStep.FileAnalysis);
     setCompletedSteps(new Set());
-    setSuspiciousMarks([]);
+
     setMarkStats(null);
     // Name correction states removed
   };
@@ -810,7 +777,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onConfirm={handleConfirmData}
                 onCancel={resetApp}
                 onDataUpdate={handleDataUpdate}
-                suspiciousMarks={suspiciousMarks}
                 tableKey={tableKey}
                 detectedMarkTypes={detectedMarkTypes}
               />

@@ -99,14 +99,6 @@ const PrimaryButton = styled(Button)`
   }
 `;
 
-const SuspiciousMarksCard = styled(Card)`
-  margin-top: 20px;
-  padding: 16px;
-  background-color: #fff5f5;
-  width: 100%;
-  border: 1px solid #fed7d7;
-`;
-
 // Type for mark statistics
 interface MarkTypeStats {
   count: number;
@@ -124,19 +116,11 @@ interface MarkDistribution {
   "15-20": number;
 }
 
-// Type for suspicious mark
-interface SuspiciousMark {
-  student: string;
-  type: string;
-  value: number;
-}
-
 // Type for statistics object
 interface Statistics {
   totalStudents: number;
   markTypes: Record<MarkType, MarkTypeStats>;
   distribution: Record<MarkType, MarkDistribution>;
-  suspiciousMarks: SuspiciousMark[];
 }
 
 interface StatisticsStepProps {
@@ -354,44 +338,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             );
           })}
         </DistributionGrid>
-
-        {/* Suspicious Marks */}
-        {statistics.suspiciousMarks && statistics.suspiciousMarks.length > 0 && (
-          <SuspiciousMarksCard>
-            <Text
-              size={400}
-              weight="semibold"
-              style={{ marginBottom: "12px", color: "#e53e3e", width: "100%", textAlign: "right" }}
-            >
-              علامات مشكوك فيها ({statistics.suspiciousMarks.length})
-            </Text>
-
-            <Text size={300} style={{ marginBottom: "12px", width: "100%", textAlign: "right" }}>
-              تم اكتشاف العلامات التالية كعلامات غير معتادة (أقل من 3 أو أكثر من 18). يمكنك الرجوع للخطوة السابقة للتحقق
-              من صحتها.
-            </Text>
-
-            <div
-              style={{
-                maxHeight: "200px",
-                overflowY: "auto",
-                padding: "8px",
-                backgroundColor: "#fff8f8",
-                borderRadius: "4px",
-              }}
-            >
-              {statistics.suspiciousMarks.map((mark, index) => (
-                <div key={index} style={{ marginBottom: "8px", padding: "4px", borderBottom: "1px solid #fee2e2" }}>
-                  <Text weight="semibold">{mark.student}</Text>
-                  <Text size={200}>
-                    {getMarkTypeName(mark.type)}:{" "}
-                    <span style={{ color: "#e53e3e", fontWeight: "bold" }}>{mark.value}</span>
-                  </Text>
-                </div>
-              ))}
-            </div>
-          </SuspiciousMarksCard>
-        )}
 
         <ButtonContainer>
           <PrimaryButton

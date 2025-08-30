@@ -4,7 +4,7 @@ export interface StudentMarks {
   fard1: number | null;
   fard2: number | null;
   fard3: number | null;
-  fard4: number | null; // Added for الفرض 4
+  fard4: number | null;
   activities: number | null;
   [key: string]: number | null; // To allow dynamic access
 }
@@ -113,17 +113,6 @@ export interface StepProps {
   isActive: boolean;
   isCompleted: boolean;
   children: React.ReactNode;
-}
-
-/**
- * Stats for contextual validation
- */
-export interface MarkStats {
-  min: number;
-  max: number;
-  avg: number;
-  median: number;
-  stdDev: number;
 }
 
 /**

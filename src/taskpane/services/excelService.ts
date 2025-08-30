@@ -1,11 +1,4 @@
-import {
-  MarkType,
-  Student,
-  MarkInsertionResults,
-  IntelligentWorksheetStructure,
-  MarkStats,
-  DetectedMarkTypes,
-} from "../types";
+import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../types";
 
 /* global Excel */
 
@@ -695,10 +688,6 @@ class ExcelService {
           throw new Error("Worksheet structure not initialized");
         }
 
-        // Validate the marks against historical data before inserting
-        const stats = await this.calculateMarkStats(context, markType);
-        const validationResults = this.validateMarksWithStats(extractedData, stats, markType);
-
         // If we have detected mark types, use that to guide insertion
         let internalMarkType = this.getInternalMarkType(markType);
 
@@ -778,103 +767,6 @@ class ExcelService {
     if (detectedTypes.hasFard3) return "fard3";
     if (detectedTypes.hasActivities) return "activities";
     return null;
-  }
-
-  /**
-   * Calculate statistics for existing marks in the Excel file
-   */
-  private async calculateMarkStats(context: Excel.RequestContext, markType: string): Promise<MarkStats | null> {
-    if (!this.worksheetStructure) {
-      return null;
-    }
-
-    const internalMarkType = this.getInternalMarkType(markType);
-    if (!internalMarkType) {
-      return null;
-    }
-
-    const columnIndex = this.worksheetStructure.markColumns[internalMarkType];
-    if (columnIndex === -1) {
-      return null;
-    }
-
-    const sheet = context.workbook.worksheets.getActiveWorksheet();
-    const usedRange = sheet.getUsedRange();
-    usedRange.load("values");
-
-    await context.sync();
-
-    const values = usedRange.values;
-    const markValues: number[] = [];
-
-    // Start from row 1 (skip header)
-    for (let i = 1; i < values.length; i++) {
-      const cellValue = values[i][columnIndex];
-      if (cellValue !== undefined && cellValue !== null && cellValue !== "") {
-        const numValue = parseFloat(cellValue.toString());
-        if (!isNaN(numValue)) {
-          markValues.push(numValue);
-        }
-      }
-    }
-
-    if (markValues.length === 0) {
-      return null;
-    }
-
-    // Calculate statistics
-    const min = Math.min(...markValues);
-    const max = Math.max(...markValues);
-    const avg = markValues.reduce((sum, val) => sum + val, 0) / markValues.length;
-
-    // Calculate median
-    markValues.sort((a, b) => a - b);
-    const mid = Math.floor(markValues.length / 2);
-    const median = markValues.length % 2 === 0 ? (markValues[mid - 1] + markValues[mid]) / 2 : markValues[mid];
-
-    // Calculate standard deviation
-    const variance = markValues.reduce((sum, val) => sum + Math.pow(val - avg, 2), 0) / markValues.length;
-    const stdDev = Math.sqrt(variance);
-
-    return { min, max, avg, median, stdDev };
-  }
-
-  /**
-   * Validate marks against historical statistics
-   */
-  private validateMarksWithStats(
-    students: Student[],
-    stats: MarkStats | null,
-    markType: string
-  ): { valid: Student[]; suspicious: Student[] } {
-    const internalMarkType = this.getInternalMarkType(markType);
-    if (!internalMarkType || !stats) {
-      return { valid: students, suspicious: [] };
-    }
-
-    const valid: Student[] = [];
-    const suspicious: Student[] = [];
-
-    for (const student of students) {
-      const mark = student.marks[internalMarkType];
-      if (mark === null) {
-        valid.push(student);
-        continue;
-      }
-
-      // Check if mark is within reasonable range based on stats
-      // Flag as suspicious if it's more than 2 standard deviations from the mean
-      const lowerBound = stats.avg - 2 * stats.stdDev;
-      const upperBound = stats.avg + 2 * stats.stdDev;
-
-      if (mark < lowerBound || mark > upperBound) {
-        suspicious.push(student);
-      } else {
-        valid.push(student);
-      }
-    }
-
-    return { valid, suspicious };
   }
 
   /**
