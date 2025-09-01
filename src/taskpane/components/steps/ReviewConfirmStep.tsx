@@ -142,7 +142,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
 
             <ButtonContainer>
               <PrimaryButton appearance="primary" onClick={onConfirm} icon={<CheckmarkCircle24Regular />}>
-                تأكيد وإدخال في Excel
+                تأكيد البيانات والمتابعة
               </PrimaryButton>
 
               <SecondaryButton appearance="secondary" onClick={onCancel} icon={<DismissCircle24Regular />}>

@@ -100,7 +100,8 @@ export enum AppStep {
   FileAnalysis = 1,
   ImageProcessing = 2,
   ReviewConfirm = 3,
-  Statistics = 4,
+  MappingPreview = 4,
+  Statistics = 5,
 }
 
 /**

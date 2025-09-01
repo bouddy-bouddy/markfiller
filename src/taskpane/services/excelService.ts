@@ -741,6 +741,219 @@ class ExcelService {
   }
 
   /**
+   * ENHANCED: Insert all marks for all detected mark types with intelligent mapping
+   */
+  async insertAllMarks(extractedData: Student[], detectedMarkTypes: DetectedMarkTypes): Promise<MarkInsertionResults> {
+    try {
+      return await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const range = sheet.getUsedRange();
+        range.load("values");
+
+        await context.sync();
+
+        const results: MarkInsertionResults = {
+          success: 0,
+          notFound: 0,
+          notFoundStudents: [],
+        };
+
+        if (!this.worksheetStructure) {
+          throw new Error("Worksheet structure not initialized");
+        }
+
+        console.log("🎯 Starting intelligent mark mapping for all students...");
+        console.log("📊 Worksheet structure:", this.worksheetStructure);
+        console.log("📋 Detected mark types:", detectedMarkTypes);
+
+        // Process each student
+        for (const student of extractedData) {
+          console.log(`\n🔍 Processing student: ${student.name}`);
+
+          const rowIndex = await this.findStudentRow(student.name, range.values as string[][]);
+
+          if (rowIndex !== -1) {
+            console.log(`✅ Found student at row ${rowIndex}`);
+
+            // Insert marks for all detected types
+            const markTypes: (keyof DetectedMarkTypes)[] = [
+              "hasFard1",
+              "hasFard2",
+              "hasFard3",
+              "hasFard4",
+              "hasActivities",
+            ];
+
+            for (const detectedType of markTypes) {
+              if (!detectedMarkTypes[detectedType]) continue;
+
+              // Map detected type to mark type
+              const markType = this.mapDetectedTypeToMarkType(detectedType);
+              if (!markType) continue;
+
+              const columnIndex = this.worksheetStructure.markColumns[markType];
+              if (columnIndex === -1) {
+                console.log(`⚠️ No column found for ${markType}`);
+                continue;
+              }
+
+              const markValue = student.marks[markType];
+              if (markValue !== null) {
+                const cell = sheet.getCell(rowIndex, columnIndex);
+                cell.values = [[this.formatMarkForMassar(markValue)]];
+                results.success++;
+                console.log(`✅ Inserted ${markType}: ${markValue} at row ${rowIndex}, col ${columnIndex}`);
+              } else {
+                console.log(`⚠️ No mark value for ${markType}`);
+              }
+            }
+          } else {
+            results.notFound++;
+            results.notFoundStudents.push(student.name);
+            console.log(`❌ Student not found: ${student.name}`);
+          }
+        }
+
+        await context.sync();
+        console.log(`\n📊 Mapping completed - Success: ${results.success}, Not found: ${results.notFound}`);
+        return results;
+      });
+    } catch (error) {
+      console.error("Excel mapping error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Map detected type to mark type
+   */
+  private mapDetectedTypeToMarkType(detectedType: keyof DetectedMarkTypes): MarkType | null {
+    const mapping: Record<keyof DetectedMarkTypes, MarkType> = {
+      hasFard1: "fard1",
+      hasFard2: "fard2",
+      hasFard3: "fard3",
+      hasFard4: "fard1", // Map fard4 to fard1 if needed
+      hasActivities: "activities",
+    };
+
+    return mapping[detectedType] || null;
+  }
+
+  /**
+   * ENHANCED: Preview mapping before insertion
+   */
+  async previewMapping(
+    extractedData: Student[],
+    detectedMarkTypes: DetectedMarkTypes
+  ): Promise<{
+    mappingPreview: Array<{
+      studentName: string;
+      studentFound: boolean;
+      excelRow?: number;
+      mappings: Array<{
+        markType: MarkType;
+        extractedValue: number | null;
+        targetColumn: number;
+        targetColumnHeader: string;
+        willInsert: boolean;
+      }>;
+    }>;
+    summary: {
+      totalStudents: number;
+      studentsFound: number;
+      studentsNotFound: number;
+      totalMarksToInsert: number;
+    };
+  }> {
+    try {
+      return await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const range = sheet.getUsedRange();
+        range.load("values");
+
+        await context.sync();
+
+        if (!this.worksheetStructure) {
+          throw new Error("Worksheet structure not initialized");
+        }
+
+        const mappingPreview: Array<{
+          studentName: string;
+          studentFound: boolean;
+          excelRow?: number;
+          mappings: Array<{
+            markType: MarkType;
+            extractedValue: number | null;
+            targetColumn: number;
+            targetColumnHeader: string;
+            willInsert: boolean;
+          }>;
+        }> = [];
+
+        let studentsFound = 0;
+        let totalMarksToInsert = 0;
+
+        for (const student of extractedData) {
+          const rowIndex = await this.findStudentRow(student.name, range.values as string[][]);
+          const studentFound = rowIndex !== -1;
+
+          if (studentFound) studentsFound++;
+
+          const mappings: Array<{
+            markType: MarkType;
+            extractedValue: number | null;
+            targetColumn: number;
+            targetColumnHeader: string;
+            willInsert: boolean;
+          }> = [];
+
+          // Check each mark type
+          const markTypes: MarkType[] = ["fard1", "fard2", "fard3", "activities"];
+
+          for (const markType of markTypes) {
+            const columnIndex = this.worksheetStructure.markColumns[markType];
+            const extractedValue = student.marks[markType];
+            const willInsert = studentFound && columnIndex !== -1 && extractedValue !== null;
+
+            if (willInsert) totalMarksToInsert++;
+
+            mappings.push({
+              markType,
+              extractedValue,
+              targetColumn: columnIndex,
+              targetColumnHeader:
+                columnIndex !== -1
+                  ? this.worksheetStructure.headers[columnIndex] || `Column ${columnIndex + 1}`
+                  : "غير متوفر",
+              willInsert,
+            });
+          }
+
+          mappingPreview.push({
+            studentName: student.name,
+            studentFound,
+            excelRow: studentFound ? rowIndex : undefined,
+            mappings,
+          });
+        }
+
+        return {
+          mappingPreview,
+          summary: {
+            totalStudents: extractedData.length,
+            studentsFound,
+            studentsNotFound: extractedData.length - studentsFound,
+            totalMarksToInsert,
+          },
+        };
+      });
+    } catch (error) {
+      console.error("Mapping preview error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Check if a specific mark type was detected in the image
    */
   private markTypeDetected(detectedTypes: DetectedMarkTypes, markType: MarkType): boolean {

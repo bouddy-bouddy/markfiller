@@ -9,6 +9,7 @@ import OcrErrorDisplay from "./shared/OcrErrorDisplay";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
 import ImageProcessingStep from "./steps/ImageProcessingStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
+import MappingStep from "./steps/MappingStep";
 import StatisticsStep from "./steps/StatisticsStep";
 // IntelligentMarkTypeDialog removed
 import AppHeader from "./shared/AppHeader";
@@ -421,6 +422,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   const [processingStage, setProcessingStage] = useState<number>(0);
   const [processingProgress, setProcessingProgress] = useState<number>(0);
 
+  // Mapping state
+  const [isInserting, setIsInserting] = useState<boolean>(false);
+
   // Reference for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -643,29 +647,53 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         return;
       }
 
-      // Choose mark type automatically based on detectedMarkTypes
-      const chooseArabicMarkType = (): string => {
-        if (detectedMarkTypes.hasFard1) return "الفرض الأول";
-        if (detectedMarkTypes.hasFard2) return "الفرض الثاني";
-        if (detectedMarkTypes.hasFard3) return "الفرض الثالث";
-        if (detectedMarkTypes.hasActivities) return "الأنشطة";
-        return "الفرض الأول";
-      };
+      // After reviewing the data, proceed to mapping step
+      completeStep(AppStep.ReviewConfirm);
+      advanceToStep(AppStep.MappingPreview);
+    } catch (err) {
+      setError("حدث خطأ أثناء التحقق من البيانات");
+      console.error(err);
+    }
+  };
 
-      const selectedArabicType = chooseArabicMarkType();
-      const results = await excelService.insertMarks(extractedData, selectedArabicType, detectedMarkTypes);
+  // NEW: Handle mapping confirmation and actual Excel insertion
+  const handleConfirmMapping = async () => {
+    try {
+      setIsInserting(true);
+      setError(null);
+
+      const isValidFile = await excelService.validateExcelFile();
+      if (!isValidFile) {
+        setError("يرجى التأكد من فتح ملف مسار صحيح في Excel");
+        return;
+      }
+
+      if (!extractedData) {
+        setError("لا توجد بيانات لإدخالها");
+        return;
+      }
+
+      console.log("🚀 Starting Excel insertion with enhanced mapping...");
+
+      // Use the new insertAllMarks method for comprehensive mapping
+      const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
+
+      console.log("📊 Insertion results:", results);
 
       if (results.notFound > 0) {
-        setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم.`);
+        setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم في ملف Excel.`);
       } else {
         setError(null);
       }
 
-      completeStep(AppStep.ReviewConfirm);
+      // Move to statistics step
+      completeStep(AppStep.MappingPreview);
       advanceToStep(AppStep.Statistics);
     } catch (err) {
       setError("حدث خطأ أثناء إدخال البيانات في Excel");
       console.error(err);
+    } finally {
+      setIsInserting(false);
     }
   };
 
@@ -702,6 +730,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setExtractedData(null);
     setCurrentStep(AppStep.FileAnalysis);
     setCompletedSteps(new Set());
+    setIsInserting(false);
 
     setMarkStats(null);
     // Name correction states removed
@@ -779,6 +808,19 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onDataUpdate={handleDataUpdate}
                 tableKey={tableKey}
                 detectedMarkTypes={detectedMarkTypes}
+              />
+            )}
+
+            {/* NEW: Mapping Preview Step */}
+            {currentStep === AppStep.MappingPreview && extractedData && (
+              <MappingStep
+                isActive={true}
+                isCompleted={isStepCompleted(AppStep.MappingPreview)}
+                extractedData={extractedData}
+                detectedMarkTypes={detectedMarkTypes}
+                onConfirmMapping={handleConfirmMapping}
+                onCancel={resetApp}
+                isInserting={isInserting}
               />
             )}
 

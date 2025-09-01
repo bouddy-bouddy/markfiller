@@ -13,6 +13,7 @@ const StepNavigation: React.FC<StepNavigationProps> = ({ currentStep, completedS
     { id: AppStep.FileAnalysis, label: "تحليل ملف مسار" },
     { id: AppStep.ImageProcessing, label: "معالجة الصورة" },
     { id: AppStep.ReviewConfirm, label: "مراجعة وتأكيد" },
+    { id: AppStep.MappingPreview, label: "تطابق العلامات" },
     { id: AppStep.Statistics, label: "إحصائيات" },
   ];
 
@@ -37,16 +38,19 @@ const StepNavigation: React.FC<StepNavigationProps> = ({ currentStep, completedS
     if (currentStep === AppStep.FileAnalysis) width = 0;
     else if (currentStep === AppStep.ImageProcessing) width = stepWidth;
     else if (currentStep === AppStep.ReviewConfirm) width = stepWidth * 2;
-    else if (currentStep === AppStep.Statistics) width = stepWidth * 3;
+    else if (currentStep === AppStep.MappingPreview) width = stepWidth * 3;
+    else if (currentStep === AppStep.Statistics) width = stepWidth * 4;
 
-    // If we're on step 2-4 and the previous step is completed, make sure
+    // If we're on step 2-5 and the previous step is completed, make sure
     // the progress line reflects that
     if (currentStep === AppStep.ImageProcessing && completedSteps.has(AppStep.FileAnalysis)) {
       width = stepWidth;
     } else if (currentStep === AppStep.ReviewConfirm && completedSteps.has(AppStep.ImageProcessing)) {
       width = stepWidth * 2;
-    } else if (currentStep === AppStep.Statistics && completedSteps.has(AppStep.ReviewConfirm)) {
+    } else if (currentStep === AppStep.MappingPreview && completedSteps.has(AppStep.ReviewConfirm)) {
       width = stepWidth * 3;
+    } else if (currentStep === AppStep.Statistics && completedSteps.has(AppStep.MappingPreview)) {
+      width = stepWidth * 4;
     }
 
     return `${width}%`;
