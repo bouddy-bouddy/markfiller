@@ -244,12 +244,21 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
 
   const getMarkTypeDisplayName = (markType: MarkType): string => {
     const names: Record<MarkType, string> = {
-      fard1: "الفرض 1",
-      fard2: "الفرض 2",
-      fard3: "الفرض 3",
+      fard1: "الفرض الأول",
+      fard2: "الفرض الثاني",
+      fard3: "الفرض الثالث",
       activities: "الأنشطة",
     };
     return names[markType] || markType;
+  };
+
+  const getDetectedMarkTypes = (): MarkType[] => {
+    const detectedTypes: MarkType[] = [];
+    if (detectedMarkTypes.hasFard1) detectedTypes.push("fard1");
+    if (detectedMarkTypes.hasFard2) detectedTypes.push("fard2");
+    if (detectedMarkTypes.hasFard3) detectedTypes.push("fard3");
+    if (detectedMarkTypes.hasActivities) detectedTypes.push("activities");
+    return detectedTypes;
   };
 
   const formatMarkValue = (value: number | null): string => {
@@ -351,10 +360,10 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
           <MappingTable>
             <TableHeader>
               <TableRow>
-                <TableHeaderCell>الطالب</TableHeaderCell>
+                <TableHeaderCell>إسم التلميذ</TableHeaderCell>
                 <TableHeaderCell>الحالة</TableHeaderCell>
                 <TableHeaderCell>صف Excel</TableHeaderCell>
-                {(["fard1", "fard2", "fard3", "activities"] as MarkType[]).map((markType) => (
+                {getDetectedMarkTypes().map((markType) => (
                   <TableHeaderCell key={markType} style={{ textAlign: "center" }}>
                     {getMarkTypeDisplayName(markType)}
                   </TableHeaderCell>
@@ -392,29 +401,33 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
                     </Text>
                   </TableCell>
 
-                  {student.mappings.map((mapping) => (
-                    <MarkCell key={mapping.markType} willInsert={mapping.willInsert}>
-                      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
-                        <Text size={300} weight={mapping.willInsert ? "semibold" : "regular"}>
-                          {formatMarkValue(mapping.extractedValue)}
-                        </Text>
-                        {mapping.willInsert && (
-                          <div
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "4px",
-                              fontSize: "11px",
-                              color: "#64748b",
-                            }}
-                          >
-                            <ArrowRight24Regular style={{ fontSize: "10px" }} />
-                            <span>عمود {mapping.targetColumn + 1}</span>
-                          </div>
-                        )}
-                      </div>
-                    </MarkCell>
-                  ))}
+                  {getDetectedMarkTypes().map((markType) => {
+                    const mapping = student.mappings.find((m) => m.markType === markType);
+                    if (!mapping) return null;
+                    return (
+                      <MarkCell key={mapping.markType} willInsert={mapping.willInsert}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "2px" }}>
+                          <Text size={300} weight={mapping.willInsert ? "semibold" : "regular"}>
+                            {formatMarkValue(mapping.extractedValue)}
+                          </Text>
+                          {mapping.willInsert && (
+                            <div
+                              style={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "4px",
+                                fontSize: "11px",
+                                color: "#64748b",
+                              }}
+                            >
+                              <ArrowRight24Regular style={{ fontSize: "10px" }} />
+                              <span>عمود {mapping.targetColumn + 1}</span>
+                            </div>
+                          )}
+                        </div>
+                      </MarkCell>
+                    );
+                  })}
                 </StudentRow>
               ))}
             </TableBody>

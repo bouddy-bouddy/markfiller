@@ -907,10 +907,14 @@ class ExcelService {
             willInsert: boolean;
           }> = [];
 
-          // Check each mark type
-          const markTypes: MarkType[] = ["fard1", "fard2", "fard3", "activities"];
+          // Check only detected mark types
+          const detectedMarkTypesList: MarkType[] = [];
+          if (detectedMarkTypes.hasFard1) detectedMarkTypesList.push("fard1");
+          if (detectedMarkTypes.hasFard2) detectedMarkTypesList.push("fard2");
+          if (detectedMarkTypes.hasFard3) detectedMarkTypesList.push("fard3");
+          if (detectedMarkTypes.hasActivities) detectedMarkTypesList.push("activities");
 
-          for (const markType of markTypes) {
+          for (const markType of detectedMarkTypesList) {
             const columnIndex = this.worksheetStructure.markColumns[markType];
             const extractedValue = student.marks[markType];
             const willInsert = studentFound && columnIndex !== -1 && extractedValue !== null;
