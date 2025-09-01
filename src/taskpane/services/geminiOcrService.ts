@@ -15,7 +15,20 @@ class GeminiOCRService {
    */
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     try {
-      // Convert image to base64
+      // Validate image file
+      if (!this.isValidImageFile(imageFile)) {
+        throw new Error("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
+      }
+
+      console.log("🚀 STARTING ENHANCED GEMINI PRO OCR PROCESSING");
+      console.log("📸 Image file details:", {
+        name: imageFile.name,
+        size: `${(imageFile.size / 1024 / 1024).toFixed(2)} MB`,
+        type: imageFile.type,
+        lastModified: new Date(imageFile.lastModified).toISOString(),
+      });
+
+      // Convert image to base64 with optimization
       const base64Image = await this.fileToBase64(imageFile);
       const base64Content = base64Image.split(",")[1];
 
@@ -23,18 +36,59 @@ class GeminiOCRService {
         throw new Error("Gemini API key not found. Please check your environment configuration.");
       }
 
-      // Use Gemini Vision-capable model for image analysis
-      const response = await this.callGeminiAPI(base64Content);
+      // Try structured JSON extraction first for maximum accuracy
+      let result;
+      try {
+        console.log("🎯 Attempting structured JSON extraction with Gemini Pro...");
+        const structuredResult = await this.callGeminiAPIStructured(base64Content);
 
-      if (!response || !response.text) {
-        throw new Error("لم يتم التعرف على أي نص في الصورة");
+        // Convert structured result to our expected format
+        const students: Student[] = structuredResult.students.map((student: any, index: number) => ({
+          number: index + 1,
+          name: student.name,
+          marks: {
+            fard1: student.marks.fard1,
+            fard2: student.marks.fard2,
+            fard3: student.marks.fard3,
+            fard4: student.marks.fard4,
+            activities: student.marks.activities,
+          },
+        }));
+
+        const detectedMarkTypes: DetectedMarkTypes = {
+          hasFard1: structuredResult.markTypes.hasFard1,
+          hasFard2: structuredResult.markTypes.hasFard2,
+          hasFard3: structuredResult.markTypes.hasFard3,
+          hasFard4: structuredResult.markTypes.hasFard4,
+          hasActivities: structuredResult.markTypes.hasActivities,
+        };
+
+        result = { students, detectedMarkTypes };
+        console.log("✅ STRUCTURED EXTRACTION SUCCESSFUL - Gemini Pro delivered precise results");
+        console.log("📊 Extracted data summary:", {
+          studentsCount: students.length,
+          detectedMarkTypes,
+          sampleStudent: students[0] || null,
+        });
+      } catch (structuredError) {
+        console.warn("⚠️ Structured extraction failed, falling back to text-based extraction");
+        console.warn("Structured extraction error:", structuredError);
+
+        // Fallback to original text-based extraction
+        console.log("🔄 Using enhanced text-based OCR with Gemini Pro...");
+        const response = await this.callGeminiAPI(base64Content);
+
+        if (!response || !response.text) {
+          throw new Error("لم يتم التعرف على أي نص في الصورة");
+        }
+
+        const extractedText = response.text;
+        console.log("📄 Extracted text from Gemini:", extractedText);
+
+        // Extract students and detect mark types using existing logic
+        result = this.extractStudentData(extractedText);
+        console.log("✅ FALLBACK TEXT EXTRACTION COMPLETED");
       }
-
-      const extractedText = response.text;
-      console.log("📄 Extracted text from Gemini:", extractedText);
-
-      // Extract students and detect mark types
-      const result = this.extractStudentData(extractedText);
 
       if (result.students.length === 0) {
         throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
@@ -50,25 +104,156 @@ class GeminiOCRService {
   }
 
   /**
+   * Call Gemini API with structured JSON output for precise data extraction
+   */
+  private async callGeminiAPIStructured(base64Image: string): Promise<{ students: any[]; markTypes: any }> {
+    const model = "gemini-1.5-pro";
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+
+    const structuredPrompt = `You are an expert OCR system for Moroccan student marksheets. Extract the data and return it as valid JSON.
+
+Analyze this marksheet image and extract:
+1. All student names (in Arabic)
+2. All numerical marks for each student
+3. Column headers to identify mark types
+
+Return ONLY valid JSON in this exact format:
+{
+  "markTypes": {
+    "hasFard1": boolean,
+    "hasFard2": boolean, 
+    "hasFard3": boolean,
+    "hasFard4": boolean,
+    "hasActivities": boolean
+  },
+  "students": [
+    {
+      "name": "اسم الطالب بالعربية",
+      "marks": {
+        "fard1": 15.50,
+        "fard2": 12.00,
+        "fard3": null,
+        "fard4": null,
+        "activities": 18.25
+      }
+    }
+  ]
+}
+
+CRITICAL RULES:
+- Student names must be in exact Arabic as shown
+- Marks are numbers 0-20 or null if missing
+- Use null for missing marks, not 0
+- Preserve decimal precision (XX.XX format)
+- Only include students with visible names
+- Mark types are detected from headers like "الفرض 1", "الأنشطة"
+
+Return ONLY the JSON, no other text.`;
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            { text: structuredPrompt },
+            {
+              inline_data: {
+                mime_type: "image/jpeg",
+                data: base64Image,
+              },
+            },
+          ],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.0,
+        topK: 1,
+        topP: 0.1,
+        maxOutputTokens: 4096,
+        candidateCount: 1,
+      },
+      safetySettings: [
+        {
+          category: "HARM_CATEGORY_HARASSMENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_HATE_SPEECH",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+        {
+          category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+          threshold: "BLOCK_MEDIUM_AND_ABOVE",
+        },
+      ],
+    };
+
+    const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(requestBody),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error("Gemini API error:", errorData);
+      throw new Error(`Gemini API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error("Invalid response from Gemini API");
+    }
+
+    const jsonText = data.candidates[0].content.parts[0].text;
+
+    try {
+      const parsedData = JSON.parse(jsonText);
+      return parsedData;
+    } catch (error) {
+      console.warn("Failed to parse structured JSON, falling back to text extraction");
+      throw new Error("Failed to parse structured response");
+    }
+  }
+
+  /**
    * Call Gemini API with optimized prompt for student marks sheets
    */
   private async callGeminiAPI(base64Image: string): Promise<{ text: string }> {
-    // Use a valid, image-capable Gemini model to avoid 404 errors
-    // Options: "gemini-1.5-flash", "gemini-1.5-pro", or legacy "gemini-1.0-pro-vision-latest"
-    const model = "gemini-1.5-flash";
+    // Use Gemini 1.5 Pro for superior OCR accuracy on complex documents like marksheets
+    // Gemini 1.5 Pro has better vision capabilities and understanding of structured documents
+    const model = "gemini-1.5-pro";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
-    const prompt = `Analyze this image of a student marks sheet and extract all the text content in the exact order it appears.
+    const prompt = `You are an expert OCR system specializing in Arabic educational documents. Analyze this marksheet image and extract student data with maximum precision.
 
-This is an Arabic document that contains:
-1. Student names (in Arabic)
-2. Mark values (numbers, possibly with decimals like 07,00 or 15.50)
-3. Headers and labels (like الفرض 1, الفرض 2, الأنشطة)
+This is a Moroccan student marksheet containing:
+- Student names in Arabic (like أحمد محمد, فاطمة الزهراء)
+- Numerical marks (format: XX,XX or XX.XX, range 0-20)
+- Column headers like: الفرض 1, الفرض 2, الفرض 3, الفرض 4, الأنشطة
+- Student numbers/IDs
+- Table structure with rows and columns
 
-Please extract the text exactly as it appears, preserving the original formatting and order.
-Focus on maintaining the structure so we can identify which marks belong to which students.
+CRITICAL REQUIREMENTS:
+1. Preserve exact Arabic text - every letter and diacritic matters
+2. Maintain precise numerical values - don't confuse 07,00 with 0700
+3. Respect table structure - align names with their corresponding marks
+4. Handle OCR artifacts like merged characters or misaligned text
+5. Distinguish between headers and data rows
+6. Preserve decimal formatting (comma or dot separators)
 
-Return only the extracted text without any additional commentary or formatting.`;
+Extract the complete table structure maintaining the relationship between:
+- Each student name and their row of marks
+- Column headers and their corresponding mark types
+- Sequential order of students
+
+Provide the raw extracted text exactly as it appears in the image, preserving all spacing, line breaks, and formatting that indicates table structure. Focus on accuracy over interpretation.`;
 
     const requestBody = {
       contents: [
@@ -87,10 +272,11 @@ Return only the extracted text without any additional commentary or formatting.`
         },
       ],
       generationConfig: {
-        temperature: 0.1,
-        topK: 32,
-        topP: 1,
-        maxOutputTokens: 2048,
+        temperature: 0.0, // Maximum determinism for OCR accuracy
+        topK: 1, // Most confident predictions only
+        topP: 0.1, // Very focused sampling for precise text extraction
+        maxOutputTokens: 4096, // Increased for larger marksheets
+        candidateCount: 1, // Single best result
       },
       safetySettings: [
         {
@@ -1451,13 +1637,43 @@ Return only the extracted text without any additional commentary or formatting.`
   }
 
   /**
-   * Convert file to base64 string
+   * Validate image file type and size
+   */
+  private isValidImageFile(file: File): boolean {
+    const validTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    const maxSize = 10 * 1024 * 1024; // 10MB limit
+
+    if (!validTypes.includes(file.type.toLowerCase())) {
+      console.error(`Invalid file type: ${file.type}`);
+      return false;
+    }
+
+    if (file.size > maxSize) {
+      console.error(`File too large: ${file.size} bytes (max: ${maxSize})`);
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Convert file to base64 string with error handling
    */
   private async fileToBase64(file: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => resolve(reader.result as string);
-      reader.onerror = reject;
+
+      reader.onload = () => {
+        const result = reader.result as string;
+        console.log(`📷 Image converted to base64: ${(result.length / 1024).toFixed(1)} KB`);
+        resolve(result);
+      };
+
+      reader.onerror = (error) => {
+        console.error("Error reading file:", error);
+        reject(new Error("فشل في قراءة ملف الصورة"));
+      };
+
       reader.readAsDataURL(file);
     });
   }
