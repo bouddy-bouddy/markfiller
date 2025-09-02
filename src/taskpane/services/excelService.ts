@@ -995,6 +995,8 @@ class ExcelService {
         console.log("🎯 Starting intelligent mark mapping for all students...");
         console.log("📊 Worksheet structure:", this.worksheetStructure);
         console.log("📋 Detected mark types:", detectedMarkTypes);
+        const workbookMarkTypes = this.detectAvailableMarkTypesInWorkbook(range.values as any[][]);
+        console.log("🧭 Mark types available in workbook:", workbookMarkTypes);
 
         // Process each student
         for (const student of extractedData) {
@@ -1006,13 +1008,14 @@ class ExcelService {
             console.log(`✅ Found student at row ${rowIndex}`);
 
             // Insert marks for all detected types
-            const markTypes: (keyof DetectedMarkTypes)[] = [
+            const detectedKeys: (keyof DetectedMarkTypes)[] = [
               "hasFard1",
               "hasFard2",
               "hasFard3",
               "hasFard4",
               "hasActivities",
             ];
+            const markTypes: (keyof DetectedMarkTypes)[] = detectedKeys.filter((t) => workbookMarkTypes[t]);
 
             for (const detectedType of markTypes) {
               if (!detectedMarkTypes[detectedType]) continue;
@@ -1067,6 +1070,69 @@ class ExcelService {
     };
 
     return mapping[detectedType] || null;
+  }
+
+  /**
+   * Detect available mark types in the current workbook based on recognized columns
+   */
+  private detectAvailableMarkTypesInWorkbook(values?: any[][]): DetectedMarkTypes {
+    try {
+      const cellTexts: string[] = [];
+
+      if (values && values.length > 0) {
+        const rowsToScan = values.slice(0, Math.min(6, values.length));
+        for (const row of rowsToScan) {
+          for (const cell of row) {
+            if (cell && typeof cell === "string") {
+              cellTexts.push(cell.toString());
+            }
+          }
+        }
+      } else if (this.worksheetStructure) {
+        // Fallback to scanning known headers if values aren't provided
+        for (const h of this.worksheetStructure.headers) {
+          if (h) cellTexts.push(h.toString());
+        }
+      }
+
+      const includesAny = (patterns: string[]): boolean =>
+        cellTexts.some((text) => patterns.some((p) => text.includes(p)));
+
+      // Arabic label presence checks
+      const hasFard1 = includesAny(["الفرض الأول", "الفرض 1", "فرض 1", "فرض الأول", "فرض١"]);
+      const hasFard2 = includesAny(["الفرض الثاني", "الفرض 2", "فرض 2", "فرض الثاني", "فرض٢"]);
+      const hasFard3 = includesAny(["الفرض الثالث", "الفرض 3", "فرض 3", "فرض الثالث", "فرض٣"]);
+      const hasFard4 = includesAny(["الفرض الرابع", "الفرض 4", "فرض 4", "فرض الرابع", "فرض٤"]);
+      const hasActivities = includesAny(["الأنشطة", "النشاط", "أنشطة", "المراقبة المستمرة", "مراقبة مستمرة"]);
+
+      // If we couldn't detect anything via labels, fallback to structure if available
+      const detected: DetectedMarkTypes = { hasFard1, hasFard2, hasFard3, hasFard4, hasActivities };
+      if (!hasFard1 && !hasFard2 && !hasFard3 && !hasFard4 && !hasActivities && this.worksheetStructure) {
+        const columns = this.worksheetStructure.markColumns;
+        return {
+          hasFard1: columns.fard1 !== -1,
+          hasFard2: columns.fard2 !== -1,
+          hasFard3: columns.fard3 !== -1,
+          hasFard4: false,
+          hasActivities: columns.activities !== -1,
+        };
+      }
+
+      return detected;
+    } catch (error) {
+      console.warn("Workbook mark type detection failed, falling back to structure:", error);
+      if (!this.worksheetStructure) {
+        throw new Error("Worksheet structure not initialized");
+      }
+      const columns = this.worksheetStructure.markColumns;
+      return {
+        hasFard1: columns.fard1 !== -1,
+        hasFard2: columns.fard2 !== -1,
+        hasFard3: columns.fard3 !== -1,
+        hasFard4: false,
+        hasActivities: columns.activities !== -1,
+      };
+    }
   }
 
   /**
