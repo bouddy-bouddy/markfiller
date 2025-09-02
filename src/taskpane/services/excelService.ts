@@ -2,6 +2,31 @@ import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure,
 
 /* global Excel */
 
+/**
+ * Enhanced Excel Service with Massar Format Support
+ *
+ * This service now includes special handling for Massar Excel files with the following features:
+ *
+ * 1. MERGED STUDENT NAME COLUMNS:
+ *    - In Massar format, student names are often split across multiple columns
+ *    - The service automatically detects and merges adjacent name columns
+ *    - Supports Arabic text patterns and filters out numeric/date columns
+ *
+ * 2. النقطة COLUMN DETECTION:
+ *    - Looks for test headers (الفرض الأول, الفرض الثاني, etc.)
+ *    - Finds the corresponding النقطة column for each test
+ *    - Handles both horizontal and vertical النقطة column layouts
+ *
+ * 3. INTELLIGENT STRUCTURE ANALYSIS:
+ *    - Analyzes the first several rows to understand the Excel structure
+ *    - Provides detailed logging for debugging column detection
+ *    - Falls back to generic detection if Massar-specific patterns aren't found
+ *
+ * Usage:
+ * - The service automatically detects Massar format based on Arabic indicators
+ * - Student name matching works with merged columns
+ * - Mark insertion targets the correct النقطة columns
+ */
 class ExcelService {
   private worksheetStructure: IntelligentWorksheetStructure | null = null;
 
@@ -66,7 +91,7 @@ class ExcelService {
 
               // If we found at least 2 indicators, it's likely a Massar file
               if (foundIndicators >= 2) {
-                // Intelligently analyze the structure
+                // Intelligently analyze the structure with Massar-specific logic
                 this.analyzeMassarStructure(values);
                 return true;
               }
@@ -80,15 +105,28 @@ class ExcelService {
   }
 
   /**
-   * Analyzes Massar file structure in detail
+   * Analyzes Massar file structure in detail with special handling for merged columns
    */
   private analyzeMassarStructure(values: any[][]): void {
+    console.log("🔍 Analyzing Massar file structure...");
+
     const headers = this.extractHeaders(values);
-    const studentNameColumn = this.findStudentNameColumn(headers);
+    console.log("📋 Headers found:", headers);
+
+    const studentNameColumn = this.findMassarStudentNameColumn(headers, values);
+    console.log("👤 Student name column:", studentNameColumn, headers[studentNameColumn] || "N/A");
+
     const studentIdColumn = this.findStudentIdColumn(headers);
-    const markColumns = this.findMarkColumns(headers);
+    console.log("🆔 Student ID column:", studentIdColumn, headers[studentIdColumn] || "N/A");
+
+    const markColumns = this.findMassarMarkColumns(headers, values);
+    console.log("📊 Mark columns found:", markColumns);
+
     const markColumnsConfidence = this.calculateMarkColumnConfidence(headers, values);
+    console.log("🎯 Mark columns confidence:", markColumnsConfidence);
+
     const additionalMarkColumns = this.findAdditionalMarkColumns(headers, markColumns);
+    console.log("➕ Additional mark columns:", additionalMarkColumns);
 
     this.worksheetStructure = {
       headers,
@@ -99,6 +137,8 @@ class ExcelService {
       markColumnsConfidence,
       additionalMarkColumns,
     };
+
+    console.log("✅ Massar structure analysis complete:", this.worksheetStructure);
   }
 
   /**
@@ -564,15 +604,112 @@ class ExcelService {
       "الطالب",
       "اسم المتعلم",
       "المتعلم",
+      // Added broader synonyms and French variants often seen in Massar exports
+      "nom et prénom",
+      "nom",
+      "prénom",
+      "nom complet",
+      "eleve",
+      "élève",
+      "nom de l'élève",
     ];
 
-    // Try exact match first
-    const exactMatch = headers.findIndex((h) => nameHeaders.some((nh) => h && h.toString() === nh));
+    // Try exact match first (case-insensitive)
+    const exactMatch = headers.findIndex((h) =>
+      nameHeaders.some((nh) => h && h.toString().toLowerCase() === nh.toLowerCase())
+    );
 
     if (exactMatch !== -1) return exactMatch;
 
-    // Then try partial match
-    return headers.findIndex((h) => nameHeaders.some((nh) => h && h.toString().includes(nh)));
+    // Then try partial match (case-insensitive)
+    return headers.findIndex((h) =>
+      nameHeaders.some((nh) => h && h.toString().toLowerCase().includes(nh.toLowerCase()))
+    );
+  }
+
+  /**
+   * Find student name column in Massar format with merged column handling
+   */
+  private findMassarStudentNameColumn(headers: string[], values: any[][]): number {
+    // In Massar format, student name is often merged from multiple columns
+    // Look for the main name column first
+    let nameColumn = this.findStudentNameColumn(headers);
+
+    if (nameColumn !== -1) {
+      return nameColumn;
+    }
+
+    // Heuristic 1: Name column is usually adjacent to the ID column
+    const idCol = this.findStudentIdColumn(headers);
+    if (idCol !== -1) {
+      const candidates: number[] = [];
+      if (idCol + 1 < headers.length) candidates.push(idCol + 1);
+      if (idCol - 1 >= 0) candidates.push(idCol - 1);
+
+      const scored = candidates
+        .map((col) => ({ col, score: this.scoreColumnAsName(values, col) }))
+        .sort((a, b) => b.score - a.score);
+
+      if (scored.length && scored[0].score >= 0.6) {
+        return scored[0].col;
+      }
+    }
+
+    // Heuristic 2: Detect name pairs split across two adjacent columns
+    // Evaluate each column and its neighbor as a combined name
+    let bestPair = { baseCol: -1, score: 0 };
+    for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+      const singleScore = this.scoreColumnAsName(values, colIndex);
+      const pairScoreRight = this.scorePairAsName(values, colIndex, colIndex + 1);
+      const pairScoreLeft = this.scorePairAsName(values, colIndex - 1, colIndex);
+      const maxForThisCol = Math.max(singleScore, pairScoreRight, pairScoreLeft);
+      if (maxForThisCol > bestPair.score) {
+        bestPair = { baseCol: colIndex, score: maxForThisCol };
+      }
+    }
+    if (bestPair.baseCol !== -1 && bestPair.score >= 0.6) {
+      return bestPair.baseCol;
+    }
+
+    // If not found by header, analyze the data structure to find merged name columns
+    // Look for columns that contain Arabic text patterns typical of names
+    const dataRows = values.slice(1, Math.min(6, values.length)); // Check first 5 data rows
+
+    for (let colIndex = 0; colIndex < headers.length; colIndex++) {
+      let nameScore = 0;
+      let totalRows = 0;
+
+      for (let rowIndex = 0; rowIndex < dataRows.length; rowIndex++) {
+        const cellValue = dataRows[rowIndex][colIndex];
+
+        if (cellValue && typeof cellValue === "string") {
+          totalRows++;
+
+          // Check for Arabic text
+          if (/[\u0600-\u06FF]/.test(cellValue) || /[a-zA-Z]/.test(cellValue)) {
+            nameScore += 2;
+          }
+
+          // Check for name patterns (multiple words, reasonable length)
+          const words = cellValue.trim().split(/\s+/);
+          if (words.length >= 2 && words.length <= 5) {
+            nameScore += 1;
+          }
+
+          // Check if it's not a pure number or date
+          if (!/^\d+$/.test(cellValue) && !/\d{2}[-\/]\d{2}[-\/]\d{4}/.test(cellValue)) {
+            nameScore += 1;
+          }
+        }
+      }
+
+      // If this column has a high name score, consider it the name column
+      if (totalRows > 0 && nameScore / totalRows > 2.5) {
+        return colIndex;
+      }
+    }
+
+    return -1;
   }
 
   /**
@@ -653,6 +790,99 @@ class ExcelService {
     }
 
     return columns;
+  }
+
+  /**
+   * Find mark columns in Massar format with النقطة column detection
+   */
+  private findMassarMarkColumns(headers: string[], values: any[][]): Record<MarkType, number> {
+    const columns: Record<MarkType, number> = {
+      fard1: -1,
+      fard2: -1,
+      fard3: -1,
+      activities: -1,
+    };
+
+    // In Massar format, look for test headers and their corresponding النقطة columns
+    const testPatterns = [
+      { type: "fard1" as MarkType, patterns: ["الفرض الأول", "الفرض 1", "فرض 1", "فرض الأول", "فرض١"] },
+      { type: "fard2" as MarkType, patterns: ["الفرض الثاني", "الفرض 2", "فرض 2", "فرض الثاني", "فرض٢"] },
+      { type: "fard3" as MarkType, patterns: ["الفرض الثالث", "الفرض 3", "فرض 3", "فرض الثالث", "فرض٣"] },
+      {
+        type: "activities" as MarkType,
+        patterns: ["الأنشطة", "النشاط", "أنشطة", "المراقبة المستمرة", "مراقبة مستمرة"],
+      },
+    ];
+
+    // Look through multiple rows to find the structure
+    for (let rowIndex = 0; rowIndex < Math.min(5, values.length); rowIndex++) {
+      const row = values[rowIndex];
+
+      for (const testPattern of testPatterns) {
+        // Find test header column
+        for (let colIndex = 0; colIndex < row.length; colIndex++) {
+          const cellValue = row[colIndex];
+
+          if (cellValue && typeof cellValue === "string") {
+            const found = testPattern.patterns.some((pattern) => cellValue.toString().includes(pattern));
+
+            if (found) {
+              // Look for النقطة column nearby (usually directly below or to the right)
+              const scoreColumn = this.findNuqtaColumn(values, rowIndex, colIndex);
+              if (scoreColumn !== -1) {
+                columns[testPattern.type] = scoreColumn;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Fallback to standard detection if Massar-specific detection didn't work
+    const standardColumns = this.findMarkColumns(headers);
+    for (const [type, col] of Object.entries(columns)) {
+      if (col === -1 && standardColumns[type as MarkType] !== -1) {
+        columns[type as MarkType] = standardColumns[type as MarkType];
+      }
+    }
+
+    return columns;
+  }
+
+  /**
+   * Find النقطة column for a specific test
+   */
+  private findNuqtaColumn(values: any[][], testHeaderRow: number, testHeaderCol: number): number {
+    // Look in the row below the test header
+    if (testHeaderRow + 1 < values.length) {
+      const nextRow = values[testHeaderRow + 1];
+
+      // Check the same column and nearby columns for النقطة
+      for (let offset = 0; offset <= 2; offset++) {
+        const colIndex = testHeaderCol + offset;
+        if (colIndex < nextRow.length) {
+          const cellValue = nextRow[colIndex];
+          if (cellValue && typeof cellValue === "string" && cellValue.toString().includes("النقطة")) {
+            return colIndex;
+          }
+        }
+      }
+    }
+
+    // Look in the same row to the right for النقطة
+    const sameRow = values[testHeaderRow];
+    for (let offset = 1; offset <= 3; offset++) {
+      const colIndex = testHeaderCol + offset;
+      if (colIndex < sameRow.length) {
+        const cellValue = sameRow[colIndex];
+        if (cellValue && typeof cellValue === "string" && cellValue.toString().includes("النقطة")) {
+          return colIndex;
+        }
+      }
+    }
+
+    // If no النقطة column found, return the column to the right of the test header
+    return testHeaderCol + 1 < values[0].length ? testHeaderCol + 1 : -1;
   }
 
   /**
@@ -1009,7 +1239,7 @@ class ExcelService {
   }
 
   /**
-   * Enhanced student name matching with fuzzy logic
+   * Enhanced student name matching with fuzzy logic and merged column support
    */
   async findStudentRow(studentName: string, values: string[][]): Promise<number> {
     if (!this.worksheetStructure) {
@@ -1021,8 +1251,24 @@ class ExcelService {
 
     // First try exact match (after normalization)
     for (let i = 1; i < values.length; i++) {
-      const cellName = this.normalizeArabicText(values[i][nameColumn]);
-      if (cellName === nameToFind) {
+      const cellName = this.getMergedStudentName(values[i], nameColumn);
+      const normalizedCellName = this.normalizeArabicText(cellName);
+      if (normalizedCellName === nameToFind) {
+        return i;
+      }
+    }
+
+    // Token-set and order-agnostic match (handles swapped first/last names)
+    const nameTokens = new Set(nameToFind.split(/\s+/).filter(Boolean));
+    for (let i = 1; i < values.length; i++) {
+      const cellName = this.getMergedStudentName(values[i], nameColumn);
+      const normalizedCellName = this.normalizeArabicText(cellName);
+      const cellTokens = new Set(normalizedCellName.split(/\s+/).filter(Boolean));
+
+      // Require at least 2 overlapping tokens or 70% token overlap
+      const overlap = [...nameTokens].filter((t) => cellTokens.has(t)).length;
+      const required = Math.max(2, Math.ceil(Math.min(nameTokens.size, cellTokens.size) * 0.7));
+      if (overlap >= required) {
         return i;
       }
     }
@@ -1030,8 +1276,9 @@ class ExcelService {
     // Then try partial name matching (first/last name)
     const nameParts = nameToFind.split(/\s+/);
     for (let i = 1; i < values.length; i++) {
-      const cellName = this.normalizeArabicText(values[i][nameColumn]);
-      const cellNameParts = cellName.split(/\s+/);
+      const cellName = this.getMergedStudentName(values[i], nameColumn);
+      const normalizedCellName = this.normalizeArabicText(cellName);
+      const cellNameParts = normalizedCellName.split(/\s+/);
 
       // Check for first and last name match
       if (nameParts.length > 0 && cellNameParts.length > 0) {
@@ -1063,13 +1310,83 @@ class ExcelService {
 
     // Finally try fuzzy matching
     for (let i = 1; i < values.length; i++) {
-      const cellName = this.normalizeArabicText(values[i][nameColumn]);
-      if (this.compareNames(nameToFind, cellName)) {
+      const cellName = this.getMergedStudentName(values[i], nameColumn);
+      const normalizedCellName = this.normalizeArabicText(cellName);
+      if (this.compareNames(nameToFind, normalizedCellName)) {
+        return i;
+      }
+    }
+
+    // Last resort: scan across all columns in the row to detect the name cell if studentName appears elsewhere
+    for (let i = 1; i < values.length; i++) {
+      const row = values[i];
+      const concatenated = this.normalizeArabicText(row.map((c) => (c == null ? "" : c.toString())).join(" "));
+      if (concatenated.includes(nameToFind)) {
         return i;
       }
     }
 
     return -1;
+  }
+
+  /**
+   * Get merged student name from potentially multiple columns
+   */
+  private getMergedStudentName(row: any[], primaryNameColumn: number): string {
+    // Start with the primary name column
+    let fullName = row[primaryNameColumn] ? row[primaryNameColumn].toString().trim() : "";
+    const originalName = fullName;
+
+    // In Massar format, check adjacent columns for additional name parts
+    // This handles cases where the name is split across multiple columns
+    if (primaryNameColumn + 1 < row.length) {
+      const nextColumn = row[primaryNameColumn + 1];
+      if (nextColumn && typeof nextColumn === "string") {
+        const nextColumnText = nextColumn.toString().trim();
+
+        // Check if the next column contains name-like text (Arabic, Latin letters, not numbers/dates)
+        if (
+          ((/[\u0600-\u06FF]/.test(nextColumnText) || /[a-zA-Z]/.test(nextColumnText)) &&
+            !/^\d+$/.test(nextColumnText) &&
+            !/\d{2}[-\/]\d{2}[-\/]\d{4}/.test(nextColumnText)) ||
+          // Some Massar sheets have first/last separated with dashes or commas; still treat as name
+          (/^[\p{L} ,\-']+$/u.test(nextColumnText) && nextColumnText.length >= 2)
+        ) {
+          if (!fullName.includes(nextColumnText)) {
+            fullName = (fullName ? fullName + " " : "") + nextColumnText;
+          }
+        }
+      }
+    }
+
+    // Also check the column before the primary name column
+    if (primaryNameColumn > 0) {
+      const prevColumn = row[primaryNameColumn - 1];
+      if (prevColumn && typeof prevColumn === "string") {
+        const prevColumnText = prevColumn.toString().trim();
+
+        // Check if the previous column contains name-like text
+        if (
+          ((/[\u0600-\u06FF]/.test(prevColumnText) || /[a-zA-Z]/.test(prevColumnText)) &&
+            !/^\d+$/.test(prevColumnText) &&
+            !/\d{2}[-\/]\d{2}[-\/]\d{4}/.test(prevColumnText)) ||
+          (/^[\p{L} ,\-']+$/u.test(prevColumnText) && prevColumnText.length >= 2)
+        ) {
+          if (!fullName.includes(prevColumnText)) {
+            fullName = prevColumnText + (fullName ? " " : "") + fullName;
+          }
+        }
+      }
+    }
+
+    const finalName = fullName.trim();
+
+    // Log name merging process for debugging
+    if (finalName !== originalName) {
+      console.log(`🔗 Merged name: "${originalName}" → "${finalName}" (column ${primaryNameColumn})`);
+    }
+
+    return finalName;
   }
 
   normalizeArabicText(text: string | undefined): string {
@@ -1127,6 +1444,49 @@ class ExcelService {
   formatMarkForMassar(mark: number): string {
     // Ensure mark is formatted as required by Massar
     return parseFloat(mark.toString()).toFixed(2);
+  }
+
+  // Helper: score how likely a column is a name column
+  private scoreColumnAsName(values: any[][], colIndex: number): number {
+    if (colIndex < 0) return 0;
+    const dataRows = values.slice(1, Math.min(11, values.length));
+    let total = 0;
+    let score = 0;
+    for (const row of dataRows) {
+      const v = row[colIndex];
+      if (v && typeof v === "string") {
+        total++;
+        const t = v.trim();
+        if ((/[\u0600-\u06FF]/.test(t) || /[a-zA-Z]/.test(t)) && t.length >= 2) score += 1.5;
+        if (t.split(/\s+/).length >= 2) score += 1.0;
+        if (!/^\d+$/.test(t)) score += 0.5;
+        if (!/\d{2}[-\/]\d{2}[-\/]\d{4}/.test(t)) score += 0.3;
+      }
+    }
+    return total ? Math.min(1, score / (total * 3.3)) : 0;
+  }
+
+  // Helper: score adjacent column pair as combined name
+  private scorePairAsName(values: any[][], leftCol: number, rightCol: number): number {
+    if (leftCol < 0 || rightCol >= (values[0]?.length || 0)) return 0;
+    const dataRows = values.slice(1, Math.min(11, values.length));
+    let total = 0;
+    let score = 0;
+    for (const row of dataRows) {
+      const a = row[leftCol];
+      const b = row[rightCol];
+      const combined = [a, b]
+        .filter((x) => x && typeof x === "string")
+        .map((x) => x.toString().trim())
+        .join(" ");
+      if (combined) {
+        total++;
+        if ((/[\u0600-\u06FF]/.test(combined) || /[a-zA-Z]/.test(combined)) && combined.length >= 3) score += 1.5;
+        if (combined.split(/\s+/).length >= 2) score += 1.0;
+        if (!/^\d+$/.test(combined)) score += 0.5;
+      }
+    }
+    return total ? Math.min(1, score / (total * 3.0)) : 0;
   }
 }
 export default new ExcelService();

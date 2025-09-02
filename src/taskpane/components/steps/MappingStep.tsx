@@ -53,7 +53,7 @@ const MappingStep: React.FC<MappingStepProps> = ({
 
       <div className="step-content">
         <Text size={300} style={{ marginBottom: "20px", color: "#666", display: "block" }}>
-          تحقق من تطابق الطلاب والعلامات مع ملف Excel قبل الإدخال النهائي
+          تحقق من تطابق التلاميذ والعلامات مع ملف Excel قبل الإدخال النهائي
         </Text>
 
         <MappingPreview

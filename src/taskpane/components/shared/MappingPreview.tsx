@@ -275,7 +275,7 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
             جاري تحليل التطابق مع ملف Excel...
           </Text>
           <Text size={300} style={{ color: "#64748b" }}>
-            يتم التحقق من أسماء الطلاب والأعمدة المناسبة
+            يتم التحقق من أسماء التلاميذ والأعمدة المناسبة
           </Text>
         </LoadingContainer>
       </MappingContainer>
@@ -325,17 +325,17 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
         <SummaryGrid>
           <SummaryItem>
             <SummaryNumber>{summary.totalStudents}</SummaryNumber>
-            <SummaryLabel>إجمالي الطلاب</SummaryLabel>
+            <SummaryLabel>إجمالي التلاميذ</SummaryLabel>
           </SummaryItem>
 
           <SummaryItem>
             <SummaryNumber style={{ color: "#10b981" }}>{summary.studentsFound}</SummaryNumber>
-            <SummaryLabel>طلاب موجودون</SummaryLabel>
+            <SummaryLabel>تلاميذ موجودون</SummaryLabel>
           </SummaryItem>
 
           <SummaryItem>
             <SummaryNumber style={{ color: "#ef4444" }}>{summary.studentsNotFound}</SummaryNumber>
-            <SummaryLabel>طلاب غير موجودين</SummaryLabel>
+            <SummaryLabel>تلاميذ غير موجودين</SummaryLabel>
           </SummaryItem>
 
           <SummaryItem>
@@ -448,11 +448,11 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
             <Warning24Regular style={{ color: "#f59e0b", fontSize: "20px", marginTop: "2px" }} />
             <div>
               <Text size={400} weight="semibold" style={{ color: "#f59e0b", display: "block", marginBottom: "4px" }}>
-                تحذير: بعض الطلاب غير موجودين في ملف Excel
+                تحذير: بعض التلاميذ غير موجودين في ملف Excel
               </Text>
               <Text size={300} style={{ color: "#92400e" }}>
-                {summary.studentsNotFound} من أصل {summary.totalStudents} طالب غير موجودين في ملف مسار. تأكد من أن أسماء
-                الطلاب في الصورة تطابق الأسماء في ملف Excel.
+                {summary.studentsNotFound} من أصل {summary.totalStudents} من التلاميذ غير موجودين في ملف مسار. تأكد من
+                أن أسماء التلاميذ في الصورة تطابق الأسماء في ملف Excel.
               </Text>
             </div>
           </div>
