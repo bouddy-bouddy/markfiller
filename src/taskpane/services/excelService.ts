@@ -1,5 +1,13 @@
 import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../types";
 
+type NameMatchConfig = {
+  baseThreshold: number;
+  shortNameThreshold: number;
+  shortNameMaxLen: number;
+  overlapRelaxedThreshold: number;
+  minContainLen: number;
+};
+
 /* global Excel */
 
 /**
@@ -29,6 +37,17 @@ import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure,
  */
 class ExcelService {
   private worksheetStructure: IntelligentWorksheetStructure | null = null;
+  private nameMatchConfig: NameMatchConfig = {
+    baseThreshold: 0.82,
+    shortNameThreshold: 0.9,
+    shortNameMaxLen: 6,
+    overlapRelaxedThreshold: 0.78,
+    minContainLen: 3,
+  };
+
+  setNameMatchConfig(config: Partial<NameMatchConfig>): void {
+    this.nameMatchConfig = { ...this.nameMatchConfig, ...config };
+  }
 
   /**
    * Validates the Excel file and intelligently analyzes its structure
@@ -168,6 +187,7 @@ class ExcelService {
         fard1: -1,
         fard2: -1,
         fard3: -1,
+        fard4: -1,
         activities: -1,
       };
 
@@ -377,6 +397,7 @@ class ExcelService {
       fard1: 0,
       fard2: 0,
       fard3: 0,
+      fard4: 0,
       activities: 0,
     };
 
@@ -437,19 +458,23 @@ class ExcelService {
     // Assign confidence based on column position and statistics
     // In a typical marks sheet, fard1 comes before fard2, etc.
     if (columnStats.length >= 1) {
-      confidenceMap.fard1 = 0.8; // High confidence for first numeric column
+      confidenceMap.fard1 = 0.8;
     }
 
     if (columnStats.length >= 2) {
-      confidenceMap.fard2 = 0.7; // Good confidence for second column
+      confidenceMap.fard2 = 0.7;
     }
 
     if (columnStats.length >= 3) {
-      confidenceMap.fard3 = 0.6; // Moderate confidence for third column
+      confidenceMap.fard3 = 0.6;
     }
 
     if (columnStats.length >= 4) {
-      confidenceMap.activities = 0.5; // Lower confidence for fourth column
+      confidenceMap.fard4 = 0.55;
+    }
+
+    if (columnStats.length >= 5) {
+      confidenceMap.activities = 0.5;
     }
 
     // Adjust confidence based on statistics
@@ -493,6 +518,7 @@ class ExcelService {
       fard1: 0,
       fard2: 0,
       fard3: 0,
+      fard4: 0,
       activities: 0,
     };
 
@@ -519,6 +545,12 @@ class ExcelService {
         confidenceMap.fard3 = 0.9;
       } else if (headerString.includes("فرض") && headerString.includes("3")) {
         confidenceMap.fard3 = 0.7;
+      }
+
+      if (headerString.includes("فرض 4") || headerString.includes("فرض الرابع") || headerString.includes("فرض٤")) {
+        confidenceMap.fard4 = 0.9;
+      } else if (headerString.includes("فرض") && headerString.includes("4")) {
+        confidenceMap.fard4 = 0.7;
       }
 
       if (headerString.includes("أنشطة") || headerString.includes("نشاط")) {
@@ -748,6 +780,7 @@ class ExcelService {
       fard1: ["الفرض 1", "الفرض الأول", "فرض 1", "فرض١", "اختبار 1", "امتحان 1", "تقويم 1"],
       fard2: ["الفرض 2", "الفرض الثاني", "فرض 2", "فرض٢", "اختبار 2", "امتحان 2", "تقويم 2"],
       fard3: ["الفرض 3", "الفرض الثالث", "فرض 3", "فرض٣", "اختبار 3", "امتحان 3", "تقويم 3"],
+      fard4: ["الفرض 4", "الفرض الرابع", "فرض 4", "فرض٤", "اختبار 4", "امتحان 4", "تقويم 4"],
       activities: ["الأنشطة", "النشاط", "أنشطة", "المهارات", "الأداء", "نشاط", "تطبيقات", "مراقبة مستمرة"],
     };
 
@@ -755,6 +788,7 @@ class ExcelService {
       fard1: -1,
       fard2: -1,
       fard3: -1,
+      fard4: -1,
       activities: -1,
     };
 
@@ -789,6 +823,12 @@ class ExcelService {
       );
     }
 
+    if (columns.fard4 === -1) {
+      columns.fard4 = headers.findIndex(
+        (h) => h && h.toString().match(/فرض.*4|4.*فرض|اختبار.*4|4.*اختبار|امتحان.*4|4.*امتحان/)
+      );
+    }
+
     return columns;
   }
 
@@ -800,6 +840,7 @@ class ExcelService {
       fard1: -1,
       fard2: -1,
       fard3: -1,
+      fard4: -1,
       activities: -1,
     };
 
@@ -808,6 +849,7 @@ class ExcelService {
       { type: "fard1" as MarkType, patterns: ["الفرض الأول", "الفرض 1", "فرض 1", "فرض الأول", "فرض١"] },
       { type: "fard2" as MarkType, patterns: ["الفرض الثاني", "الفرض 2", "فرض 2", "فرض الثاني", "فرض٢"] },
       { type: "fard3" as MarkType, patterns: ["الفرض الثالث", "الفرض 3", "فرض 3", "فرض الثالث", "فرض٣"] },
+      { type: "fard4" as MarkType, patterns: ["الفرض الرابع", "الفرض 4", "فرض 4", "فرض الرابع", "فرض٤"] },
       {
         type: "activities" as MarkType,
         patterns: ["الأنشطة", "النشاط", "أنشطة", "المراقبة المستمرة", "مراقبة مستمرة"],
@@ -1062,11 +1104,11 @@ class ExcelService {
    */
   private mapDetectedTypeToMarkType(detectedType: keyof DetectedMarkTypes): MarkType | null {
     const mapping: Record<keyof DetectedMarkTypes, MarkType> = {
-      hasFard1: "الفرض الأول",
-      hasFard2: "الفرض الثاني",
-      hasFard3: "الفرض الثالث",
-      hasFard4: "الفرض الرابع", // Map fard4 to fard1 if needed
-      hasActivities: "الأنشطة",
+      hasFard1: "fard1",
+      hasFard2: "fard2",
+      hasFard3: "fard3",
+      hasFard4: "fard4",
+      hasActivities: "activities",
     };
 
     return mapping[detectedType] || null;
@@ -1113,7 +1155,7 @@ class ExcelService {
           hasFard1: columns.fard1 !== -1,
           hasFard2: columns.fard2 !== -1,
           hasFard3: columns.fard3 !== -1,
-          hasFard4: false,
+          hasFard4: columns.fard4 !== -1,
           hasActivities: columns.activities !== -1,
         };
       }
@@ -1129,7 +1171,7 @@ class ExcelService {
         hasFard1: columns.fard1 !== -1,
         hasFard2: columns.fard2 !== -1,
         hasFard3: columns.fard3 !== -1,
-        hasFard4: false,
+        hasFard4: columns.fard4 !== -1,
         hasActivities: columns.activities !== -1,
       };
     }
@@ -1208,6 +1250,7 @@ class ExcelService {
           if (detectedMarkTypes.hasFard1) detectedMarkTypesList.push("fard1");
           if (detectedMarkTypes.hasFard2) detectedMarkTypesList.push("fard2");
           if (detectedMarkTypes.hasFard3) detectedMarkTypesList.push("fard3");
+          if (detectedMarkTypes.hasFard4) detectedMarkTypesList.push("fard4");
           if (detectedMarkTypes.hasActivities) detectedMarkTypesList.push("activities");
 
           for (const markType of detectedMarkTypesList) {
@@ -1264,6 +1307,8 @@ class ExcelService {
         return detectedTypes.hasFard2;
       case "fard3":
         return detectedTypes.hasFard3;
+      case "fard4":
+        return detectedTypes.hasFard4;
       case "activities":
         return detectedTypes.hasActivities;
       default:
@@ -1278,6 +1323,7 @@ class ExcelService {
     if (detectedTypes.hasFard1) return "fard1";
     if (detectedTypes.hasFard2) return "fard2";
     if (detectedTypes.hasFard3) return "fard3";
+    if (detectedTypes.hasFard4) return "fard4";
     if (detectedTypes.hasActivities) return "activities";
     return null;
   }
@@ -1296,6 +1342,9 @@ class ExcelService {
       "الفرض 3": "fard3",
       "الفرض الثالث": "fard3",
       "فرض 3": "fard3",
+      "الفرض 4": "fard4",
+      "الفرض الرابع": "fard4",
+      "فرض 4": "fard4",
       الأنشطة: "activities",
       النشاط: "activities",
       أنشطة: "activities",
@@ -1458,21 +1507,98 @@ class ExcelService {
   normalizeArabicText(text: string | undefined): string {
     if (!text) return "";
 
-    // Remove diacritics and normalize Arabic characters
-    return text
-      .normalize("NFKD")
-      .replace(/[\u0300-\u036f]/g, "")
-      .replace(/[أإآ]/g, "ا")
+    // Convert to string and normalize compatibility forms first
+    let s = text.toString();
+
+    // Remove BOM and invisible formatting/RTL marks that often sneak in from Excel/OCR
+    // - Zero width: U+200B..U+200D, U+FEFF, U+2060
+    // - Directional marks: U+200E (LRM), U+200F (RLM), U+061C (ALM)
+    // - Embedding/override: U+202A..U+202E, Isolates: U+2066..U+2069
+    s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "");
+
+    // Replace special/nb spaces with a normal space
+    s = s.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+
+    // Remove Arabic tatweel/kashida
+    s = s.replace(/\u0640/g, "");
+
+    // Normalize compatibility/composition
+    s = s.normalize("NFKC");
+
+    // Remove Latin combining marks (already covered by NFKC) and explicitly remove Arabic diacritics
+    // Arabic diacritics ranges: 0610-061A, 064B-065F, 0670, 06D6-06DC, 06DF-06E8, 06EA-06ED
+    s = s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g, "");
+
+    // Normalize common Arabic letter variants that differ by code point but look identical
+    // Persian Yeh -> Arabic Yeh, Keheh -> Kaf, Heh goal -> Heh
+    s = s
+      .replace(/\u06CC/g, "\u064A") // ی -> ي
+      .replace(/\u06A9/g, "\u0643") // ک -> ك
+      .replace(/\u06C1/g, "\u0647"); // ہ -> ه
+
+    // Unify alef variants and common letter variants
+    s = s
+      .replace(/[أإآٱ]/g, "ا")
       .replace(/ة/g, "ه")
       .replace(/ى/g, "ي")
-      .trim()
-      .toLowerCase();
+      .replace(/ؤ/g, "و")
+      .replace(/ئ/g, "ي");
+
+    // Replace Lam-Alef ligatures with their decomposed form
+    s = s.replace(/[\uFEFB-\uFEFE]/g, "لا");
+
+    // Keep only letters/numbers/spaces; drop punctuation/symbols that can confuse matching
+    s = s.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, " ");
+
+    // Collapse repeated whitespace, trim, and lowercase (Arabic is case-insensitive)
+    s = s.replace(/\s+/g, " ").trim().toLowerCase();
+
+    return s;
   }
 
   compareNames(name1: string, name2: string): boolean {
-    // Calculate similarity between names
-    const similarity = this.calculateSimilarity(name1, name2);
-    return similarity > 0.8; // 80% similarity threshold
+    // Normalize again for safety (callers usually pass normalized values already)
+    const a = this.normalizeArabicText(name1);
+    const b = this.normalizeArabicText(name2);
+
+    if (a === b) return true;
+
+    // Quick containment check ignoring spaces
+    const aNoSpace = a.replace(/\s+/g, "");
+    const bNoSpace = b.replace(/\s+/g, "");
+    if (aNoSpace.includes(bNoSpace) || bNoSpace.includes(aNoSpace)) {
+      if (Math.min(aNoSpace.length, bNoSpace.length) >= this.nameMatchConfig.minContainLen) return true;
+    }
+
+    // Token-sort comparison (order agnostic)
+    const tokenSort = (s: string) =>
+      s
+        .split(/\s+/)
+        .filter(Boolean)
+        .sort((x, y) => x.localeCompare(y))
+        .join(" ");
+    const aTok = tokenSort(a);
+    const bTok = tokenSort(b);
+
+    const simRaw = this.calculateSimilarity(a, b);
+    const simNoSpace = this.calculateSimilarity(aNoSpace, bNoSpace);
+    const simTok = this.calculateSimilarity(aTok, bTok);
+
+    // Adaptive thresholding
+    let threshold = this.nameMatchConfig.baseThreshold;
+    const minLen = Math.min(a.length, b.length);
+    if (minLen <= this.nameMatchConfig.shortNameMaxLen) threshold = this.nameMatchConfig.shortNameThreshold;
+
+    // If tokens largely overlap, allow slightly lower threshold
+    const aSet = new Set(a.split(/\s+/).filter(Boolean));
+    const bSet = new Set(b.split(/\s+/).filter(Boolean));
+    const overlap = [...aSet].filter((t) => bSet.has(t)).length;
+    const required = Math.max(1, Math.ceil(Math.min(aSet.size, bSet.size) * 0.6));
+    if (overlap >= required && Math.max(aSet.size, bSet.size) >= 2)
+      threshold = Math.min(threshold, this.nameMatchConfig.overlapRelaxedThreshold);
+
+    const best = Math.max(simRaw, simNoSpace, simTok);
+    return best >= threshold;
   }
 
   calculateSimilarity(s1: string, s2: string): number {

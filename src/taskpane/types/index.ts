@@ -21,7 +21,7 @@ export interface Student {
 /**
  * Type for mark type selection
  */
-export type MarkType = "fard1" | "fard2" | "fard3" | "activities";
+export type MarkType = "fard1" | "fard2" | "fard3" | "fard4" | "activities";
 
 /**
  * Represents the display name of a mark type in Arabic
@@ -29,7 +29,7 @@ export type MarkType = "fard1" | "fard2" | "fard3" | "activities";
 export const markTypeNames: Record<MarkType, string> = {
   fard1: "الفرض الأول",
   fard2: "الفرض الثاني",
-  fard3: "الفرض 3",
+  fard3: "الفرض الثالث",
   fard4: "الفرض الرابع",
   activities: "الأنشطة",
 };
@@ -124,5 +124,6 @@ export interface MarkValidRanges {
   fard1?: { min: number; max: number };
   fard2?: { min: number; max: number };
   fard3?: { min: number; max: number };
+  fard4?: { min: number; max: number };
   activities?: { min: number; max: number };
 }

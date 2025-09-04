@@ -23,7 +23,7 @@ import {
 } from "@fluentui/react-icons";
 import styled from "styled-components";
 import excelService from "../../services/excelService";
-import { Student, DetectedMarkTypes, MarkType } from "../../types";
+import { Student, DetectedMarkTypes, MarkType, markTypeNames } from "../../types";
 
 const MappingContainer = styled.div`
   display: flex;
@@ -242,23 +242,15 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
     }
   };
 
-  const getMarkTypeDisplayName = (markType: MarkType): string => {
-    const names: Record<MarkType, string> = {
-      fard1: "الفرض الأول",
-      fard2: "الفرض الثاني",
-      fard3: "الفرض الثالث",
-      activities: "الأنشطة",
-    };
-    return names[markType] || markType;
-  };
+  const getMarkTypeDisplayName = (markType: MarkType): string => markTypeNames[markType];
 
   const getDetectedMarkTypes = (): MarkType[] => {
     const detectedTypes: MarkType[] = [];
-    if (detectedMarkTypes.hasFard1) detectedTypes.push("الفرض الأول");
-    if (detectedMarkTypes.hasFard2) detectedTypes.push("الفرض الثاني");
-    if (detectedMarkTypes.hasFard3) detectedTypes.push("الفرض الثالث");
-    if (detectedMarkTypes.hasFard4) detectedTypes.push("الفرض الرابع");
-    if (detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
+    if (detectedMarkTypes.hasFard1) detectedTypes.push("fard1");
+    if (detectedMarkTypes.hasFard2) detectedTypes.push("fard2");
+    if (detectedMarkTypes.hasFard3) detectedTypes.push("fard3");
+    if (detectedMarkTypes.hasFard4) detectedTypes.push("fard4");
+    if (detectedMarkTypes.hasActivities) detectedTypes.push("activities");
     return detectedTypes;
   };
 

@@ -584,12 +584,14 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         fard1: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
         fard2: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
         fard3: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
+        fard4: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
         activities: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
       },
       distribution: {
         fard1: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         fard2: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         fard3: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
+        fard4: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         activities: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
       },
     };
@@ -598,7 +600,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     students.forEach((student) => {
       Object.entries(student.marks).forEach(([key, value]) => {
         // Skip if it's not a valid mark type
-        if (!["fard1", "fard2", "fard3", "activities"].includes(key)) return;
+        if (!["fard1", "fard2", "fard3", "fard4", "activities"].includes(key)) return;
 
         const markType = key as MarkType;
         if (value !== null) {

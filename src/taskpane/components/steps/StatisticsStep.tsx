@@ -143,6 +143,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     detectedMarkTypes.hasFard1 ||
     detectedMarkTypes.hasFard2 ||
     detectedMarkTypes.hasFard3 ||
+    detectedMarkTypes.hasFard4 ||
     detectedMarkTypes.hasActivities;
 
   // Helper to determine which stats to display based on detected types
@@ -154,6 +155,8 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         return detectedMarkTypes.hasFard2;
       case "fard3":
         return detectedMarkTypes.hasFard3;
+      case "fard4":
+        return detectedMarkTypes.hasFard4;
       case "activities":
         return detectedMarkTypes.hasActivities;
       default:
@@ -170,6 +173,8 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         return "الفرض 2";
       case "fard3":
         return "الفرض 3";
+      case "fard4":
+        return "الفرض 4";
       case "activities":
         return "الأنشطة";
       default:
@@ -186,6 +191,8 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         return "#38a169";
       case "fard3":
         return "#805ad5";
+      case "fard4":
+        return "#d53f8c";
       case "activities":
         return "#dd6b20";
       default:
@@ -282,7 +289,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         </Text>
 
         <DistributionGrid>
-          {(["fard1", "fard2", "fard3", "activities"] as MarkType[]).map((type) => {
+          {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
             if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
 
             const maxValue = getMaxDistribution(type);
