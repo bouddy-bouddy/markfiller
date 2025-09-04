@@ -219,6 +219,8 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
   const [mappingData, setMappingData] = useState<MappingPreviewData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [quickFillType, setQuickFillType] = useState<MarkType>("fard1");
+  const [isQuickFilling, setIsQuickFilling] = useState<boolean>(false);
 
   useEffect(() => {
     loadMappingPreview();
@@ -252,6 +254,25 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
     if (detectedMarkTypes.hasFard4) detectedTypes.push("fard4");
     if (detectedMarkTypes.hasActivities) detectedTypes.push("activities");
     return detectedTypes;
+  };
+
+  useEffect(() => {
+    const detected = getDetectedMarkTypes();
+    if (detected.length > 0) {
+      setQuickFillType(detected[0]);
+    }
+  }, [detectedMarkTypes]);
+
+  const handleQuickFill = async () => {
+    try {
+      setIsQuickFilling(true);
+      await excelService.insertMarksFromSelection(extractedData, quickFillType);
+    } catch (err) {
+      console.error("Quick fill error:", err);
+      setError("تعذر الإدخال انطلاقًا من الخلية المحددة. تأكد من تحديد الخلية الأولى في Excel.");
+    } finally {
+      setIsQuickFilling(false);
+    }
   };
 
   const formatMarkValue = (value: number | null): string => {
@@ -425,6 +446,41 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
               ))}
             </TableBody>
           </MappingTable>
+        </div>
+      </Card>
+
+      {/* Quick Fill from current selection */}
+      <Card style={{ padding: "16px" }}>
+        <Text size={400} weight="semibold" style={{ color: "#0e7c42" }}>
+          إدخال سريع من الخلية المحددة في Excel
+        </Text>
+        <Text size={300} style={{ color: "#64748b", display: "block", margin: "6px 0 12px" }}>
+          اختر نوع العلامة، ثم حدِّد في ملف Excel الخلية الأولى حيث يجب وضع علامة أول تلميذ، وبعدها اضغط «إدخال من
+          الخلية المحددة». سيتم تعبئة باقي العلامات أسفلها مباشرةً.
+        </Text>
+        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Text size={300} style={{ color: "#334155" }}>
+              نوع العلامة:
+            </Text>
+            <select
+              value={quickFillType}
+              onChange={(e) => setQuickFillType(e.target.value as MarkType)}
+              aria-label="نوع العلامة"
+              title="نوع العلامة"
+              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}
+            >
+              {getDetectedMarkTypes().map((t) => (
+                <option key={t} value={t}>
+                  {getMarkTypeDisplayName(t)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button appearance="primary" onClick={handleQuickFill} disabled={isInserting || isQuickFilling}>
+            {isQuickFilling ? "جاري الإدخال..." : "إدخال من الخلية المحددة"}
+          </Button>
         </div>
       </Card>
 

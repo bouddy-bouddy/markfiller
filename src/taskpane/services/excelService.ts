@@ -1100,6 +1100,41 @@ class ExcelService {
   }
 
   /**
+   * QUICK FILL: Insert marks starting at the currently selected cell and fill downward
+   * This manual mode writes the extracted marks for a chosen mark type in order,
+   * starting at the selected cell and continuing downward one row per student.
+   */
+  async insertMarksFromSelection(extractedData: Student[], markType: MarkType): Promise<MarkInsertionResults> {
+    try {
+      return await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const selection = context.workbook.getSelectedRange();
+        selection.load(["rowIndex", "columnIndex", "address"]);
+        await context.sync();
+
+        const startRow = selection.rowIndex;
+        const startCol = selection.columnIndex;
+
+        const values: (string | number)[][] = extractedData.map((student) => {
+          const value = student.marks[markType];
+          return [value !== null ? this.formatMarkForMassar(value) : ""];
+        });
+
+        const targetRange = sheet.getRangeByIndexes(startRow, startCol, values.length, 1);
+        targetRange.values = values;
+
+        await context.sync();
+
+        const inserted = values.filter((row) => row[0] !== "").length;
+        return { success: inserted, notFound: 0, notFoundStudents: [] };
+      });
+    } catch (error) {
+      console.error("Excel quick-fill insertion error:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Map detected type to mark type
    */
   private mapDetectedTypeToMarkType(detectedType: keyof DetectedMarkTypes): MarkType | null {
