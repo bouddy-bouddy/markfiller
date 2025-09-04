@@ -27,9 +27,10 @@ export type MarkType = "fard1" | "fard2" | "fard3" | "activities";
  * Represents the display name of a mark type in Arabic
  */
 export const markTypeNames: Record<MarkType, string> = {
-  fard1: "الفرض 1",
-  fard2: "الفرض 2",
+  fard1: "الفرض الأول",
+  fard2: "الفرض الثاني",
   fard3: "الفرض 3",
+  fard4: "الفرض الرابع",
   activities: "الأنشطة",
 };
 

@@ -1062,11 +1062,11 @@ class ExcelService {
    */
   private mapDetectedTypeToMarkType(detectedType: keyof DetectedMarkTypes): MarkType | null {
     const mapping: Record<keyof DetectedMarkTypes, MarkType> = {
-      hasFard1: "fard1",
-      hasFard2: "fard2",
-      hasFard3: "fard3",
-      hasFard4: "fard1", // Map fard4 to fard1 if needed
-      hasActivities: "activities",
+      hasFard1: "الفرض الأول",
+      hasFard2: "الفرض الثاني",
+      hasFard3: "الفرض الثالث",
+      hasFard4: "الفرض الرابع", // Map fard4 to fard1 if needed
+      hasActivities: "الأنشطة",
     };
 
     return mapping[detectedType] || null;

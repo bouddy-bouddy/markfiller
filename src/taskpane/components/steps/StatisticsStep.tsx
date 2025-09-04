@@ -249,7 +249,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             <StatValue>{statistics.totalStudents}</StatValue>
           </StatCard>
 
-          {(["fard1", "fard2", "fard3", "activities"] as MarkType[]).map((type) => {
+          {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
             if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
 
             return (

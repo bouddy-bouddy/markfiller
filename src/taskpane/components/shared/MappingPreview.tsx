@@ -254,10 +254,11 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
 
   const getDetectedMarkTypes = (): MarkType[] => {
     const detectedTypes: MarkType[] = [];
-    if (detectedMarkTypes.hasFard1) detectedTypes.push("fard1");
-    if (detectedMarkTypes.hasFard2) detectedTypes.push("fard2");
-    if (detectedMarkTypes.hasFard3) detectedTypes.push("fard3");
-    if (detectedMarkTypes.hasActivities) detectedTypes.push("activities");
+    if (detectedMarkTypes.hasFard1) detectedTypes.push("الفرض الأول");
+    if (detectedMarkTypes.hasFard2) detectedTypes.push("الفرض الثاني");
+    if (detectedMarkTypes.hasFard3) detectedTypes.push("الفرض الثالث");
+    if (detectedMarkTypes.hasFard4) detectedTypes.push("الفرض الرابع");
+    if (detectedMarkTypes.hasActivities) detectedTypes.push("الأنشطة");
     return detectedTypes;
   };
 
