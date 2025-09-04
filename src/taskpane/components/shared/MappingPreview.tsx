@@ -12,6 +12,8 @@ import {
   Badge,
   Spinner,
   ProgressBar,
+  Combobox,
+  Option,
 } from "@fluentui/react-components";
 import {
   CheckmarkCircle24Regular,
@@ -463,24 +465,24 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
             <Text size={300} style={{ color: "#334155" }}>
               نوع العلامة:
             </Text>
-            <select
-              value={quickFillType}
-              onChange={(e) => setQuickFillType(e.target.value as MarkType)}
+            <Combobox
               aria-label="نوع العلامة"
-              title="نوع العلامة"
-              style={{ padding: "8px 10px", borderRadius: 8, border: "1px solid #e2e8f0" }}
+              selectedOptions={[quickFillType]}
+              value={getMarkTypeDisplayName(quickFillType)}
+              onOptionSelect={(_, data) => setQuickFillType((data.optionValue || quickFillType) as MarkType)}
+              style={{ minWidth: 220 }}
             >
               {getDetectedMarkTypes().map((t) => (
-                <option key={t} value={t}>
+                <Option key={t} value={t}>
                   {getMarkTypeDisplayName(t)}
-                </option>
+                </Option>
               ))}
-            </select>
+            </Combobox>
           </div>
 
-          <Button appearance="primary" onClick={handleQuickFill} disabled={isInserting || isQuickFilling}>
+          <PrimaryButton onClick={handleQuickFill} disabled={isInserting || isQuickFilling} style={{ color: "#fff" }}>
             {isQuickFilling ? "جاري الإدخال..." : "إدخال من الخلية المحددة"}
-          </Button>
+          </PrimaryButton>
         </div>
       </Card>
 
@@ -513,10 +515,11 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
         <PrimaryButton
           appearance="primary"
           onClick={onConfirmMapping}
-          disabled={isInserting || summary.totalMarksToInsert === 0}
-          icon={isInserting ? <Spinner size="tiny" /> : <CheckmarkCircle24Regular />}
+          disabled={isInserting}
+          icon={<ArrowRight24Regular />}
+          style={{ color: "#fff" }}
         >
-          {isInserting ? "جاري الإدخال..." : `تأكيد الإدخال (${summary.totalMarksToInsert} علامة)`}
+          {"متابعة"}
         </PrimaryButton>
 
         <SecondaryButton appearance="secondary" onClick={onCancel} disabled={isInserting}>

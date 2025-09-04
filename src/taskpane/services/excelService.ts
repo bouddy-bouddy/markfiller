@@ -923,8 +923,12 @@ class ExcelService {
       }
     }
 
-    // If no النقطة column found, return the column to the right of the test header
-    return testHeaderCol + 1 < values[0].length ? testHeaderCol + 1 : -1;
+    // If no النقطة column found, prefer the first column under the test header block
+    // Massar headers typically have the score column directly below the header cell
+    if (testHeaderRow + 1 < values.length) {
+      return testHeaderCol;
+    }
+    return -1;
   }
 
   /**
@@ -946,7 +950,7 @@ class ExcelService {
       return await Excel.run(async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
         const range = sheet.getUsedRange();
-        range.load("values");
+        range.load(["values", "rowIndex", "columnIndex"]);
 
         await context.sync();
 
@@ -982,13 +986,16 @@ class ExcelService {
           throw new Error(`Invalid mark type: ${markType}`);
         }
 
+        const baseRow = range.rowIndex;
+        const baseCol = range.columnIndex;
+
         for (const student of extractedData) {
-          const rowIndex = await this.findStudentRow(student.name, range.values as string[][]);
-          if (rowIndex !== -1) {
+          const rowIndexRel = await this.findStudentRow(student.name, range.values as string[][]);
+          if (rowIndexRel !== -1) {
             // Get the correct column for this mark type
             const columnIndex = this.worksheetStructure.markColumns[internalMarkType];
             if (columnIndex !== -1) {
-              const cell = sheet.getCell(rowIndex, columnIndex);
+              const cell = sheet.getCell(baseRow + rowIndexRel, baseCol + columnIndex);
               const markValue = student.marks[internalMarkType];
 
               if (markValue !== null) {
@@ -1020,7 +1027,7 @@ class ExcelService {
       return await Excel.run(async (context) => {
         const sheet = context.workbook.worksheets.getActiveWorksheet();
         const range = sheet.getUsedRange();
-        range.load("values");
+        range.load(["values", "rowIndex", "columnIndex"]);
 
         await context.sync();
 
@@ -1040,14 +1047,18 @@ class ExcelService {
         const workbookMarkTypes = this.detectAvailableMarkTypesInWorkbook(range.values as any[][]);
         console.log("🧭 Mark types available in workbook:", workbookMarkTypes);
 
+        const baseRow = range.rowIndex;
+        const baseCol = range.columnIndex;
+
         // Process each student
         for (const student of extractedData) {
           console.log(`\n🔍 Processing student: ${student.name}`);
 
-          const rowIndex = await this.findStudentRow(student.name, range.values as string[][]);
+          const rowIndexRel = await this.findStudentRow(student.name, range.values as string[][]);
 
-          if (rowIndex !== -1) {
-            console.log(`✅ Found student at row ${rowIndex}`);
+          if (rowIndexRel !== -1) {
+            const absRow = baseRow + rowIndexRel;
+            console.log(`✅ Found student at row ${absRow}`);
 
             // Insert marks for all detected types
             const detectedKeys: (keyof DetectedMarkTypes)[] = [
@@ -1074,10 +1085,10 @@ class ExcelService {
 
               const markValue = student.marks[markType];
               if (markValue !== null) {
-                const cell = sheet.getCell(rowIndex, columnIndex);
+                const cell = sheet.getCell(absRow, baseCol + columnIndex);
                 cell.values = [[this.formatMarkForMassar(markValue)]];
                 results.success++;
-                console.log(`✅ Inserted ${markType}: ${markValue} at row ${rowIndex}, col ${columnIndex}`);
+                console.log(`✅ Inserted ${markType}: ${markValue} at row ${absRow}, col ${baseCol + columnIndex}`);
               } else {
                 console.log(`⚠️ No mark value for ${markType}`);
               }
