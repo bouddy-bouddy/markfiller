@@ -1,10 +1,15 @@
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import { Text, Card, Button, Badge } from "@fluentui/react-components";
 import { ChartMultiple24Regular, DocumentAdd24Regular } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
+import { Bar, Doughnut } from "react-chartjs-2";
+import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
+import type { ChartData } from "chart.js";
+
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
 
 const StepTitle = styled.div`
   display: flex;
@@ -76,6 +81,32 @@ const ButtonContainer = styled.div`
   justify-content: center;
 `;
 
+const ChartRow = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+`;
+
+const ChartCard = styled(Card)`
+  padding: 16px;
+`;
+
+const KPIGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 12px 0 20px;
+`;
+
+const KPIItem = styled(Card)`
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+`;
+
 const PrimaryButton = styled(Button)`
   border-radius: 12px !important;
   font-weight: 600 !important;
@@ -135,6 +166,30 @@ interface Statistics {
       value: number;
     }>
   >;
+  bottomStudentsByType?: Record<
+    MarkType,
+    Array<{
+      name: string;
+      value: number;
+    }>
+  >;
+  outliersByType?: Record<
+    MarkType,
+    {
+      high: Array<{ name: string; value: number }>;
+      low: Array<{ name: string; value: number }>;
+    }
+  >;
+  overall?: {
+    overallAverage: number;
+    overallMedian: number;
+    overallStdDev: number;
+    passRate: number;
+    failRate: number;
+    missingRate: number;
+    totalMarksCounted: number;
+  };
+  recommendations?: string[];
 }
 
 interface StatisticsStepProps {
@@ -153,6 +208,15 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
   onReset,
 }) => {
   const reportRef = useRef<HTMLDivElement>(null);
+  const shownTypes: MarkType[] = useMemo(() => {
+    const list: MarkType[] = [];
+    if (detectedMarkTypes.hasFard1) list.push("fard1");
+    if (detectedMarkTypes.hasFard2) list.push("fard2");
+    if (detectedMarkTypes.hasFard3) list.push("fard3");
+    if (detectedMarkTypes.hasFard4) list.push("fard4");
+    if (detectedMarkTypes.hasActivities) list.push("activities");
+    return list.filter((t) => statistics.markTypes[t].count > 0);
+  }, [detectedMarkTypes, statistics]);
   // Check if any mark type was detected
   const hasDetectedTypes =
     detectedMarkTypes.hasFard1 ||
@@ -250,6 +314,40 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     pdf.save("MarkFiller-Statistics.pdf");
   };
 
+  // Chart datasets
+  const averagesBarData = useMemo<ChartData<"bar">>(() => {
+    const labels = shownTypes.map((t) => getMarkTypeName(t));
+    const data = shownTypes.map((t) => statistics.markTypes[t].avg);
+    return {
+      labels: [...labels],
+      datasets: [
+        {
+          label: "متوسط العلامات",
+          data: [...data],
+          backgroundColor: "rgba(14, 124, 66, 0.7)",
+          borderRadius: 6,
+        },
+      ],
+    };
+  }, [shownTypes, statistics]);
+
+  const passFailDoughnutData = useMemo<ChartData<"doughnut">>(() => {
+    const pass = Math.round((statistics.overall?.passRate || 0) * 100);
+    const fail = Math.round((statistics.overall?.failRate || 0) * 100);
+    const missing = Math.round((statistics.overall?.missingRate || 0) * 100);
+    return {
+      labels: ["ناجح", "راسب", "مفقود"],
+      datasets: [
+        {
+          label: "%",
+          data: [pass, fail, missing],
+          backgroundColor: ["#10b981", "#ef4444", "#94a3b8"],
+          hoverOffset: 8,
+        },
+      ],
+    };
+  }, [statistics]);
+
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
@@ -276,6 +374,70 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
             صحة البيانات قبل إدخالها في Excel.
           </Text>
+
+          {/* KPI Summary */}
+          {statistics.overall && (
+            <KPIGrid>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  المتوسط العام
+                </Text>
+                <StatValue>{formatNumber(statistics.overall.overallAverage)}</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  الوسيط العام
+                </Text>
+                <StatValue>{formatNumber(statistics.overall.overallMedian)}</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  الانحراف المعياري
+                </Text>
+                <StatValue>{formatNumber(statistics.overall.overallStdDev)}</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  نسبة النجاح
+                </Text>
+                <StatValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  نسبة الرسوب
+                </Text>
+                <StatValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  نسبة المفقود
+                </Text>
+                <StatValue>{Math.round((statistics.overall.missingRate || 0) * 100)}%</StatValue>
+              </KPIItem>
+              <KPIItem>
+                <Text size={200} style={{ color: "#64748b" }}>
+                  عدد العلامات المحسوبة
+                </Text>
+                <StatValue>{statistics.overall.totalMarksCounted}</StatValue>
+              </KPIItem>
+            </KPIGrid>
+          )}
+
+          {/* Charts Row */}
+          <ChartRow>
+            <ChartCard>
+              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
+                متوسط العلامات حسب النوع
+              </Text>
+              <Bar data={averagesBarData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+            </ChartCard>
+            <ChartCard>
+              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
+                توزيع النجاح والرسوب والقيم المفقودة
+              </Text>
+              <Doughnut data={passFailDoughnutData} />
+            </ChartCard>
+          </ChartRow>
 
           {/* Summary Stats */}
           <Text
@@ -385,6 +547,118 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               );
             })}
           </DistributionGrid>
+
+          {/* Top and Bottom performers */}
+          <Text
+            size={500}
+            weight="semibold"
+            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+          >
+            المتفوقون والنتائج الأدنى
+          </Text>
+          <DistributionGrid>
+            {shownTypes.map((type) => (
+              <Card key={`perf-${type}`} style={{ padding: 16 }}>
+                <Text size={400} weight="semibold" style={{ marginBottom: 12, color: getMarkTypeColor(type) }}>
+                  {getMarkTypeName(type)}
+                </Text>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
+                      الأعلى (Top 5)
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(statistics.topStudentsByType?.[type] || []).slice(0, 5).map((s, idx) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <Text size={200}>{s.name}</Text>
+                          <Badge appearance="filled" color="success">
+                            {formatNumber(s.value)}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
+                      الأدنى (Bottom 5)
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(statistics.bottomStudentsByType?.[type] || []).slice(0, 5).map((s, idx) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <Text size={200}>{s.name}</Text>
+                          <Badge appearance="outline">{formatNumber(s.value)}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </DistributionGrid>
+
+          {/* Outliers */}
+          <Text
+            size={500}
+            weight="semibold"
+            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+          >
+            القيم الشاذة (Outliers)
+          </Text>
+          <DistributionGrid>
+            {shownTypes.map((type) => (
+              <Card key={`outliers-${type}`} style={{ padding: 16 }}>
+                <Text size={400} weight="semibold" style={{ marginBottom: 12, color: getMarkTypeColor(type) }}>
+                  {getMarkTypeName(type)}
+                </Text>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div>
+                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
+                      أعلى من (+2σ)
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(statistics.outliersByType?.[type]?.high || []).map((s, idx) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <Text size={200}>{s.name}</Text>
+                          <Badge appearance="filled" color="success">
+                            {formatNumber(s.value)}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
+                      أدنى من (-2σ)
+                    </Text>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {(statistics.outliersByType?.[type]?.low || []).map((s, idx) => (
+                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
+                          <Text size={200}>{s.name}</Text>
+                          <Badge appearance="outline">{formatNumber(s.value)}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </DistributionGrid>
+
+          {/* Recommendations */}
+          {statistics.recommendations && statistics.recommendations.length > 0 && (
+            <Card style={{ padding: 16, marginTop: 16 }}>
+              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
+                توصيات مبنية على النتائج
+              </Text>
+              <ul style={{ margin: 0, padding: "0 18px" }}>
+                {statistics.recommendations.map((rec, idx) => (
+                  <li key={idx} style={{ marginBottom: 6 }}>
+                    <Text size={300}>{rec}</Text>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
         </div>
 
         <ButtonContainer>

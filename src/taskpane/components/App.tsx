@@ -390,6 +390,30 @@ interface Statistics {
       value: number;
     }>
   >;
+  bottomStudentsByType?: Record<
+    MarkType,
+    Array<{
+      name: string;
+      value: number;
+    }>
+  >;
+  outliersByType?: Record<
+    MarkType,
+    {
+      high: Array<{ name: string; value: number }>;
+      low: Array<{ name: string; value: number }>;
+    }
+  >;
+  overall?: {
+    overallAverage: number;
+    overallMedian: number;
+    overallStdDev: number;
+    passRate: number; // 0..1
+    failRate: number; // 0..1
+    missingRate: number; // 0..1
+    totalMarksCounted: number;
+  };
+  recommendations?: string[];
 }
 
 const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
@@ -510,22 +534,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setProcessingStage(0);
     setProcessingProgress(0);
 
-    // Define processing stages
-    const stages = ["تحليل الصورة", "استخراج النص", "تحديد هيكل الجدول", "استخراج العلامات", "التحقق من الدقة"];
-
     try {
-      // Show processing stages with animation
-      const updateStage = (stage: number) => {
-        setProcessingStage(stage);
-        setProcessingProgress(((stage + 1) / stages.length) * 100);
-      };
-
-      // Simulate stage progression
-      for (let i = 0; i < stages.length - 1; i++) {
-        updateStage(i);
-        await new Promise((resolve) => setTimeout(resolve, 800));
-      }
-
       // Process the image using enhanced OCR service
       console.log("🚀 STARTING OCR PROCESSING - About to call Google Vision API");
       console.log("📸 Image file details:", {
@@ -535,7 +544,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         lastModified: new Date(selectedImage.lastModified).toISOString(),
       });
 
-      const { students, detectedMarkTypes } = await geminiOcrService.processImage(selectedImage);
+      const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
       console.log("✅ OCR PROCESSING COMPLETED - Google Vision API response processed");
       console.log("📊 Extracted data summary:", {
@@ -544,8 +553,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         sampleStudent: students[0] || null,
       });
 
-      // Final stage complete
-      updateStage(stages.length - 1);
+      setProcessingStage(4);
+      setProcessingProgress(100);
 
       // Results are already processed by Gemini service
       const enhancedResults = { students, detectedMarkTypes };
@@ -668,6 +677,30 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         fard4: [],
         activities: [],
       },
+      bottomStudentsByType: {
+        fard1: [],
+        fard2: [],
+        fard3: [],
+        fard4: [],
+        activities: [],
+      },
+      outliersByType: {
+        fard1: { high: [], low: [] },
+        fard2: { high: [], low: [] },
+        fard3: { high: [], low: [] },
+        fard4: { high: [], low: [] },
+        activities: { high: [], low: [] },
+      },
+      overall: {
+        overallAverage: 0,
+        overallMedian: 0,
+        overallStdDev: 0,
+        passRate: 0,
+        failRate: 0,
+        missingRate: 0,
+        totalMarksCounted: 0,
+      },
+      recommendations: [],
     };
 
     // Calculate basic statistics
@@ -709,7 +742,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       }
     });
 
-    // Calculate median and stdDev and top students
+    // Calculate median and stdDev and top/bottom students and outliers
+    const overallValues: number[] = [];
+    let totalMissing = 0;
     (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
       const arr = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).map((s) => s.value);
       arr.sort((a, b) => a - b);
@@ -719,12 +754,73 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         const mean = stats.markTypes[type].avg;
         const variance = arr.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / arr.length;
         stats.markTypes[type].stdDev = Math.sqrt(variance);
+
+        // Outliers (±2σ)
+        const highThreshold = mean + 2 * (stats.markTypes[type].stdDev || 0);
+        const lowThreshold = mean - 2 * (stats.markTypes[type].stdDev || 0);
+        const sortedPairs = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).slice();
+        stats.outliersByType![type].high = sortedPairs.filter((p) => p.value >= highThreshold);
+        stats.outliersByType![type].low = sortedPairs.filter((p) => p.value <= lowThreshold);
+
+        // Bottom students (ascending)
+        stats.bottomStudentsByType![type] = sortedPairs
+          .slice()
+          .sort((a, b) => a.value - b.value)
+          .slice(0, 5);
+
+        // Accumulate for overall
+        overallValues.push(...arr);
+      } else {
+        totalMissing += stats.markTypes[type].missingCount || 0;
       }
       // sort top students list descending by value
       stats.topStudentsByType![type] = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).sort(
         (a, b) => b.value - a.value
       );
     });
+
+    // Overall stats
+    overallValues.sort((a, b) => a - b);
+    const overallCount = overallValues.length;
+    if (overallCount > 0) {
+      const mid = Math.floor(overallCount / 2);
+      const overallMedian =
+        overallCount % 2 !== 0 ? overallValues[mid] : (overallValues[mid - 1] + overallValues[mid]) / 2;
+      const overallAverage = overallValues.reduce((s, v) => s + v, 0) / overallCount;
+      const overallVariance = overallValues.reduce((s, v) => s + Math.pow(v - overallAverage, 2), 0) / overallCount;
+      const overallStdDev = Math.sqrt(overallVariance);
+      const pass = overallValues.filter((v) => v >= 10).length;
+      stats.overall = {
+        overallAverage,
+        overallMedian,
+        overallStdDev,
+        passRate: pass / overallCount,
+        failRate: 1 - pass / overallCount,
+        missingRate: totalMissing / (overallCount + totalMissing || 1),
+        totalMarksCounted: overallCount,
+      };
+    }
+
+    // Recommendations
+    const recs: string[] = [];
+    if (stats.overall && stats.overall.passRate < 0.6) {
+      recs.push("نسبة النجاح العامة منخفضة. قد تحتاج لتقوية الدعم للتلاميذ ذوي النتائج الضعيفة.");
+    }
+    (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
+      const s = stats.markTypes[type];
+      if (s.count > 0 && s.avg < 10) {
+        recs.push(`متوسط ${type} أقل من المعدل (10). جرّب مراجعة هذا المحور مع المتعلمين.`);
+      }
+      if ((s.stdDev || 0) > 4) {
+        recs.push(
+          `تشتت عالٍ في ${type} (انحراف معياري ${(s.stdDev || 0).toFixed(2)}). قد توجد فوارق كبيرة بين التلاميذ.`
+        );
+      }
+      if ((s.missingCount || 0) / (s.count + (s.missingCount || 0) || 1) > 0.1) {
+        recs.push(`نسبة القيم المفقودة مرتفعة في ${type}. تحقق من اكتمال الإدخال أو وضوح الصورة.`);
+      }
+    });
+    stats.recommendations = recs;
 
     setMarkStats(stats);
   };

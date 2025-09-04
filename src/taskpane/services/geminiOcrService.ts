@@ -104,9 +104,55 @@ class GeminiOCRService {
   }
 
   /**
+   * Fast path: single structured Gemini Pro call only (no text fallback)
+   */
+  async processImageFast(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+    if (!this.isValidImageFile(imageFile)) {
+      throw new Error("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
+    }
+    const base64Image = await this.fileToBase64(imageFile);
+    const base64Content = base64Image.split(",")[1];
+    let structuredResult: { students: any[]; markTypes: any };
+    try {
+      structuredResult = await this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
+    } catch (e) {
+      console.warn("Structured parse failed, falling back to text extraction once.", e);
+      const response = await this.callGeminiAPI(base64Content);
+      if (!response || !response.text) {
+        throw new Error("لم يتم التعرف على أي نص في الصورة");
+      }
+      const fallback = this.extractStudentData(response.text);
+      return fallback;
+    }
+    const students: Student[] = (structuredResult.students || []).map((student: any, index: number) => ({
+      number: index + 1,
+      name: student.name,
+      marks: {
+        fard1: student.marks?.fard1 ?? null,
+        fard2: student.marks?.fard2 ?? null,
+        fard3: student.marks?.fard3 ?? null,
+        fard4: student.marks?.fard4 ?? null,
+        activities: student.marks?.activities ?? null,
+      },
+    }));
+    const detectedMarkTypes: DetectedMarkTypes = {
+      hasFard1: !!structuredResult.markTypes?.hasFard1,
+      hasFard2: !!structuredResult.markTypes?.hasFard2,
+      hasFard3: !!structuredResult.markTypes?.hasFard3,
+      hasFard4: !!structuredResult.markTypes?.hasFard4,
+      hasActivities: !!structuredResult.markTypes?.hasActivities,
+    };
+    if (!students.length) throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
+    return { students, detectedMarkTypes };
+  }
+
+  /**
    * Call Gemini API with structured JSON output for precise data extraction
    */
-  private async callGeminiAPIStructured(base64Image: string): Promise<{ students: any[]; markTypes: any }> {
+  private async callGeminiAPIStructured(
+    base64Image: string,
+    mimeType: string = "image/jpeg"
+  ): Promise<{ students: any[]; markTypes: any }> {
     const model = "gemini-1.5-pro";
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
 
@@ -157,7 +203,7 @@ Return ONLY the JSON, no other text.`;
             { text: structuredPrompt },
             {
               inline_data: {
-                mime_type: "image/jpeg",
+                mime_type: mimeType,
                 data: base64Image,
               },
             },
@@ -211,14 +257,49 @@ Return ONLY the JSON, no other text.`;
       throw new Error("Invalid response from Gemini API");
     }
 
-    const jsonText = data.candidates[0].content.parts[0].text;
+    // Collect all text parts
+    const parts = data.candidates[0].content.parts || [];
+    const texts: string[] = parts
+      .map((p: any) => (typeof p.text === "string" ? p.text : ""))
+      .filter((t: string) => t && t.length > 0);
+    const combinedText = texts.join("\n\n");
 
+    // Try robust JSON parsing
+    const parsed = this.tryParseStructuredJson(combinedText);
+    if (parsed) return parsed;
+
+    // As a last attempt, if there is a single part and it has text, try that directly
+    if (texts.length === 1) {
+      const direct = this.tryParseStructuredJson(texts[0]);
+      if (direct) return direct;
+    }
+
+    throw new Error("Failed to parse structured response");
+  }
+
+  // Try to parse JSON even if wrapped in code fences or with pre/post text
+  private tryParseStructuredJson(text: string): any | null {
+    if (!text) return null;
+    let cleaned = text.trim();
+    // Strip code fences like ```json ... ```
+    cleaned = cleaned.replace(/```json[\s\S]*?```/gi, (m) => m.replace(/```json|```/gi, "").trim());
+    cleaned = cleaned.replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, "").trim());
+    // If still contains extra prose, try extracting the largest {...} block
+    const firstBrace = cleaned.indexOf("{");
+    const lastBrace = cleaned.lastIndexOf("}");
+    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+      const candidate = cleaned.substring(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch (e) {
+        // Try to balance braces quickly
+      }
+    }
+    // Direct parse attempt
     try {
-      const parsedData = JSON.parse(jsonText);
-      return parsedData;
-    } catch (error) {
-      console.warn("Failed to parse structured JSON, falling back to text extraction");
-      throw new Error("Failed to parse structured response");
+      return JSON.parse(cleaned);
+    } catch (e) {
+      return null;
     }
   }
 
