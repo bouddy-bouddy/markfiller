@@ -1,8 +1,10 @@
-import React from "react";
+import React, { useRef } from "react";
 import { Text, Card, Button, Badge } from "@fluentui/react-components";
 import { ChartMultiple24Regular, DocumentAdd24Regular } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 
 const StepTitle = styled.div`
   display: flex;
@@ -106,6 +108,11 @@ interface MarkTypeStats {
   min: number;
   max: number;
   avg: number;
+  median?: number;
+  stdDev?: number;
+  passCount?: number;
+  failCount?: number;
+  missingCount?: number;
 }
 
 // Type for mark distribution
@@ -121,6 +128,13 @@ interface Statistics {
   totalStudents: number;
   markTypes: Record<MarkType, MarkTypeStats>;
   distribution: Record<MarkType, MarkDistribution>;
+  topStudentsByType?: Record<
+    MarkType,
+    Array<{
+      name: string;
+      value: number;
+    }>
+  >;
 }
 
 interface StatisticsStepProps {
@@ -138,6 +152,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
   detectedMarkTypes,
   onReset,
 }) => {
+  const reportRef = useRef<HTMLDivElement>(null);
   // Check if any mark type was detected
   const hasDetectedTypes =
     detectedMarkTypes.hasFard1 ||
@@ -211,6 +226,30 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     return Math.max(dist["0-5"], dist["5-10"], dist["10-15"], dist["15-20"]);
   };
 
+  const exportPdf = async () => {
+    if (!reportRef.current) return;
+    const element = reportRef.current;
+    const canvas = await html2canvas(element as HTMLDivElement, { scale: 2 });
+    const imgData = canvas.toDataURL("image/png");
+    const pdf = new jsPDF("p", "mm", "a4");
+    const imgWidth = 210;
+    const pageHeight = 297;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    let heightLeft = imgHeight;
+    let position = 0;
+
+    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+    heightLeft -= pageHeight;
+    while (heightLeft > 0) {
+      position = heightLeft - imgHeight;
+      pdf.addPage();
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+    }
+
+    pdf.save("MarkFiller-Statistics.pdf");
+  };
+
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
@@ -232,119 +271,121 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       </StepTitle>
 
       <div className="step-content" style={{ width: "100%", maxWidth: "100%" }}>
-        <Text style={{ marginBottom: "20px", display: "block", width: "100%", textAlign: "right" }}>
-          فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
-          صحة البيانات قبل إدخالها في Excel.
-        </Text>
+        <div ref={reportRef}>
+          <Text style={{ marginBottom: "20px", display: "block", width: "100%", textAlign: "right" }}>
+            فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
+            صحة البيانات قبل إدخالها في Excel.
+          </Text>
 
-        {/* Summary Stats */}
-        <Text
-          size={500}
-          weight="semibold"
-          style={{ display: "block", marginBottom: "12px", width: "100%", textAlign: "right" }}
-        >
-          ملخص البيانات
-        </Text>
+          {/* Summary Stats */}
+          <Text
+            size={500}
+            weight="semibold"
+            style={{ display: "block", marginBottom: "12px", width: "100%", textAlign: "right" }}
+          >
+            ملخص البيانات
+          </Text>
 
-        <StatsGrid>
-          <StatCard>
-            <StatHeader>
-              <Text size={300} weight="semibold">
-                عدد الطلاب
-              </Text>
-            </StatHeader>
-            <StatValue>{statistics.totalStudents}</StatValue>
-          </StatCard>
+          <StatsGrid>
+            <StatCard>
+              <StatHeader>
+                <Text size={300} weight="semibold">
+                  عدد الطلاب
+                </Text>
+              </StatHeader>
+              <StatValue>{statistics.totalStudents}</StatValue>
+            </StatCard>
 
-          {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
-            if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
+            {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
+              if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
 
-            return (
-              <StatCard key={type}>
-                <StatHeader>
-                  <Text size={300} weight="semibold">
+              return (
+                <StatCard key={type}>
+                  <StatHeader>
+                    <Text size={300} weight="semibold">
+                      {getMarkTypeName(type)}
+                    </Text>
+                    <Badge appearance="outline" style={{ color: getMarkTypeColor(type) }}>
+                      {statistics.markTypes[type].count} طالب
+                    </Badge>
+                  </StatHeader>
+                  <StatValue>{formatNumber(statistics.markTypes[type].avg)}</StatValue>
+                  <Text size={200} style={{ color: "#666" }}>
+                    الحد الأدنى: {formatNumber(statistics.markTypes[type].min)} | الحد الأقصى:{" "}
+                    {formatNumber(statistics.markTypes[type].max)}
+                  </Text>
+                </StatCard>
+              );
+            })}
+          </StatsGrid>
+
+          {/* Distribution */}
+          <Text
+            size={500}
+            weight="semibold"
+            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+          >
+            توزيع العلامات
+          </Text>
+
+          <DistributionGrid>
+            {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
+              if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
+
+              const maxValue = getMaxDistribution(type);
+              const dist = statistics.distribution[type];
+              const color = getMarkTypeColor(type);
+
+              return (
+                <Card key={type} style={{ padding: "16px" }}>
+                  <Text size={400} weight="semibold" style={{ marginBottom: "12px", color: color }}>
                     {getMarkTypeName(type)}
                   </Text>
-                  <Badge appearance="outline" style={{ color: getMarkTypeColor(type) }}>
-                    {statistics.markTypes[type].count} طالب
-                  </Badge>
-                </StatHeader>
-                <StatValue>{formatNumber(statistics.markTypes[type].avg)}</StatValue>
-                <Text size={200} style={{ color: "#666" }}>
-                  الحد الأدنى: {formatNumber(statistics.markTypes[type].min)} | الحد الأقصى:{" "}
-                  {formatNumber(statistics.markTypes[type].max)}
-                </Text>
-              </StatCard>
-            );
-          })}
-        </StatsGrid>
 
-        {/* Distribution */}
-        <Text
-          size={500}
-          weight="semibold"
-          style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
-        >
-          توزيع العلامات
-        </Text>
-
-        <DistributionGrid>
-          {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
-            if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
-
-            const maxValue = getMaxDistribution(type);
-            const dist = statistics.distribution[type];
-            const color = getMarkTypeColor(type);
-
-            return (
-              <Card key={type} style={{ padding: "16px" }}>
-                <Text size={400} weight="semibold" style={{ marginBottom: "12px", color: color }}>
-                  {getMarkTypeName(type)}
-                </Text>
-
-                <div style={{ marginBottom: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <Text size={200}>0-5</Text>
-                    <Text size={200}>{dist["0-5"]} طالب</Text>
+                  <div style={{ marginBottom: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <Text size={200}>0-5</Text>
+                      <Text size={200}>{dist["0-5"]} طالب</Text>
+                    </div>
+                    <DistributionBar>
+                      <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color={color} />
+                    </DistributionBar>
                   </div>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color={color} />
-                  </DistributionBar>
-                </div>
 
-                <div style={{ marginBottom: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <Text size={200}>5-10</Text>
-                    <Text size={200}>{dist["5-10"]} طالب</Text>
+                  <div style={{ marginBottom: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <Text size={200}>5-10</Text>
+                      <Text size={200}>{dist["5-10"]} طالب</Text>
+                    </div>
+                    <DistributionBar>
+                      <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color={color} />
+                    </DistributionBar>
                   </div>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color={color} />
-                  </DistributionBar>
-                </div>
 
-                <div style={{ marginBottom: "8px" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <Text size={200}>10-15</Text>
-                    <Text size={200}>{dist["10-15"]} طالب</Text>
+                  <div style={{ marginBottom: "8px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <Text size={200}>10-15</Text>
+                      <Text size={200}>{dist["10-15"]} طالب</Text>
+                    </div>
+                    <DistributionBar>
+                      <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color={color} />
+                    </DistributionBar>
                   </div>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color={color} />
-                  </DistributionBar>
-                </div>
 
-                <div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                    <Text size={200}>15-20</Text>
-                    <Text size={200}>{dist["15-20"]} طالب</Text>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <Text size={200}>15-20</Text>
+                      <Text size={200}>{dist["15-20"]} طالب</Text>
+                    </div>
+                    <DistributionBar>
+                      <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color={color} />
+                    </DistributionBar>
                   </div>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color={color} />
-                  </DistributionBar>
-                </div>
-              </Card>
-            );
-          })}
-        </DistributionGrid>
+                </Card>
+              );
+            })}
+          </DistributionGrid>
+        </div>
 
         <ButtonContainer>
           <PrimaryButton
@@ -357,6 +398,9 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           >
             إنشاء عملية استخراج بيانات جديدة
           </PrimaryButton>
+          <Button appearance="secondary" onClick={exportPdf}>
+            تصدير PDF
+          </Button>
         </ButtonContainer>
       </div>
     </div>

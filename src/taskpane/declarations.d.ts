@@ -26,27 +26,35 @@ declare global {
   }
 
   const console: Console;
-  
+
   // Add process for environment variables
   const process: {
     env: {
       [key: string]: string | undefined;
     };
   };
-  
+
   // Add fetch for API calls
   function fetch(url: string, options?: RequestInit): Promise<Response>;
-  
+
   // Add RequestInit interface
   interface RequestInit {
     method?: string;
     headers?: HeadersInit;
-    body?: string | FormData | ArrayBuffer | ArrayBufferView | Blob | File | URLSearchParams | ReadableStream<Uint8Array>;
+    body?:
+      | string
+      | FormData
+      | ArrayBuffer
+      | ArrayBufferView
+      | Blob
+      | File
+      | URLSearchParams
+      | ReadableStream<Uint8Array>;
   }
-  
+
   // Add HeadersInit interface
   type HeadersInit = Headers | string[][] | Record<string, string>;
-  
+
   // Add Response interface
   interface Response {
     ok: boolean;
@@ -54,7 +62,7 @@ declare global {
     json(): Promise<any>;
     text(): Promise<string>;
   }
-  
+
   // Add Headers interface
   interface Headers {
     append(name: string, value: string): void;
@@ -63,14 +71,25 @@ declare global {
     has(name: string): boolean;
     set(name: string, value: string): void;
   }
-  
+
   // Add HTMLElement interface
   interface HTMLElement extends Element {
     value?: string;
   }
-  
+
   // Add HTMLInputElement interface
   interface HTMLInputElement extends HTMLElement {
     value: string;
   }
+}
+
+// External libraries without bundled types
+declare module "jspdf" {
+  const jsPDF: any;
+  export default jsPDF;
+}
+
+declare module "html2canvas" {
+  const html2canvas: any;
+  export default html2canvas;
 }

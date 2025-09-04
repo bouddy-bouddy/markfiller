@@ -363,6 +363,11 @@ interface MarkTypeStats {
   min: number;
   max: number;
   avg: number;
+  median?: number;
+  stdDev?: number;
+  passCount?: number;
+  failCount?: number;
+  missingCount?: number;
 }
 
 // Type for mark distribution
@@ -378,6 +383,13 @@ interface Statistics {
   totalStudents: number;
   markTypes: Record<MarkType, MarkTypeStats>;
   distribution: Record<MarkType, MarkDistribution>;
+  topStudentsByType?: Record<
+    MarkType,
+    Array<{
+      name: string;
+      value: number;
+    }>
+  >;
 }
 
 const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
@@ -581,11 +593,66 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     const stats: Statistics = {
       totalStudents: students.length,
       markTypes: {
-        fard1: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
-        fard2: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
-        fard3: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
-        fard4: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
-        activities: { count: 0, sum: 0, min: 20, max: 0, avg: 0 },
+        fard1: {
+          count: 0,
+          sum: 0,
+          min: 20,
+          max: 0,
+          avg: 0,
+          median: 0,
+          stdDev: 0,
+          passCount: 0,
+          failCount: 0,
+          missingCount: 0,
+        },
+        fard2: {
+          count: 0,
+          sum: 0,
+          min: 20,
+          max: 0,
+          avg: 0,
+          median: 0,
+          stdDev: 0,
+          passCount: 0,
+          failCount: 0,
+          missingCount: 0,
+        },
+        fard3: {
+          count: 0,
+          sum: 0,
+          min: 20,
+          max: 0,
+          avg: 0,
+          median: 0,
+          stdDev: 0,
+          passCount: 0,
+          failCount: 0,
+          missingCount: 0,
+        },
+        fard4: {
+          count: 0,
+          sum: 0,
+          min: 20,
+          max: 0,
+          avg: 0,
+          median: 0,
+          stdDev: 0,
+          passCount: 0,
+          failCount: 0,
+          missingCount: 0,
+        },
+        activities: {
+          count: 0,
+          sum: 0,
+          min: 20,
+          max: 0,
+          avg: 0,
+          median: 0,
+          stdDev: 0,
+          passCount: 0,
+          failCount: 0,
+          missingCount: 0,
+        },
       },
       distribution: {
         fard1: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
@@ -593,6 +660,13 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         fard3: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         fard4: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
         activities: { "0-5": 0, "5-10": 0, "10-15": 0, "15-20": 0 },
+      },
+      topStudentsByType: {
+        fard1: [],
+        fard2: [],
+        fard3: [],
+        fard4: [],
+        activities: [],
       },
     };
 
@@ -608,12 +682,21 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           stats.markTypes[markType].sum += value;
           stats.markTypes[markType].min = Math.min(stats.markTypes[markType].min, value);
           stats.markTypes[markType].max = Math.max(stats.markTypes[markType].max, value);
+          if (value >= 10) stats.markTypes[markType].passCount! += 1;
+          else stats.markTypes[markType].failCount! += 1;
+          // collect for median/stdDev/top
+          (stats.topStudentsByType![markType] as Array<{ name: string; value: number }>).push({
+            name: student.name,
+            value,
+          });
 
           // Calculate distribution
           if (value >= 0 && value < 5) stats.distribution[markType]["0-5"]++;
           else if (value >= 5 && value < 10) stats.distribution[markType]["5-10"]++;
           else if (value >= 10 && value < 15) stats.distribution[markType]["10-15"]++;
           else if (value >= 15 && value <= 20) stats.distribution[markType]["15-20"]++;
+        } else {
+          stats.markTypes[markType].missingCount! += 1;
         }
       });
     });
@@ -624,6 +707,23 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       if (stats.markTypes[markType].count > 0) {
         stats.markTypes[markType].avg = stats.markTypes[markType].sum / stats.markTypes[markType].count;
       }
+    });
+
+    // Calculate median and stdDev and top students
+    (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
+      const arr = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).map((s) => s.value);
+      arr.sort((a, b) => a - b);
+      if (arr.length > 0) {
+        const mid = Math.floor(arr.length / 2);
+        stats.markTypes[type].median = arr.length % 2 !== 0 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+        const mean = stats.markTypes[type].avg;
+        const variance = arr.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / arr.length;
+        stats.markTypes[type].stdDev = Math.sqrt(variance);
+      }
+      // sort top students list descending by value
+      stats.topStudentsByType![type] = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).sort(
+        (a, b) => b.value - a.value
+      );
     });
 
     setMarkStats(stats);
