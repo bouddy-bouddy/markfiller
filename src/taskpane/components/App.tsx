@@ -123,6 +123,7 @@ const GlobalStyle = createGlobalStyle`
   
   .step-content {
     padding-right: 16px;
+    padding-left: 16px;
   }
 
   /* Force RTL for all elements with text */
@@ -564,7 +565,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
-      generateMarkStatistics(enhancedResults.students);
+      generateMarkStatistics(enhancedResults.students, enhancedResults.detectedMarkTypes);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
@@ -596,7 +597,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   };
 
   // Generate statistics for the extracted marks
-  const generateMarkStatistics = (students: Student[]) => {
+  const generateMarkStatistics = (students: Student[], types: DetectedMarkTypes = detectedMarkTypes) => {
     if (!students || students.length === 0) return;
 
     const stats: Statistics = {
@@ -707,15 +708,15 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     const isTypeDetected = (type: MarkType): boolean => {
       switch (type) {
         case "fard1":
-          return detectedMarkTypes.hasFard1;
+          return types.hasFard1;
         case "fard2":
-          return detectedMarkTypes.hasFard2;
+          return types.hasFard2;
         case "fard3":
-          return detectedMarkTypes.hasFard3;
+          return types.hasFard3;
         case "fard4":
-          return detectedMarkTypes.hasFard4;
+          return types.hasFard4;
         case "activities":
-          return detectedMarkTypes.hasActivities;
+          return types.hasActivities;
         default:
           return false;
       }
@@ -910,6 +911,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
       // Move to statistics step
       completeStep(AppStep.MappingPreview);
+      // Ensure statistics are recalculated with latest detected types before showing the step
+      generateMarkStatistics(extractedData, detectedMarkTypes);
       advanceToStep(AppStep.Statistics);
     } catch (err) {
       setError("حدث خطأ أثناء إدخال البيانات في Excel");
@@ -924,7 +927,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // Update extracted data
   const handleDataUpdate = (newData: Student[]) => {
     setExtractedData(newData);
-    generateMarkStatistics(newData);
+    generateMarkStatistics(newData, detectedMarkTypes);
   };
 
   // Name correction handlers removed
