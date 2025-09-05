@@ -54,7 +54,7 @@ const GlobalStyle = createGlobalStyle`
   }
 
   .app-content {
-    padding: 0 32px 32px 32px;
+    padding: 0 16px 16px 16px;
     flex: 1;
     overflow-y: auto;
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 250, 252, 0.6) 100%);
@@ -72,7 +72,7 @@ const GlobalStyle = createGlobalStyle`
   .step {
     border: 1px solid rgba(14, 124, 66, 0.1);
     border-radius: 16px;
-    padding: 28px;
+    padding: 16px;
     background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
     transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
     text-align: right;
@@ -122,7 +122,7 @@ const GlobalStyle = createGlobalStyle`
   }
   
   .step-content {
-    padding-right: 48px;
+    padding-right: 16px;
   }
 
   /* Force RTL for all elements with text */
@@ -703,6 +703,24 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       recommendations: [],
     };
 
+    // Consider only mark types actually detected in the current sheet/image
+    const isTypeDetected = (type: MarkType): boolean => {
+      switch (type) {
+        case "fard1":
+          return detectedMarkTypes.hasFard1;
+        case "fard2":
+          return detectedMarkTypes.hasFard2;
+        case "fard3":
+          return detectedMarkTypes.hasFard3;
+        case "fard4":
+          return detectedMarkTypes.hasFard4;
+        case "activities":
+          return detectedMarkTypes.hasActivities;
+        default:
+          return false;
+      }
+    };
+
     // Calculate basic statistics
     students.forEach((student) => {
       Object.entries(student.marks).forEach(([key, value]) => {
@@ -710,6 +728,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         if (!["fard1", "fard2", "fard3", "fard4", "activities"].includes(key)) return;
 
         const markType = key as MarkType;
+        // Skip statistics for non-detected mark types
+        if (!isTypeDetected(markType)) return;
         if (value !== null) {
           stats.markTypes[markType].count++;
           stats.markTypes[markType].sum += value;
@@ -746,6 +766,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     const overallValues: number[] = [];
     let totalMissing = 0;
     (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
+      if (!isTypeDetected(type)) return;
       const arr = (stats.topStudentsByType![type] as Array<{ name: string; value: number }>).map((s) => s.value);
       arr.sort((a, b) => a - b);
       if (arr.length > 0) {
@@ -807,6 +828,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       recs.push("نسبة النجاح العامة منخفضة. قد تحتاج لتقوية الدعم للتلاميذ ذوي النتائج الضعيفة.");
     }
     (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
+      if (!isTypeDetected(type)) return;
       const s = stats.markTypes[type];
       if (s.count > 0 && s.avg < 10) {
         recs.push(`متوسط ${type} أقل من المعدل (10). جرّب مراجعة هذا المحور مع المتعلمين.`);
@@ -879,7 +901,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       console.log("📊 Insertion results:", results);
 
       if (results.notFound > 0) {
-        setError(`تم إدخال ${results.success} علامة بنجاح. ${results.notFound} طالب لم يتم العثور عليهم في ملف Excel.`);
+        setError(
+          `تم إدخال ${results.success} علامة بنجاح. ${results.notFound} تلميذ لم يتم العثور عليهم في ملف Excel.`
+        );
       } else {
         setError(null);
       }

@@ -16,7 +16,7 @@ export const getLocalizedErrorMessage = (errorCode: string, details?: string): s
     case OCR_ERROR_CODES.NO_TEXT_DETECTED:
       return "لم يتم التعرف على أي نص في الصورة. يرجى التأكد من وضوح الصورة.";
     case OCR_ERROR_CODES.NO_MARKS_DETECTED:
-      return "تم العثور على أسماء الطلاب ولكن لم يتم التعرف على أي علامات.";
+      return "تم العثور على أسماء التلاميذ ولكن لم يتم التعرف على أي علامات.";
     case OCR_ERROR_CODES.API_ERROR:
       return `حدث خطأ في خدمة التعرف على النص. ${details || ""}`;
     default:

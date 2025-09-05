@@ -14,30 +14,30 @@ ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Le
 const StepTitle = styled.div`
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: 8px;
+  margin-bottom: 12px;
 `;
 
 const StatsGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 12px;
   width: 100%;
 `;
 
 const StatCard = styled(Card)`
-  padding: 16px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 `;
 
 const StatHeader = styled.div`
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 `;
 
 const StatValue = styled.div`
@@ -49,8 +49,8 @@ const StatValue = styled.div`
 const DistributionGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 12px;
   width: 100%;
 `;
 
@@ -74,9 +74,9 @@ const DistributionFill = styled.div<{ width: string; color: string }>`
 `;
 
 const ButtonContainer = styled.div`
-  margin-top: 24px;
+  margin-top: 16px;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   width: 100%;
   justify-content: center;
 `;
@@ -84,23 +84,23 @@ const ButtonContainer = styled.div`
 const ChartRow = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 12px;
+  margin-bottom: 12px;
 `;
 
 const ChartCard = styled(Card)`
-  padding: 16px;
+  padding: 12px;
 `;
 
 const KPIGrid = styled.div`
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin: 12px 0 20px;
+  gap: 10px;
+  margin: 8px 0 12px;
 `;
 
 const KPIItem = styled(Card)`
-  padding: 12px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -247,13 +247,13 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
   const getMarkTypeName = (type: string): string => {
     switch (type) {
       case "fard1":
-        return "الفرض 1";
+        return "الفرض الأول";
       case "fard2":
-        return "الفرض 2";
+        return "الفرض الثاني";
       case "fard3":
-        return "الفرض 3";
+        return "الفرض الثالث";
       case "fard4":
-        return "الفرض 4";
+        return "الفرض الرابع";
       case "activities":
         return "الأنشطة";
       default:
@@ -370,7 +370,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
 
       <div className="step-content" style={{ width: "100%", maxWidth: "100%" }}>
         <div ref={reportRef}>
-          <Text style={{ marginBottom: "20px", display: "block", width: "100%", textAlign: "right" }}>
+          <Text style={{ marginBottom: "12px", display: "block", width: "100%", textAlign: "right" }}>
             فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
             صحة البيانات قبل إدخالها في Excel.
           </Text>
@@ -443,7 +443,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           <Text
             size={500}
             weight="semibold"
-            style={{ display: "block", marginBottom: "12px", width: "100%", textAlign: "right" }}
+            style={{ display: "block", marginBottom: "8px", width: "100%", textAlign: "right" }}
           >
             ملخص البيانات
           </Text>
@@ -452,7 +452,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             <StatCard>
               <StatHeader>
                 <Text size={300} weight="semibold">
-                  عدد الطلاب
+                  عدد التلاميذ
                 </Text>
               </StatHeader>
               <StatValue>{statistics.totalStudents}</StatValue>
@@ -468,7 +468,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                       {getMarkTypeName(type)}
                     </Text>
                     <Badge appearance="outline" style={{ color: getMarkTypeColor(type) }}>
-                      {statistics.markTypes[type].count} طالب
+                      {statistics.markTypes[type].count} تلميذ
                     </Badge>
                   </StatHeader>
                   <StatValue>{formatNumber(statistics.markTypes[type].avg)}</StatValue>
@@ -485,7 +485,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           <Text
             size={500}
             weight="semibold"
-            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+            style={{ display: "block", marginBottom: "8px", marginTop: "16px", width: "100%", textAlign: "right" }}
           >
             توزيع العلامات
           </Text>
@@ -499,7 +499,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               const color = getMarkTypeColor(type);
 
               return (
-                <Card key={type} style={{ padding: "16px" }}>
+                <Card key={type} style={{ padding: "12px" }}>
                   <Text size={400} weight="semibold" style={{ marginBottom: "12px", color: color }}>
                     {getMarkTypeName(type)}
                   </Text>
@@ -507,7 +507,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   <div style={{ marginBottom: "8px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <Text size={200}>0-5</Text>
-                      <Text size={200}>{dist["0-5"]} طالب</Text>
+                      <Text size={200}>{dist["0-5"]} تلميذ</Text>
                     </div>
                     <DistributionBar>
                       <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color={color} />
@@ -517,7 +517,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   <div style={{ marginBottom: "8px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <Text size={200}>5-10</Text>
-                      <Text size={200}>{dist["5-10"]} طالب</Text>
+                      <Text size={200}>{dist["5-10"]} تلميذ</Text>
                     </div>
                     <DistributionBar>
                       <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color={color} />
@@ -527,7 +527,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   <div style={{ marginBottom: "8px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <Text size={200}>10-15</Text>
-                      <Text size={200}>{dist["10-15"]} طالب</Text>
+                      <Text size={200}>{dist["10-15"]} تلميذ</Text>
                     </div>
                     <DistributionBar>
                       <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color={color} />
@@ -537,7 +537,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   <div>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <Text size={200}>15-20</Text>
-                      <Text size={200}>{dist["15-20"]} طالب</Text>
+                      <Text size={200}>{dist["15-20"]} تلميذ</Text>
                     </div>
                     <DistributionBar>
                       <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color={color} />
@@ -552,7 +552,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           <Text
             size={500}
             weight="semibold"
-            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
+            style={{ display: "block", marginBottom: "8px", marginTop: "16px", width: "100%", textAlign: "right" }}
           >
             المتفوقون والنتائج الأدنى
           </Text>
@@ -596,53 +596,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             ))}
           </DistributionGrid>
 
-          {/* Outliers */}
-          <Text
-            size={500}
-            weight="semibold"
-            style={{ display: "block", marginBottom: "12px", marginTop: "24px", width: "100%", textAlign: "right" }}
-          >
-            القيم الشاذة (Outliers)
-          </Text>
-          <DistributionGrid>
-            {shownTypes.map((type) => (
-              <Card key={`outliers-${type}`} style={{ padding: 16 }}>
-                <Text size={400} weight="semibold" style={{ marginBottom: 12, color: getMarkTypeColor(type) }}>
-                  {getMarkTypeName(type)}
-                </Text>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
-                      أعلى من (+2σ)
-                    </Text>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {(statistics.outliersByType?.[type]?.high || []).map((s, idx) => (
-                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <Text size={200}>{s.name}</Text>
-                          <Badge appearance="filled" color="success">
-                            {formatNumber(s.value)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
-                      أدنى من (-2σ)
-                    </Text>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {(statistics.outliersByType?.[type]?.low || []).map((s, idx) => (
-                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <Text size={200}>{s.name}</Text>
-                          <Badge appearance="outline">{formatNumber(s.value)}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </DistributionGrid>
+          {/* Outliers section intentionally removed as per user request */}
 
           {/* Recommendations */}
           {statistics.recommendations && statistics.recommendations.length > 0 && (
