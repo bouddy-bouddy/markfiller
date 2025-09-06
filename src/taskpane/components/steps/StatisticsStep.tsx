@@ -783,7 +783,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           {/* Professional Header */}
           <StatsHeader>
             <MainTitle>MarkFiller - تقرير الإحصائيات</MainTitle>
-            <Subtitle>تحليل شامل لنتائج التلاميذ والأداء الأكاديمي</Subtitle>
+            <Subtitle>تحليل شامل لنتائج التلاميذ</Subtitle>
             <GeneratedDate>تم إنشاؤه في: {new Date().toLocaleDateString("ar-MA")}</GeneratedDate>
           </StatsHeader>
 
