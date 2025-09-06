@@ -1,15 +1,38 @@
 import React, { useMemo, useRef } from "react";
-import { Text, Card, Button, Badge } from "@fluentui/react-components";
-import { ChartMultiple24Regular, DocumentAdd24Regular } from "@fluentui/react-icons";
+import { Text, Card, Button, Badge, Avatar, ProgressBar } from "@fluentui/react-components";
+import {
+  ChartMultiple24Regular,
+  DocumentAdd24Regular,
+  Trophy24Regular,
+  Warning24Regular,
+  CheckmarkCircle24Regular,
+  DocumentPdf24Regular,
+  Phone24Regular,
+  Chat24Regular,
+  Star24Filled,
+  Star24Regular,
+  DataTrending24Regular,
+  ArrowTrendingDown24Regular,
+} from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { Bar, Doughnut } from "react-chartjs-2";
-import { Chart as ChartJS, ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend } from "chart.js";
+import { Bar, Doughnut, Line } from "react-chartjs-2";
+import {
+  Chart as ChartJS,
+  ArcElement,
+  BarElement,
+  CategoryScale,
+  LinearScale,
+  Tooltip,
+  Legend,
+  LineElement,
+  PointElement,
+} from "chart.js";
 import type { ChartData } from "chart.js";
 
-ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend);
+ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineElement, PointElement);
 
 const StepTitle = styled.div`
   display: flex;
@@ -18,117 +41,469 @@ const StepTitle = styled.div`
   margin-bottom: 12px;
 `;
 
-const StatsGrid = styled.div`
+// Enhanced Dashboard Layout
+const DashboardContainer = styled.div`
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-radius: 20px;
+  padding: 24px;
+  margin-bottom: 20px;
+`;
+
+const StatsHeader = styled.div`
+  text-align: center;
+  margin-bottom: 32px;
+  padding: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+`;
+
+const MainTitle = styled.div`
+  font-size: 32px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+`;
+
+const Subtitle = styled.div`
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 16px;
+`;
+
+const GeneratedDate = styled.div`
+  font-size: 14px;
+  color: #94a3b8;
+  font-style: italic;
+`;
+
+// Enhanced KPI Grid
+const KPIGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-  width: 100%;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
 `;
 
-const StatCard = styled(Card)`
-  padding: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+const KPICard = styled(Card)`
+  padding: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 24px rgba(14, 124, 66, 0.15);
+    border-color: rgba(14, 124, 66, 0.2);
+  }
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #0e7c42 0%, #10b981 100%);
+  }
 `;
 
-const StatHeader = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 6px;
+const KPIValue = styled.div`
+  font-size: 36px;
+  font-weight: 700;
+  color: #0e7c42;
+  margin: 12px 0 8px 0;
+  line-height: 1;
 `;
 
-const StatValue = styled.div`
-  font-size: 24px;
+const KPILabel = styled.div`
+  font-size: 14px;
+  color: #64748b;
   font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+`;
+
+const KPIIcon = styled.div`
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  opacity: 0.1;
+  font-size: 48px;
   color: #0e7c42;
 `;
 
-const DistributionGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
-  width: 100%;
-`;
-
-const DistributionBar = styled.div`
-  height: 24px;
-  border-radius: 4px;
-  background-color: #e0e0e0;
-  position: relative;
-  margin-top: 4px;
-  overflow: hidden;
-`;
-
-const DistributionFill = styled.div<{ width: string; color: string }>`
-  position: absolute;
-  top: 0;
-  left: 0;
-  height: 100%;
-  background-color: ${(props) => props.color};
-  width: ${(props) => props.width};
-  transition: width 0.6s ease;
-`;
-
-const ButtonContainer = styled.div`
-  margin-top: 16px;
+// Section Headers
+const SectionHeader = styled.div`
   display: flex;
-  gap: 8px;
-  width: 100%;
-  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 32px 0 20px 0;
+  padding: 16px 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 12px;
+  border: 1px solid rgba(14, 124, 66, 0.1);
 `;
 
-const ChartRow = styled.div`
+const SectionTitle = styled.div`
+  font-size: 20px;
+  font-weight: 700;
+  color: #1e293b;
+`;
+
+const SectionIcon = styled.div`
+  color: #0e7c42;
+`;
+
+// Enhanced Charts Grid
+const ChartsGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px;
-  margin-bottom: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
 `;
 
 const ChartCard = styled(Card)`
-  padding: 12px;
+  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(14, 124, 66, 0.1);
+  }
 `;
 
-const KPIGrid = styled.div`
+const ChartTitle = styled.div`
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 20px;
+  text-align: center;
+`;
+
+// Performance Tables
+const PerformanceGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 10px;
-  margin: 8px 0 12px;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
 `;
 
-const KPIItem = styled(Card)`
-  padding: 10px;
+const PerformanceCard = styled(Card)`
+  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+`;
+
+const PerformanceTable = styled.div`
+  background: #ffffff;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(14, 124, 66, 0.1);
+`;
+
+const TableHeader = styled.div`
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+  color: white;
+  padding: 16px;
+  font-weight: 600;
+  text-align: center;
+`;
+
+const TableRow = styled.div`
+  display: grid;
+  grid-template-columns: 40px 1fr 80px 80px;
+  padding: 12px 16px;
+  border-bottom: 1px solid rgba(14, 124, 66, 0.1);
+  align-items: center;
+  gap: 12px;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: rgba(14, 124, 66, 0.02);
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+`;
+
+const RankBadge = styled.div<{ rank: number }>`
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 14px;
+  background: ${(props) =>
+    props.rank === 1
+      ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
+      : props.rank === 2
+        ? "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)"
+        : props.rank === 3
+          ? "linear-gradient(135deg, #cd7c0f 0%, #92400e 100%)"
+          : "linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)"};
+  color: ${(props) => (props.rank <= 3 ? "white" : "#64748b")};
 `;
 
-const PrimaryButton = styled(Button)`
-  border-radius: 12px !important;
+const StudentName = styled.div`
+  font-weight: 500;
+  color: #1e293b;
+`;
+
+const ScoreBadge = styled(Badge)<{ score: number }>`
+  background: ${(props) =>
+    props.score >= 16
+      ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
+      : props.score >= 14
+        ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
+        : props.score >= 10
+          ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
+          : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"} !important;
+  color: white !important;
   font-weight: 600 !important;
-  padding: 12px 24px !important;
+`;
+
+// Distribution Components
+const DistributionGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+`;
+
+const DistributionCard = styled(Card)`
+  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+`;
+
+const DistributionHeader = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid rgba(14, 124, 66, 0.1);
+`;
+
+const DistributionTitle = styled.div<{ color: string }>`
+  font-size: 18px;
+  font-weight: 700;
+  color: ${(props) => props.color};
+`;
+
+const DistributionItem = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: rgba(14, 124, 66, 0.02);
+  border-radius: 8px;
+  border-left: 4px solid #0e7c42;
+`;
+
+const DistributionRange = styled.div`
+  font-weight: 600;
+  color: #1e293b;
+`;
+
+const DistributionCount = styled.div`
+  font-weight: 700;
+  color: #0e7c42;
+`;
+
+const DistributionBar = styled.div`
+  height: 8px;
+  background: rgba(14, 124, 66, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 8px 0;
+`;
+
+const DistributionFill = styled.div<{ width: string; color: string }>`
+  height: 100%;
+  background: ${(props) => props.color};
+  width: ${(props) => props.width};
+  transition: width 0.6s ease;
+  border-radius: 4px;
+`;
+
+// Contact & Support Section
+const SupportSection = styled.div`
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 32px 0;
+  text-align: center;
+`;
+
+const SupportTitle = styled.div`
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+`;
+
+const SupportSubtitle = styled.div`
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 20px;
+`;
+
+const ContactGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 20px;
+`;
+
+const ContactCard = styled.div`
+  background: rgba(14, 124, 66, 0.05);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(14, 124, 66, 0.1);
+    transform: translateY(-2px);
+  }
+`;
+
+const ContactIcon = styled.div`
+  color: #0e7c42;
+  font-size: 24px;
+`;
+
+const ContactText = styled.div`
+  font-weight: 600;
+  color: #1e293b;
+`;
+
+// Additional styled components for fixing inline styles
+const StepContent = styled.div`
+  width: 100%;
+  max-width: 100%;
+  padding: 0;
+`;
+
+const RecommendationsList = styled.ul`
+  margin: 0;
+  padding: 0 24px;
+  list-style: none;
+`;
+
+const RecommendationItem = styled.li`
+  margin-bottom: 16px;
+  padding: 16px;
+  background: rgba(14, 124, 66, 0.05);
+  border-radius: 8px;
+  border-left: 4px solid #0e7c42;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+`;
+
+const RecommendationIcon = styled.div`
+  color: #0e7c42;
+  margin-top: 2px;
+  flex-shrink: 0;
+`;
+
+const RecommendationText = styled(Text)`
+  line-height: 1.6 !important;
+`;
+
+const RecommendationsCard = styled(PerformanceCard)`
+  margin-bottom: 32px;
+`;
+
+// Enhanced Action Buttons
+const ActionButtonsContainer = styled.div`
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+  margin: 40px 0;
+  padding: 24px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  border-radius: 16px;
+  border: 1px solid rgba(14, 124, 66, 0.1);
+`;
+
+const PrimaryActionButton = styled(Button)`
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+  padding: 16px 32px !important;
   background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
   border: none !important;
-  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3) !important;
+  box-shadow: 0 8px 24px rgba(14, 124, 66, 0.3) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  width: 100% !important;
-  max-width: 400px !important;
+  font-size: 16px !important;
+  min-width: 200px !important;
 
   &:hover:not(:disabled) {
-    transform: translateY(-2px) !important;
-    box-shadow: 0 16px 24px -4px rgba(14, 124, 66, 0.4) !important;
+    transform: translateY(-4px) !important;
+    box-shadow: 0 16px 32px rgba(14, 124, 66, 0.4) !important;
   }
 
   &:active:not(:disabled) {
-    transform: translateY(0) !important;
+    transform: translateY(-2px) !important;
   }
 
   .fui-Button__icon {
     margin-left: 8px !important;
+    font-size: 20px !important;
+  }
+`;
+
+const SecondaryActionButton = styled(Button)`
+  border-radius: 16px !important;
+  font-weight: 600 !important;
+  padding: 16px 32px !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 2px solid #0e7c42 !important;
+  color: #0e7c42 !important;
+  box-shadow: 0 4px 12px rgba(14, 124, 66, 0.1) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  font-size: 16px !important;
+  min-width: 200px !important;
+
+  &:hover:not(:disabled) {
+    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
+    color: white !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 20px rgba(14, 124, 66, 0.2) !important;
+  }
+
+  .fui-Button__icon {
+    margin-left: 8px !important;
+    font-size: 20px !important;
   }
 `;
 
@@ -290,28 +665,63 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     return Math.max(dist["0-5"], dist["5-10"], dist["10-15"], dist["15-20"]);
   };
 
+  // Enhanced PDF export with professional formatting
   const exportPdf = async () => {
     if (!reportRef.current) return;
-    const element = reportRef.current;
-    const canvas = await html2canvas(element as HTMLDivElement, { scale: 2 });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const imgWidth = 210;
-    const pageHeight = 297;
-    const imgHeight = (canvas.height * imgWidth) / canvas.width;
-    let heightLeft = imgHeight;
-    let position = 0;
 
-    pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-    heightLeft -= pageHeight;
-    while (heightLeft > 0) {
-      position = heightLeft - imgHeight;
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
+    try {
+      const element = reportRef.current;
+      const canvas = await html2canvas(element as HTMLDivElement, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: "#ffffff",
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+
+      // Add professional header
+      pdf.setFontSize(24);
+      pdf.setTextColor(14, 124, 66);
+      pdf.text("MarkFiller - تقرير الإحصائيات", 105, 20, { align: "center" });
+
+      pdf.setFontSize(12);
+      pdf.setTextColor(100, 116, 139);
+      const currentDate = new Date().toLocaleDateString("ar-MA");
+      pdf.text(`تم إنشاؤه في: ${currentDate}`, 105, 30, { align: "center" });
+
+      // Add content
+      const imgWidth = 190;
+      const pageHeight = 277;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 40;
+
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight - position;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Add footer to each page
+      const totalPages = pdf.internal.pages.length - 1;
+      for (let i = 1; i <= totalPages; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(10);
+        pdf.setTextColor(156, 163, 175);
+        pdf.text(`صفحة ${i} من ${totalPages}`, 105, 290, { align: "center" });
+        pdf.text("تم إنشاؤه بواسطة MarkFiller Excel Add-in", 105, 285, { align: "center" });
+      }
+
+      pdf.save(`MarkFiller-Statistics-${currentDate}.pdf`);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
     }
-
-    pdf.save("MarkFiller-Statistics.pdf");
   };
 
   // Chart datasets
@@ -368,115 +778,150 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         </Text>
       </StepTitle>
 
-      <div className="step-content" style={{ width: "100%", maxWidth: "100%", padding: "0 16px" }}>
-        <div ref={reportRef}>
-          <Text style={{ marginBottom: "12px", display: "block", width: "100%", textAlign: "right" }}>
-            فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
-            صحة البيانات قبل إدخالها في Excel.
-          </Text>
+      <StepContent className="step-content">
+        <DashboardContainer ref={reportRef}>
+          {/* Professional Header */}
+          <StatsHeader>
+            <MainTitle>MarkFiller - تقرير الإحصائيات</MainTitle>
+            <Subtitle>تحليل شامل لنتائج التلاميذ والأداء الأكاديمي</Subtitle>
+            <GeneratedDate>تم إنشاؤه في: {new Date().toLocaleDateString("ar-MA")}</GeneratedDate>
+          </StatsHeader>
 
-          {/* KPI Summary */}
+          {/* Enhanced KPI Summary */}
           {statistics.overall && (
-            <KPIGrid>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  المتوسط العام
-                </Text>
-                <StatValue>{formatNumber(statistics.overall.overallAverage)}</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  الوسيط العام
-                </Text>
-                <StatValue>{formatNumber(statistics.overall.overallMedian)}</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  نسبة النجاح
-                </Text>
-                <StatValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  نسبة الرسوب
-                </Text>
-                <StatValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  عدد العلامات المحسوبة
-                </Text>
-                <StatValue>{statistics.overall.totalMarksCounted}</StatValue>
-              </KPIItem>
-            </KPIGrid>
+            <>
+              <SectionHeader>
+                <SectionIcon>
+                  <DataTrending24Regular />
+                </SectionIcon>
+                <SectionTitle>ملخص الإحصائيات</SectionTitle>
+              </SectionHeader>
+
+              <KPIGrid>
+                <KPICard>
+                  <KPIIcon>
+                    <DataTrending24Regular />
+                  </KPIIcon>
+                  <KPILabel>المتوسط العام</KPILabel>
+                  <KPIValue>{formatNumber(statistics.overall.overallAverage)}</KPIValue>
+                </KPICard>
+
+                <KPICard>
+                  <KPIIcon>
+                    <CheckmarkCircle24Regular />
+                  </KPIIcon>
+                  <KPILabel>الوسيط العام</KPILabel>
+                  <KPIValue>{formatNumber(statistics.overall.overallMedian)}</KPIValue>
+                </KPICard>
+
+                <KPICard>
+                  <KPIIcon>
+                    <Trophy24Regular />
+                  </KPIIcon>
+                  <KPILabel>نسبة النجاح</KPILabel>
+                  <KPIValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</KPIValue>
+                </KPICard>
+
+                <KPICard>
+                  <KPIIcon>
+                    <Warning24Regular />
+                  </KPIIcon>
+                  <KPILabel>نسبة الرسوب</KPILabel>
+                  <KPIValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</KPIValue>
+                </KPICard>
+
+                <KPICard>
+                  <KPIIcon>
+                    <ChartMultiple24Regular />
+                  </KPIIcon>
+                  <KPILabel>إجمالي النقاط</KPILabel>
+                  <KPIValue>{statistics.totalStudents}</KPIValue>
+                </KPICard>
+
+                <KPICard>
+                  <KPIIcon>
+                    <DocumentAdd24Regular />
+                  </KPIIcon>
+                  <KPILabel>النقاط المحسوبة</KPILabel>
+                  <KPIValue>{statistics.overall.totalMarksCounted}</KPIValue>
+                </KPICard>
+              </KPIGrid>
+            </>
           )}
 
-          {/* Charts Row */}
-          <ChartRow>
+          {/* Enhanced Charts */}
+          <SectionHeader>
+            <SectionIcon>
+              <ChartMultiple24Regular />
+            </SectionIcon>
+            <SectionTitle>الرسوم البيانية والتوزيعات</SectionTitle>
+          </SectionHeader>
+
+          <ChartsGrid>
             <ChartCard>
-              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
-                متوسط العلامات حسب النوع
-              </Text>
-              <Bar data={averagesBarData} options={{ responsive: true, plugins: { legend: { display: false } } }} />
+              <ChartTitle>متوسط العلامات حسب النوع</ChartTitle>
+              <Bar
+                data={averagesBarData}
+                options={{
+                  responsive: true,
+                  plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                      backgroundColor: "rgba(14, 124, 66, 0.9)",
+                      titleColor: "#ffffff",
+                      bodyColor: "#ffffff",
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      max: 20,
+                      grid: {
+                        color: "rgba(14, 124, 66, 0.1)",
+                      },
+                    },
+                    x: {
+                      grid: {
+                        display: false,
+                      },
+                    },
+                  },
+                }}
+              />
             </ChartCard>
+
             <ChartCard>
-              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
-                توزيع النجاح والرسوب والقيم المفقودة
-              </Text>
-              <Doughnut data={passFailDoughnutData} />
+              <ChartTitle>توزيع النجاح والرسوب</ChartTitle>
+              <Doughnut
+                data={passFailDoughnutData}
+                options={{
+                  responsive: true,
+                  plugins: {
+                    legend: {
+                      position: "bottom" as const,
+                      labels: {
+                        padding: 20,
+                        usePointStyle: true,
+                      },
+                    },
+                    tooltip: {
+                      backgroundColor: "rgba(14, 124, 66, 0.9)",
+                      titleColor: "#ffffff",
+                      bodyColor: "#ffffff",
+                    },
+                  },
+                }}
+              />
             </ChartCard>
-          </ChartRow>
+          </ChartsGrid>
 
-          {/* Summary Stats */}
-          <Text
-            size={500}
-            weight="semibold"
-            style={{ display: "block", marginBottom: "8px", width: "100%", textAlign: "right" }}
-          >
-            ملخص البيانات
-          </Text>
-
-          <StatsGrid>
-            <StatCard>
-              <StatHeader>
-                <Text size={300} weight="semibold">
-                  عدد التلاميذ
-                </Text>
-              </StatHeader>
-              <StatValue>{statistics.totalStudents}</StatValue>
-            </StatCard>
-
-            {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
-              if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
-
-              return (
-                <StatCard key={type}>
-                  <StatHeader>
-                    <Text size={300} weight="semibold">
-                      {getMarkTypeName(type)}
-                    </Text>
-                    <Badge appearance="outline" style={{ color: getMarkTypeColor(type) }}>
-                      {statistics.markTypes[type].count} تلميذ
-                    </Badge>
-                  </StatHeader>
-                  <StatValue>{formatNumber(statistics.markTypes[type].avg)}</StatValue>
-                  <Text size={200} style={{ color: "#666" }}>
-                    الحد الأدنى: {formatNumber(statistics.markTypes[type].min)} | الحد الأقصى:{" "}
-                    {formatNumber(statistics.markTypes[type].max)}
-                  </Text>
-                </StatCard>
-              );
-            })}
-          </StatsGrid>
-
-          {/* Distribution */}
-          <Text
-            size={500}
-            weight="semibold"
-            style={{ display: "block", marginBottom: "8px", marginTop: "16px", width: "100%", textAlign: "right" }}
-          >
-            توزيع العلامات
-          </Text>
+          {/* Grade Distribution */}
+          <SectionHeader>
+            <SectionIcon>
+              <Star24Filled />
+            </SectionIcon>
+            <SectionTitle>توزيع الدرجات</SectionTitle>
+          </SectionHeader>
 
           <DistributionGrid>
             {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
@@ -487,138 +932,177 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               const color = getMarkTypeColor(type);
 
               return (
-                <Card key={type} style={{ padding: "12px" }}>
-                  <Text size={400} weight="semibold" style={{ marginBottom: "12px", color: color }}>
-                    {getMarkTypeName(type)}
-                  </Text>
+                <DistributionCard key={type}>
+                  <DistributionHeader>
+                    <DistributionTitle color={color}>{getMarkTypeName(type)}</DistributionTitle>
+                    <Badge appearance="outline" style={{ color: color }}>
+                      {statistics.markTypes[type].count} تلميذ
+                    </Badge>
+                  </DistributionHeader>
 
-                  <div style={{ marginBottom: "8px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <Text size={200}>0-5</Text>
-                      <Text size={200}>{dist["0-5"]} تلميذ</Text>
-                    </div>
-                    <DistributionBar>
-                      <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color={color} />
-                    </DistributionBar>
-                  </div>
+                  <DistributionItem>
+                    <DistributionRange>ممتاز (16-20)</DistributionRange>
+                    <DistributionCount>{dist["15-20"]} تلميذ</DistributionCount>
+                  </DistributionItem>
+                  <DistributionBar>
+                    <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color="#10b981" />
+                  </DistributionBar>
 
-                  <div style={{ marginBottom: "8px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <Text size={200}>5-10</Text>
-                      <Text size={200}>{dist["5-10"]} تلميذ</Text>
-                    </div>
-                    <DistributionBar>
-                      <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color={color} />
-                    </DistributionBar>
-                  </div>
+                  <DistributionItem>
+                    <DistributionRange>جيد جداً (13-15.9)</DistributionRange>
+                    <DistributionCount>{dist["10-15"]} تلميذ</DistributionCount>
+                  </DistributionItem>
+                  <DistributionBar>
+                    <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color="#3b82f6" />
+                  </DistributionBar>
 
-                  <div style={{ marginBottom: "8px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <Text size={200}>10-15</Text>
-                      <Text size={200}>{dist["10-15"]} تلميذ</Text>
-                    </div>
-                    <DistributionBar>
-                      <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color={color} />
-                    </DistributionBar>
-                  </div>
+                  <DistributionItem>
+                    <DistributionRange>مقبول (10-12.9)</DistributionRange>
+                    <DistributionCount>{dist["5-10"]} تلميذ</DistributionCount>
+                  </DistributionItem>
+                  <DistributionBar>
+                    <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color="#f59e0b" />
+                  </DistributionBar>
 
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                      <Text size={200}>15-20</Text>
-                      <Text size={200}>{dist["15-20"]} تلميذ</Text>
-                    </div>
-                    <DistributionBar>
-                      <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color={color} />
-                    </DistributionBar>
-                  </div>
-                </Card>
+                  <DistributionItem>
+                    <DistributionRange>ضعيف (0-9.9)</DistributionRange>
+                    <DistributionCount>{dist["0-5"]} تلميذ</DistributionCount>
+                  </DistributionItem>
+                  <DistributionBar>
+                    <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color="#ef4444" />
+                  </DistributionBar>
+                </DistributionCard>
               );
             })}
           </DistributionGrid>
 
-          {/* Top and Bottom performers */}
-          <Text
-            size={500}
-            weight="semibold"
-            style={{ display: "block", marginBottom: "8px", marginTop: "16px", width: "100%", textAlign: "right" }}
-          >
-            المتفوقون والنتائج الأدنى
-          </Text>
-          <DistributionGrid>
-            {shownTypes.map((type) => (
-              <Card key={`perf-${type}`} style={{ padding: 16 }}>
-                <Text size={400} weight="semibold" style={{ marginBottom: 12, color: getMarkTypeColor(type) }}>
-                  {getMarkTypeName(type)}
-                </Text>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                  <div>
-                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
-                      الأعلى (Top 5)
-                    </Text>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {(statistics.topStudentsByType?.[type] || []).slice(0, 5).map((s, idx) => (
-                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <Text size={200}>{s.name}</Text>
-                          <Badge appearance="filled" color="success">
-                            {formatNumber(s.value)}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <Text size={300} weight="semibold" style={{ display: "block", marginBottom: 6 }}>
-                      الأدنى (Bottom 5)
-                    </Text>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {(statistics.bottomStudentsByType?.[type] || []).slice(0, 5).map((s, idx) => (
-                        <div key={idx} style={{ display: "flex", justifyContent: "space-between" }}>
-                          <Text size={200}>{s.name}</Text>
-                          <Badge appearance="outline">{formatNumber(s.value)}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            ))}
-          </DistributionGrid>
+          {/* Top Performers */}
+          <SectionHeader>
+            <SectionIcon>
+              <Trophy24Regular />
+            </SectionIcon>
+            <SectionTitle>المتفوقون الثلاثة الأوائل</SectionTitle>
+          </SectionHeader>
 
-          {/* Outliers section intentionally removed as per user request */}
+          <PerformanceGrid>
+            {shownTypes.map((type) => (
+              <PerformanceCard key={`top-${type}`}>
+                <PerformanceTable>
+                  <TableHeader>{getMarkTypeName(type)} - المتفوقون</TableHeader>
+                  {(statistics.topStudentsByType?.[type] || []).slice(0, 3).map((student, idx) => (
+                    <TableRow key={idx}>
+                      <RankBadge rank={idx + 1}>{idx + 1}</RankBadge>
+                      <StudentName>{student.name}</StudentName>
+                      <ScoreBadge score={student.value}>{formatNumber(student.value)}</ScoreBadge>
+                      <div>
+                        {idx === 0 && <Star24Filled style={{ color: "#fbbf24" }} />}
+                        {idx === 1 && <Star24Filled style={{ color: "#9ca3af" }} />}
+                        {idx === 2 && <Star24Filled style={{ color: "#cd7c0f" }} />}
+                      </div>
+                    </TableRow>
+                  ))}
+                </PerformanceTable>
+              </PerformanceCard>
+            ))}
+          </PerformanceGrid>
+
+          {/* Students in Difficulty */}
+          <SectionHeader>
+            <SectionIcon>
+              <Warning24Regular />
+            </SectionIcon>
+            <SectionTitle>التلاميذ في صعوبة (متوسط أقل من 10)</SectionTitle>
+          </SectionHeader>
+
+          <PerformanceGrid>
+            {shownTypes.map((type) => {
+              const studentsInDifficulty = (statistics.bottomStudentsByType?.[type] || [])
+                .filter((s) => s.value < 10)
+                .slice(0, 10);
+
+              if (studentsInDifficulty.length === 0) return null;
+
+              return (
+                <PerformanceCard key={`difficulty-${type}`}>
+                  <PerformanceTable>
+                    <TableHeader style={{ background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" }}>
+                      {getMarkTypeName(type)} - التلاميذ في صعوبة
+                    </TableHeader>
+                    {studentsInDifficulty.map((student, idx) => (
+                      <TableRow key={idx}>
+                        <RankBadge rank={idx + 4}>{idx + 1}</RankBadge>
+                        <StudentName>{student.name}</StudentName>
+                        <ScoreBadge score={student.value}>{formatNumber(student.value)}</ScoreBadge>
+                        <div>
+                          <Warning24Regular style={{ color: "#ef4444" }} />
+                        </div>
+                      </TableRow>
+                    ))}
+                  </PerformanceTable>
+                </PerformanceCard>
+              );
+            })}
+          </PerformanceGrid>
 
           {/* Recommendations */}
           {statistics.recommendations && statistics.recommendations.length > 0 && (
-            <Card style={{ padding: 16, marginTop: 16 }}>
-              <Text size={400} weight="semibold" style={{ marginBottom: 8 }}>
-                توصيات مبنية على النتائج
-              </Text>
-              <ul style={{ margin: 0, padding: "0 18px" }}>
-                {statistics.recommendations.map((rec, idx) => (
-                  <li key={idx} style={{ marginBottom: 6 }}>
-                    <Text size={300}>{rec}</Text>
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          )}
-        </div>
+            <>
+              <SectionHeader>
+                <SectionIcon>
+                  <CheckmarkCircle24Regular />
+                </SectionIcon>
+                <SectionTitle>توصيات تحسين الأداء</SectionTitle>
+              </SectionHeader>
 
-        <ButtonContainer>
-          <PrimaryButton
-            appearance="primary"
-            icon={<DocumentAdd24Regular />}
-            onClick={() => {
-              // Reset for new data
-              onReset();
-            }}
-          >
-            إنشاء عملية استخراج بيانات جديدة
-          </PrimaryButton>
-          <Button appearance="secondary" onClick={exportPdf}>
-            تصدير PDF
-          </Button>
-        </ButtonContainer>
-      </div>
+              <RecommendationsCard>
+                <RecommendationsList>
+                  {statistics.recommendations.map((rec, idx) => (
+                    <RecommendationItem key={idx}>
+                      <RecommendationIcon>
+                        <CheckmarkCircle24Regular />
+                      </RecommendationIcon>
+                      <RecommendationText size={300}>{rec}</RecommendationText>
+                    </RecommendationItem>
+                  ))}
+                </RecommendationsList>
+              </RecommendationsCard>
+            </>
+          )}
+
+          {/* Support Section */}
+          <SupportSection>
+            <SupportTitle>بحاجة إلى مساعدة؟</SupportTitle>
+            <SupportSubtitle>في حالة وجود أي مشكلة أو للحصول على الدعم التقني، تواصل معنا:</SupportSubtitle>
+
+            <ContactGrid>
+              <ContactCard>
+                <ContactIcon>
+                  <Phone24Regular />
+                </ContactIcon>
+                <ContactText>+212 708 033 586</ContactText>
+              </ContactCard>
+
+              <ContactCard>
+                <ContactIcon>
+                  <Chat24Regular />
+                </ContactIcon>
+                <ContactText>+212 708 033 586</ContactText>
+              </ContactCard>
+            </ContactGrid>
+          </SupportSection>
+        </DashboardContainer>
+
+        {/* Enhanced Action Buttons */}
+        <ActionButtonsContainer>
+          <PrimaryActionButton appearance="primary" icon={<DocumentAdd24Regular />} onClick={onReset}>
+            إنشاء عملية استخراج جديدة
+          </PrimaryActionButton>
+
+          <SecondaryActionButton appearance="secondary" icon={<DocumentPdf24Regular />} onClick={exportPdf}>
+            تصدير / طباعة PDF
+          </SecondaryActionButton>
+        </ActionButtonsContainer>
+      </StepContent>
     </div>
   );
 };
