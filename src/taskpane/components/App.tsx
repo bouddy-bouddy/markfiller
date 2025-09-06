@@ -350,6 +350,34 @@ const GlobalStyle = createGlobalStyle`
     outline: 2px solid #0e7c42 !important;
     outline-offset: 2px !important;
   }
+
+  /* Developer Footer Styles */
+  .developer-footer {
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    color: #e2e8f0;
+    padding: 24px;
+    margin-top: 32px;
+    border-radius: 16px;
+    text-align: center;
+    border: 1px solid rgba(14, 124, 66, 0.2);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+
+  .developer-name {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .copyright-text {
+    font-size: 14px;
+    color: #94a3b8;
+    font-style: italic;
+  }
 `;
 
 interface AppProps {
@@ -1100,6 +1128,12 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           {/* Intelligent Mark Type Dialog removed */}
 
           {/* Student Name Correction Dialog */}
+        </div>
+
+        {/* Global Developer Footer */}
+        <div className="developer-footer">
+          <div className="developer-name">تم تطوير هذه الأداة من طرف أمين الخالدي - Amine Elkhalidy</div>
+          <div className="copyright-text">جميع الحقوق محفوظة لصاحبها</div>
         </div>
       </div>
     </FluentProvider>

@@ -60,7 +60,7 @@ const StatsHeader = styled.div`
 `;
 
 const MainTitle = styled.div`
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   color: #1e293b;
   margin-bottom: 8px;
@@ -68,6 +68,10 @@ const MainTitle = styled.div`
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  white-space: nowrap;
+  overflow: visible;
+  text-align: center;
+  line-height: 1.2;
 `;
 
 const Subtitle = styled.div`
@@ -386,13 +390,21 @@ const ContactCard = styled.div`
   padding: 16px;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   transition: all 0.3s ease;
   cursor: pointer;
+  text-decoration: none;
+  color: inherit;
 
   &:hover {
     background: rgba(14, 124, 66, 0.1);
     transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(14, 124, 66, 0.15);
+  }
+
+  &:active {
+    transform: translateY(0);
   }
 `;
 
@@ -404,6 +416,38 @@ const ContactIcon = styled.div`
 const ContactText = styled.div`
   font-weight: 600;
   color: #1e293b;
+  text-align: center;
+`;
+
+const ContactLink = styled.a`
+  background: rgba(14, 124, 66, 0.05);
+  border: 1px solid rgba(14, 124, 66, 0.1);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+
+  &:hover {
+    background: rgba(14, 124, 66, 0.1);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(14, 124, 66, 0.15);
+    text-decoration: none;
+    color: inherit;
+  }
+
+  &:active {
+    transform: translateY(0);
+  }
+
+  &:visited {
+    color: inherit;
+  }
 `;
 
 // Additional styled components for fixing inline styles
@@ -808,14 +852,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
 
                 <KPICard>
                   <KPIIcon>
-                    <CheckmarkCircle24Regular />
-                  </KPIIcon>
-                  <KPILabel>الوسيط العام</KPILabel>
-                  <KPIValue>{formatNumber(statistics.overall.overallMedian)}</KPIValue>
-                </KPICard>
-
-                <KPICard>
-                  <KPIIcon>
                     <Trophy24Regular />
                   </KPIIcon>
                   <KPILabel>نسبة النجاح</KPILabel>
@@ -902,12 +938,36 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                       labels: {
                         padding: 20,
                         usePointStyle: true,
+                        generateLabels: function (chart) {
+                          const data = chart.data;
+                          if (data.labels && data.datasets.length > 0) {
+                            return data.labels.map((label, i) => {
+                              const value = data.datasets[0].data[i] as number;
+                              const backgroundColor = data.datasets[0].backgroundColor as string[];
+                              return {
+                                text: `${label}: ${value}%`,
+                                fillStyle: backgroundColor[i],
+                                strokeStyle: backgroundColor[i],
+                                lineWidth: 0,
+                                pointStyle: "circle",
+                                hidden: false,
+                                index: i,
+                              };
+                            });
+                          }
+                          return [];
+                        },
                       },
                     },
                     tooltip: {
                       backgroundColor: "rgba(14, 124, 66, 0.9)",
                       titleColor: "#ffffff",
                       bodyColor: "#ffffff",
+                      callbacks: {
+                        label: function (context) {
+                          return `${context.label}: ${context.parsed}%`;
+                        },
+                      },
                     },
                   },
                 }}
@@ -1075,19 +1135,19 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
             <SupportSubtitle>في حالة وجود أي مشكلة أو للحصول على الدعم التقني، تواصل معنا:</SupportSubtitle>
 
             <ContactGrid>
-              <ContactCard>
+              <ContactLink href="tel:+212708033586">
                 <ContactIcon>
                   <Phone24Regular />
                 </ContactIcon>
-                <ContactText>+212 708 033 586</ContactText>
-              </ContactCard>
+                <ContactText>+212 708-03-35-86</ContactText>
+              </ContactLink>
 
-              <ContactCard>
+              <ContactLink href="https://wa.me/212708033586" target="_blank" rel="noopener noreferrer">
                 <ContactIcon>
                   <Chat24Regular />
                 </ContactIcon>
-                <ContactText>+212 708 033 586</ContactText>
-              </ContactCard>
+                <ContactText>واتساب</ContactText>
+              </ContactLink>
             </ContactGrid>
           </SupportSection>
         </DashboardContainer>
