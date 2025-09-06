@@ -832,15 +832,51 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       if (!isTypeDetected(type)) return;
       const s = stats.markTypes[type];
       if (s.count > 0 && s.avg < 10) {
-        recs.push(`متوسط ${type} أقل من المعدل (10). جرّب مراجعة هذا المحور مع المتعلمين.`);
+        const typeName =
+          type === "fard1"
+            ? "الفرض الأول"
+            : type === "fard2"
+              ? "الفرض الثاني"
+              : type === "fard3"
+                ? "الفرض الثالث"
+                : type === "fard4"
+                  ? "الفرض الرابع"
+                  : type === "activities"
+                    ? "الأنشطة"
+                    : type;
+        recs.push(`متوسط ${typeName} أقل من المعدل (10).`);
       }
       if ((s.stdDev || 0) > 4) {
+        const typeName =
+          type === "fard1"
+            ? "الفرض الأول"
+            : type === "fard2"
+              ? "الفرض الثاني"
+              : type === "fard3"
+                ? "الفرض الثالث"
+                : type === "fard4"
+                  ? "الفرض الرابع"
+                  : type === "activities"
+                    ? "الأنشطة"
+                    : type;
         recs.push(
-          `تشتت عالٍ في ${type} (انحراف معياري ${(s.stdDev || 0).toFixed(2)}). قد توجد فوارق كبيرة بين التلاميذ.`
+          `تشتت عالٍ في ${typeName} (انحراف معياري ${(s.stdDev || 0).toFixed(2)}). قد توجد فوارق كبيرة بين التلاميذ.`
         );
       }
       if ((s.missingCount || 0) / (s.count + (s.missingCount || 0) || 1) > 0.1) {
-        recs.push(`نسبة القيم المفقودة مرتفعة في ${type}. تحقق من اكتمال الإدخال أو وضوح الصورة.`);
+        const typeName =
+          type === "fard1"
+            ? "الفرض الأول"
+            : type === "fard2"
+              ? "الفرض الثاني"
+              : type === "fard3"
+                ? "الفرض الثالث"
+                : type === "fard4"
+                  ? "الفرض الرابع"
+                  : type === "activities"
+                    ? "الأنشطة"
+                    : type;
+        recs.push(`نسبة القيم المفقودة مرتفعة في ${typeName}. تحقق من اكتمال الإدخال أو وضوح الصورة.`);
       }
     });
     stats.recommendations = recs;

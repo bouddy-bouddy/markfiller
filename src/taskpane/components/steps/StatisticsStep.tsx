@@ -368,7 +368,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         </Text>
       </StepTitle>
 
-      <div className="step-content" style={{ width: "100%", maxWidth: "100%" }}>
+      <div className="step-content" style={{ width: "100%", maxWidth: "100%", padding: "0 16px" }}>
         <div ref={reportRef}>
           <Text style={{ marginBottom: "12px", display: "block", width: "100%", textAlign: "right" }}>
             فيما يلي نظرة عامة عن البيانات المستخرجة من الصورة وتحليل إحصائي لها. يمكنك استخدام هذه المعلومات للتأكد من
@@ -392,12 +392,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               </KPIItem>
               <KPIItem>
                 <Text size={200} style={{ color: "#64748b" }}>
-                  الانحراف المعياري
-                </Text>
-                <StatValue>{formatNumber(statistics.overall.overallStdDev)}</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
                   نسبة النجاح
                 </Text>
                 <StatValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</StatValue>
@@ -407,12 +401,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   نسبة الرسوب
                 </Text>
                 <StatValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</StatValue>
-              </KPIItem>
-              <KPIItem>
-                <Text size={200} style={{ color: "#64748b" }}>
-                  نسبة المفقود
-                </Text>
-                <StatValue>{Math.round((statistics.overall.missingRate || 0) * 100)}%</StatValue>
               </KPIItem>
               <KPIItem>
                 <Text size={200} style={{ color: "#64748b" }}>
