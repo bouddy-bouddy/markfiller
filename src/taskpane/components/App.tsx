@@ -356,10 +356,15 @@ const GlobalStyle = createGlobalStyle`
     color: #e2e8f0;
     padding: 20px 16px;
     margin-top: 24px;
-    border-radius: 12px;
     text-align: center;
     border: 1px solid rgba(148, 163, 184, 0.18);
     box-shadow: 0 6px 16px rgba(2, 6, 23, 0.25);
+
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    justify-content: center;
   }
 
   .developer-name {
