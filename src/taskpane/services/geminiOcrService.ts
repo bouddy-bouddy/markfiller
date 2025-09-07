@@ -536,7 +536,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Detect which mark types are present in the document
    */
   private detectMarkTypes(text: string): DetectedMarkTypes {
-    const headerText = text.substring(0, 1000); // Check first 1000 characters for headers
+    // Scan full text to avoid missing headers that appear later in multi-section documents
+    const headerText = text;
 
     return {
       hasFard1: /(ال)?فرض\s*(?:1|١|الأول|اول)/.test(headerText),
@@ -576,6 +577,36 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     return null;
+  }
+
+  /**
+   * Find all header sections throughout the document (handles repeated tables/columns)
+   */
+  private analyzeAllHeaderSections(lines: string[]): Array<{
+    headerRowIndex: number;
+    columnStructure: Array<{ index: number; title: string; type: "number" | "name" | "mark" | "unknown" }>;
+    markColumnMapping: Record<string, keyof Student["marks"]>;
+  }> {
+    const analyses: Array<{
+      headerRowIndex: number;
+      columnStructure: Array<{ index: number; title: string; type: "number" | "name" | "mark" | "unknown" }>;
+      markColumnMapping: Record<string, keyof Student["marks"]>;
+    }> = [];
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line || line.trim().length === 0) continue;
+      if (!this.isAdvancedHeaderRow(line)) continue;
+      const columnStructure = this.analyzeColumnStructure(line);
+      const markColumnMapping = this.createMarkColumnMapping(columnStructure);
+      if (columnStructure.length >= 3) {
+        // Avoid adding duplicate headers very close to each other
+        if (analyses.length === 0 || i - analyses[analyses.length - 1].headerRowIndex > 2) {
+          analyses.push({ headerRowIndex: i, columnStructure, markColumnMapping });
+        }
+      }
+    }
+    return analyses;
   }
 
   /**
@@ -692,6 +723,21 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     });
 
     console.log(`📊 Filtered ${filteredRows.length} data rows from ${dataRows.length} total rows`);
+    return filteredRows;
+  }
+
+  /**
+   * Extract data rows between two indices (start after header, stop before next header)
+   */
+  private extractDataRowsInRange(lines: string[], headerRowIndex: number, endExclusive: number): string[] {
+    const dataRows = lines.slice(headerRowIndex + 1, Math.max(headerRowIndex + 1, endExclusive));
+    const filteredRows = dataRows.filter((row) => {
+      if (!row || row.trim().length === 0) return false;
+      if (this.isSummaryRow(row)) return false;
+      if (this.isAdvancedHeaderRow(row)) return false;
+      const hasArabicOrNumbers = /[\u0600-\u06FF]/.test(row) || /\d/.test(row);
+      return hasArabicOrNumbers;
+    });
     return filteredRows;
   }
 
@@ -1309,71 +1355,45 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Extract students from text lines with advanced table structure detection
    */
   private extractStudentsFromLines(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
-    const students: Student[] = [];
+    let students: Student[] = [];
 
-    // Step 1: Find and analyze the header row
-    const headerAnalysis = this.analyzeHeaderStructure(lines);
-    if (!headerAnalysis) {
-      console.warn("⚠️ No valid header structure found, using advanced fallback");
+    // Find all header sections and parse each one
+    const headerAnalyses = this.analyzeAllHeaderSections(lines);
+    if (headerAnalyses.length === 0) {
+      console.warn("⚠️ No valid header structure found across the document, using advanced fallback");
       return this.advancedFallbackExtraction(lines, detectedMarkTypes);
     }
 
-    console.log(`📋 Header analysis:`, headerAnalysis);
+    console.log(`📋 Found ${headerAnalyses.length} header sections`);
 
-    // Step 2: Extract and validate data rows
-    const dataRows = this.extractDataRows(lines, headerAnalysis.headerRowIndex);
-    console.log(`📊 Found ${dataRows.length} data rows`);
-    console.log(`📋 Sample data rows:`, dataRows.slice(0, 3));
+    for (let s = 0; s < headerAnalyses.length; s++) {
+      const headerAnalysis = headerAnalyses[s];
+      const nextHeader = headerAnalyses[s + 1]?.headerRowIndex ?? lines.length;
+      const dataRows = this.extractDataRowsInRange(lines, headerAnalysis.headerRowIndex, nextHeader);
 
-    // Step 3: Process each data row with intelligent alignment
-    for (let i = 0; i < dataRows.length; i++) {
-      const row = dataRows[i];
-      if (!row || row.trim().length === 0) continue;
+      console.log(`📊 Section ${s + 1}/${headerAnalyses.length} — rows: ${dataRows.length}`);
 
-      // Skip summary rows (but be more careful about it)
-      if (this.isSummaryRow(row)) {
-        console.log(`📊 Skipping summary row ${i + 1}: "${row}"`);
-        continue;
-      }
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        if (!row || row.trim().length === 0) continue;
+        if (this.isSummaryRow(row)) continue;
 
-      const student = this.extractStudentFromRowAdvanced(row, headerAnalysis, detectedMarkTypes, i + 1);
-      if (student) {
-        students.push(student);
-        console.log(`✅ Extracted student ${i + 1}: ${student.name} with marks:`, student.marks);
-      } else {
-        console.warn(`⚠️ Failed to extract student from row ${i + 1}: "${row}"`);
-        // Log the parsed cells for debugging
-        const cells = this.parseRowIntoCells(row);
-        console.warn(`📋 Parsed cells:`, cells);
-
-        // IMPROVED: Try one more emergency attempt with a completely different approach
-        const emergencyStudent = this.lastResortStudentExtraction(row, i + 1);
-        if (emergencyStudent) {
-          students.push(emergencyStudent);
-          console.log(`🆘 Last resort extraction successful: ${emergencyStudent.name} from row ${i + 1}`);
+        const student = this.extractStudentFromRowAdvanced(row, headerAnalysis, detectedMarkTypes, students.length + 1);
+        if (student) {
+          students.push(student);
         } else {
-          console.error(`❌ Complete extraction failure for row ${i + 1}: "${row}"`);
+          const cells = this.parseRowIntoCells(row);
+          console.warn(`⚠️ Section ${s + 1} row ${i + 1} failed; cells:`, cells);
+          const emergencyStudent = this.lastResortStudentExtraction(row, students.length + 1);
+          if (emergencyStudent) students.push(emergencyStudent);
         }
       }
     }
 
     console.log(`📊 Extracted ${students.length} students before validation`);
-
-    // Step 4: Validate and fix alignment issues
     const validatedStudents = this.validateAndFixAlignment(students, detectedMarkTypes);
-
     console.log(`📊 Final validated students: ${validatedStudents.length}`);
-    if (validatedStudents.length !== students.length) {
-      console.warn(`⚠️ Student count changed during validation: ${students.length} → ${validatedStudents.length}`);
-    }
-
-    // Final safety check: if we lost too many students, try fallback
-    if (validatedStudents.length === 0 && dataRows.length > 0) {
-      console.warn(`🚨 No students extracted despite having ${dataRows.length} data rows! Trying fallback...`);
-      return this.emergencyFallbackExtraction(dataRows, detectedMarkTypes);
-    }
-
-    return validatedStudents;
+    return validatedStudents.length ? validatedStudents : students;
   }
 
   /**
