@@ -11,6 +11,48 @@ class GeminiOCRService {
   }
 
   /**
+   * Merge two student arrays by normalized name, preferring non-null marks from either source
+   */
+  private mergeStudentsByName(primary: Student[], secondary: Student[]): Student[] {
+    const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+
+    const byName = new Map<string, Student>();
+    for (const s of primary) {
+      byName.set(normalize(s.name), { ...s });
+    }
+
+    for (const s of secondary) {
+      const key = normalize(s.name);
+      if (!byName.has(key)) {
+        byName.set(key, { ...s, number: byName.size + 1 });
+      } else {
+        const existing = byName.get(key)!;
+        byName.set(key, {
+          ...existing,
+          marks: {
+            fard1: existing.marks.fard1 ?? s.marks.fard1 ?? null,
+            fard2: existing.marks.fard2 ?? s.marks.fard2 ?? null,
+            fard3: existing.marks.fard3 ?? s.marks.fard3 ?? null,
+            fard4: existing.marks.fard4 ?? s.marks.fard4 ?? null,
+            activities: existing.marks.activities ?? s.marks.activities ?? null,
+          },
+        });
+      }
+    }
+
+    // Preserve original order as much as possible: primary first, then new ones
+    const primaryKeys = primary.map((s) => normalize(s.name));
+    const extras: string[] = [];
+    byName.forEach((_value, key) => {
+      if (!primaryKeys.includes(key)) {
+        extras.push(key);
+      }
+    });
+    const orderedKeys = primaryKeys.concat(extras);
+    return orderedKeys.map((k, i) => ({ ...byName.get(k)!, number: i + 1 }));
+  }
+
+  /**
    * Main method to process an image and extract student marks
    */
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
@@ -143,6 +185,34 @@ class GeminiOCRService {
       hasActivities: !!structuredResult.markTypes?.hasActivities,
     };
     if (!students.length) throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
+
+    // Always run a secondary text extraction and merge to avoid partial results
+    try {
+      const response = await this.callGeminiAPI(base64Content);
+      if (response && response.text) {
+        const fallback = this.extractStudentData(response.text);
+
+        const mergedStudents = this.mergeStudentsByName(students, fallback.students);
+        const mergedDetected: DetectedMarkTypes = {
+          hasFard1: detectedMarkTypes.hasFard1 || fallback.detectedMarkTypes.hasFard1,
+          hasFard2: detectedMarkTypes.hasFard2 || fallback.detectedMarkTypes.hasFard2,
+          hasFard3: detectedMarkTypes.hasFard3 || fallback.detectedMarkTypes.hasFard3,
+          hasFard4: detectedMarkTypes.hasFard4 || fallback.detectedMarkTypes.hasFard4,
+          hasActivities: detectedMarkTypes.hasActivities || fallback.detectedMarkTypes.hasActivities,
+        };
+
+        console.log("🤝 Hybrid OCR merge complete:", {
+          structuredCount: students.length,
+          fallbackCount: fallback.students.length,
+          mergedCount: mergedStudents.length,
+        });
+
+        return { students: mergedStudents, detectedMarkTypes: mergedDetected };
+      }
+    } catch (mergeError) {
+      console.warn("Hybrid merge step failed; returning structured results only.", mergeError);
+    }
+
     return { students, detectedMarkTypes };
   }
 
