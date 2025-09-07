@@ -1,3 +1,4 @@
+/* global fetch, File, FileReader, console, process, Image, document */
 import { Student, DetectedMarkTypes } from "../types";
 
 class GeminiOCRService {
@@ -14,7 +15,7 @@ class GeminiOCRService {
    * Merge two student arrays by normalized name, preferring non-null marks from either source
    */
   private mergeStudentsByName(primary: Student[], secondary: Student[]): Student[] {
-    const normalize = (s: string) => s.replace(/\s+/g, " ").trim();
+    const normalize = (s: string) => this.normalizeNameForComparison(s);
 
     const byName = new Map<string, Student>();
     for (const s of primary) {
@@ -70,73 +71,95 @@ class GeminiOCRService {
         lastModified: new Date(imageFile.lastModified).toISOString(),
       });
 
-      // Convert image to base64 with optimization
-      const base64Image = await this.fileToBase64(imageFile);
+      // Convert image to base64 with optimization (downscale/compress if large)
+      const base64Image = await this.fileToOptimizedBase64(imageFile);
       const base64Content = base64Image.split(",")[1];
 
       if (!this.geminiApiKey) {
         throw new Error("Gemini API key not found. Please check your environment configuration.");
       }
 
-      // Try structured JSON extraction first for maximum accuracy
-      let result;
-      try {
-        console.log("🎯 Attempting structured JSON extraction with Gemini Pro...");
-        const structuredResult = await this.callGeminiAPIStructured(base64Content);
+      // Run structured and text extraction in parallel, then merge
+      console.log("🚀 Launching parallel OCR extractions (structured + text)…");
+      const structuredPromise = this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
+      const textPromise = this.callGeminiAPI(base64Content);
 
-        // Convert structured result to our expected format
-        const students: Student[] = structuredResult.students.map((student: any, index: number) => ({
+      const [structuredOutcome, textOutcome] = await Promise.allSettled([structuredPromise, textPromise]);
+
+      let structuredStudents: Student[] = [];
+      let structuredDetected: DetectedMarkTypes = {
+        hasFard1: false,
+        hasFard2: false,
+        hasFard3: false,
+        hasFard4: false,
+        hasActivities: false,
+      };
+
+      if (structuredOutcome.status === "fulfilled") {
+        console.log("✅ Structured extraction returned a result");
+        const structuredResult = structuredOutcome.value;
+        structuredStudents = (structuredResult.students || []).map((student: any, index: number) => ({
           number: index + 1,
           name: student.name,
           marks: {
-            fard1: student.marks.fard1,
-            fard2: student.marks.fard2,
-            fard3: student.marks.fard3,
-            fard4: student.marks.fard4,
-            activities: student.marks.activities,
+            fard1: student.marks?.fard1 ?? null,
+            fard2: student.marks?.fard2 ?? null,
+            fard3: student.marks?.fard3 ?? null,
+            fard4: student.marks?.fard4 ?? null,
+            activities: student.marks?.activities ?? null,
           },
         }));
-
-        const detectedMarkTypes: DetectedMarkTypes = {
-          hasFard1: structuredResult.markTypes.hasFard1,
-          hasFard2: structuredResult.markTypes.hasFard2,
-          hasFard3: structuredResult.markTypes.hasFard3,
-          hasFard4: structuredResult.markTypes.hasFard4,
-          hasActivities: structuredResult.markTypes.hasActivities,
+        structuredDetected = {
+          hasFard1: !!structuredResult.markTypes?.hasFard1,
+          hasFard2: !!structuredResult.markTypes?.hasFard2,
+          hasFard3: !!structuredResult.markTypes?.hasFard3,
+          hasFard4: !!structuredResult.markTypes?.hasFard4,
+          hasActivities: !!structuredResult.markTypes?.hasActivities,
         };
-
-        result = { students, detectedMarkTypes };
-        console.log("✅ STRUCTURED EXTRACTION SUCCESSFUL - Gemini Pro delivered precise results");
-        console.log("📊 Extracted data summary:", {
-          studentsCount: students.length,
-          detectedMarkTypes,
-          sampleStudent: students[0] || null,
-        });
-      } catch (structuredError) {
-        console.warn("⚠️ Structured extraction failed, falling back to text-based extraction");
-        console.warn("Structured extraction error:", structuredError);
-
-        // Fallback to original text-based extraction
-        console.log("🔄 Using enhanced text-based OCR with Gemini Pro...");
-        const response = await this.callGeminiAPI(base64Content);
-
-        if (!response || !response.text) {
-          throw new Error("لم يتم التعرف على أي نص في الصورة");
-        }
-
-        const extractedText = response.text;
-        console.log("📄 Extracted text from Gemini:", extractedText);
-
-        // Extract students and detect mark types using existing logic
-        result = this.extractStudentData(extractedText);
-        console.log("✅ FALLBACK TEXT EXTRACTION COMPLETED");
+      } else {
+        console.warn("⚠️ Structured extraction failed:", structuredOutcome.reason);
       }
 
-      if (result.students.length === 0) {
+      let textStudents: Student[] = [];
+      let textDetected: DetectedMarkTypes = {
+        hasFard1: false,
+        hasFard2: false,
+        hasFard3: false,
+        hasFard4: false,
+        hasActivities: false,
+      };
+      if (textOutcome.status === "fulfilled" && textOutcome.value && textOutcome.value.text) {
+        console.log("✅ Text extraction returned a result");
+        const extracted = this.extractStudentData(textOutcome.value.text);
+        textStudents = extracted.students;
+        textDetected = extracted.detectedMarkTypes;
+      } else {
+        console.warn(
+          "⚠️ Text extraction failed or empty:",
+          textOutcome.status === "rejected" ? textOutcome.reason : "no text"
+        );
+      }
+
+      // Choose best source then merge
+      let students: Student[] = structuredStudents.length ? structuredStudents : textStudents;
+      let detectedMarkTypes: DetectedMarkTypes = {
+        hasFard1: structuredDetected.hasFard1 || textDetected.hasFard1,
+        hasFard2: structuredDetected.hasFard2 || textDetected.hasFard2,
+        hasFard3: structuredDetected.hasFard3 || textDetected.hasFard3,
+        hasFard4: structuredDetected.hasFard4 || textDetected.hasFard4,
+        hasActivities: structuredDetected.hasActivities || textDetected.hasActivities,
+      };
+
+      if (structuredStudents.length && textStudents.length) {
+        students = this.mergeStudentsByName(structuredStudents, textStudents);
+      }
+
+      if (students.length === 0) {
         throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
       }
 
-      return result;
+      const postProcessed = this.postProcessStudents(students, detectedMarkTypes);
+      return { students: postProcessed, detectedMarkTypes };
     } catch (error) {
       console.error("Gemini processing error:", error);
       throw new Error(
@@ -164,7 +187,8 @@ class GeminiOCRService {
         throw new Error("لم يتم التعرف على أي نص في الصورة");
       }
       const fallback = this.extractStudentData(response.text);
-      return fallback;
+      const postProcessed = this.postProcessStudents(fallback.students, fallback.detectedMarkTypes);
+      return { students: postProcessed, detectedMarkTypes: fallback.detectedMarkTypes };
     }
     const students: Student[] = (structuredResult.students || []).map((student: any, index: number) => ({
       number: index + 1,
@@ -207,13 +231,14 @@ class GeminiOCRService {
           mergedCount: mergedStudents.length,
         });
 
-        return { students: mergedStudents, detectedMarkTypes: mergedDetected };
+        const postProcessed = this.postProcessStudents(mergedStudents, mergedDetected);
+        return { students: postProcessed, detectedMarkTypes: mergedDetected };
       }
     } catch (mergeError) {
       console.warn("Hybrid merge step failed; returning structured results only.", mergeError);
     }
-
-    return { students, detectedMarkTypes };
+    const postProcessed = this.postProcessStudents(students, detectedMarkTypes);
+    return { students: postProcessed, detectedMarkTypes };
   }
 
   /**
@@ -514,11 +539,11 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     const headerText = text.substring(0, 1000); // Check first 1000 characters for headers
 
     return {
-      hasFard1: /الفرض\s*1|فرض\s*الأول|الفرض\s*الأول/.test(headerText),
-      hasFard2: /الفرض\s*2|فرض\s*الثاني|الفرض\s*الثاني/.test(headerText),
-      hasFard3: /الفرض\s*3|فرض\s*الثالث|الفرض\s*الثالث/.test(headerText),
-      hasFard4: /الفرض\s*4|فرض\s*الرابع|الفرض\s*الرابع/.test(headerText),
-      hasActivities: /الأنشطة|النشاط|مراقبة|مستمرة/.test(headerText),
+      hasFard1: /(ال)?فرض\s*(?:1|١|الأول|اول)/.test(headerText),
+      hasFard2: /(ال)?فرض\s*(?:2|٢|الثاني|ثاني)/.test(headerText),
+      hasFard3: /(ال)?فرض\s*(?:3|٣|الثالث|ثالث)/.test(headerText),
+      hasFard4: /(ال)?فرض\s*(?:4|٤|الرابع|رابع)/.test(headerText),
+      hasActivities: /الأنشطة|النشاط|المراقبة\s*المستمرة|مراقبة\s*مستمرة|أنشطة/.test(headerText),
     };
   }
 
@@ -585,7 +610,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
   ): Array<{ index: number; title: string; type: "number" | "name" | "mark" | "unknown" }> {
     const columns = headerRow
       .split(/[\s\t|،]+/)
-      .map((col, index) => col.trim())
+      .map((col) => col.trim())
       .filter((col) => col.length > 0);
 
     return columns.map((col, index) => {
@@ -611,18 +636,23 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
   ): Record<string, keyof Student["marks"]> {
     const mapping: Record<string, keyof Student["marks"]> = {};
 
-    columnStructure.forEach(({ index, title }) => {
-      const normalizedTitle = title.toLowerCase().replace(/\s+/g, "");
+    columnStructure.forEach(({ title }) => {
+      const normalizedTitle = title
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[أإآٱ]/g, "ا")
+        .replace(/ة/g, "ه")
+        .replace(/ى/g, "ي");
 
-      if (/الفرض1|فرض1|fard1/.test(normalizedTitle)) {
+      if (/الفرض1|الفرض١|فرض1|فرض١|fard1|الاول|الأول/.test(normalizedTitle)) {
         mapping[title] = "fard1";
-      } else if (/الفرض2|فرض2|fard2/.test(normalizedTitle)) {
+      } else if (/الفرض2|الفرض٢|فرض2|فرض٢|fard2|الثاني|ثاني/.test(normalizedTitle)) {
         mapping[title] = "fard2";
-      } else if (/الفرض3|فرض3|fard3/.test(normalizedTitle)) {
+      } else if (/الفرض3|الفرض٣|فرض3|فرض٣|fard3|الثالث|ثالث/.test(normalizedTitle)) {
         mapping[title] = "fard3";
-      } else if (/الفرض4|فرض4|fard4/.test(normalizedTitle)) {
+      } else if (/الفرض4|الفرض٤|فرض4|فرض٤|fard4|الرابع|رابع/.test(normalizedTitle)) {
         mapping[title] = "fard4";
-      } else if (/الأنشطة|النشاط|activities/.test(normalizedTitle)) {
+      } else if (/الانشطه|الأنشطة|النشاط|المراقبهالمستمره|المراقبةالمستمرة|activities/.test(normalizedTitle)) {
         mapping[title] = "activities";
       }
     });
@@ -742,7 +772,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     // 3) For each segment, if it's clearly a mark keep as-is; otherwise treat as text (name) even if multi-word
-    const markLike = /^(?:\d{1,2})(?:[\.,]\d{1,2})?$/;
+    const markLike = /^(?:\d{1,2})(?:[.,]\d{1,2})?$/;
 
     for (const seg of segments) {
       if (markLike.test(this.normalizeArabicNumber(seg))) {
@@ -1049,7 +1079,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
     // If no structured marks found, try intelligent fallback
     if (Object.values(marks).every((mark) => mark === null)) {
-      this.extractMarksIntelligently(cells, marks, detectedMarkTypes);
+      const nameCol = headerAnalysis.columnStructure.find((c) => c.type === "name")?.index;
+      this.extractMarksIntelligently(cells, marks, detectedMarkTypes, nameCol);
     }
 
     return marks;
@@ -1061,19 +1092,23 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
   private extractMarksIntelligently(
     cells: string[],
     marks: Student["marks"],
-    detectedMarkTypes: DetectedMarkTypes
+    detectedMarkTypes: DetectedMarkTypes,
+    probableNameIndex?: number
   ): void {
-    const numericCells = cells.filter((cell) => this.isNumeric(cell));
-
-    if (numericCells.length === 0) return;
-
-    // Sort numeric cells by their position in the original row
-    const numericCellPositions = cells
+    const numericCellPositionsAll = cells
       .map((cell, index) => ({ cell, index }))
       .filter(({ cell }) => this.isNumeric(cell))
       .sort((a, b) => a.index - b.index);
 
-    // Assign marks based on detected types and position
+    if (numericCellPositionsAll.length === 0) return;
+
+    const isNameIndexProvided = typeof probableNameIndex === "number";
+    const hasAfterName =
+      isNameIndexProvided && numericCellPositionsAll.some((x) => x.index > (probableNameIndex as number));
+    const numericCellPositions = hasAfterName
+      ? numericCellPositionsAll.filter((x) => x.index > (probableNameIndex as number))
+      : numericCellPositionsAll;
+
     let markIndex = 0;
 
     if (detectedMarkTypes.hasFard1 && markIndex < numericCellPositions.length) {
@@ -1160,6 +1195,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // For now, return the original students
     // In the future, this could implement more sophisticated fixes
     console.log("🔧 Alignment issues detected but not yet fixed. Consider manual review.");
+    void issues;
+    void detectedMarkTypes;
     return students;
   }
 
@@ -1500,13 +1537,20 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
   private extractMarksFromUnstructuredCells(
     cells: string[],
     marks: Student["marks"],
-    detectedMarkTypes: DetectedMarkTypes
+    detectedMarkTypes: DetectedMarkTypes,
+    probableNameIndex?: number
   ): void {
-    const numericCells = cells.filter((cell) => this.isNumeric(cell));
+    const numericCellsAll = cells.map((cell, idx) => ({ cell, idx })).filter(({ cell }) => this.isNumeric(cell));
+    if (numericCellsAll.length === 0) return;
+
+    const filteredAfterName =
+      typeof probableNameIndex === "number"
+        ? numericCellsAll.filter((x) => x.idx > probableNameIndex)
+        : numericCellsAll;
+    const numericCells = (filteredAfterName.length ? filteredAfterName : numericCellsAll).map((x) => x.cell);
 
     if (numericCells.length === 0) return;
 
-    // Assign marks based on detected types and available numeric values
     let markIndex = 0;
 
     if (detectedMarkTypes.hasFard1 && markIndex < numericCells.length) {
@@ -1531,8 +1575,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    */
   private isNumeric(str: string): boolean {
     if (!str) return false;
-    const cleaned = str.replace(/[,\.]/g, "");
-    return /^\d+$/.test(cleaned) && parseFloat(str.replace(",", ".")) <= 20;
+    return this.parseMarkValue(str) !== null;
   }
 
   /**
@@ -1714,6 +1757,12 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // Remove any spaces
     let cleaned = mark.replace(/\s+/g, "");
 
+    // Normalize Arabic punctuation and common OCR mistakes
+    cleaned = cleaned
+      .replace(/،/g, ",") // Arabic comma
+      .replace(/[٫﹒·]/g, ".") // Arabic decimal dot and similar
+      .replace(/[oO]/g, "0"); // OCR: O -> 0
+
     // Handle formats like "07100" which should be "07,00"
     if (/^\d{2}100$/.test(cleaned)) {
       cleaned = cleaned.substring(0, 2) + ",00";
@@ -1748,22 +1797,25 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
   private parseMarkValue(mark: string | null): number | null {
     if (!mark) return null;
 
-    // The mark should already be preprocessed
-    // Convert comma to dot for decimal
-    const normalized = mark.replace(",", ".");
+    const pre = this.preprocessMark(mark) ?? mark;
 
-    // Remove any remaining non-numeric characters except dot
+    // Handle ratio formats like "14/20" or "7/10"
+    const ratio = pre.match(/^(\d{1,2})\s*\/?\s*(?:out\s*of\s*)?(\d{1,2})$/i);
+    if (ratio) {
+      const num = parseInt(ratio[1], 10);
+      const den = parseInt(ratio[2], 10);
+      if (den > 0) {
+        const normalizedTo20 = (num / den) * 20;
+        if (normalizedTo20 >= 0 && normalizedTo20 <= 20) return Number(normalizedTo20.toFixed(2));
+      }
+    }
+
+    const normalized = pre.replace(",", ".");
     const cleaned = normalized.replace(/[^\d.]/g, "");
-
-    // Parse the number
     const num = parseFloat(cleaned);
-
-    // Validate the mark is within reasonable range (0-20)
     if (!isNaN(num) && num >= 0 && num <= 20) {
       return Number(num.toFixed(2));
     }
-
-    console.warn(`⚠️ Invalid mark value after parsing: ${mark} -> ${num}`);
     return null;
   }
 
@@ -1785,6 +1837,72 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     };
 
     return text.replace(/[٠-٩]/g, (d) => numeralMap[d] || d);
+  }
+
+  private normalizeNameForComparison(text: string): string {
+    if (!text) return "";
+    let s = text.toString();
+    s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "");
+    s = s.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
+    s = s.replace(/\u0640/g, "");
+    s = s.normalize("NFKC");
+    s = s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g, "");
+    s = s
+      .replace(/\u06CC/g, "\u064A")
+      .replace(/\u06A9/g, "\u0643")
+      .replace(/\u06C1/g, "\u0647");
+    s = s
+      .replace(/[أإآٱ]/g, "ا")
+      .replace(/ة/g, "ه")
+      .replace(/ى/g, "ي")
+      .replace(/ؤ/g, "و")
+      .replace(/ئ/g, "ي");
+    s = s.replace(/[\uFEFB-\uFEFE]/g, "لا");
+    s = s.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, " ");
+    s = s.replace(/\s+/g, " ").trim().toLowerCase();
+    return s;
+  }
+
+  private getProbableNameCellIndex(cells: string[]): number {
+    let bestIndex = -1;
+    let bestScore = -1;
+    for (let i = 0; i < cells.length; i++) {
+      const c = cells[i] || "";
+      const arabicOnly = c.replace(/[^\u0600-\u06FF\s]/g, "").trim();
+      const score = arabicOnly.length;
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
+  private postProcessStudents(students: Student[], _detectedMarkTypes: DetectedMarkTypes): Student[] {
+    void _detectedMarkTypes;
+    const byKey = new Map<string, Student>();
+    const order: string[] = [];
+    for (const s of students) {
+      const key = this.normalizeNameForComparison(s.name);
+      if (!key) continue;
+      if (!byKey.has(key)) {
+        byKey.set(key, { ...s });
+        order.push(key);
+      } else {
+        const existing = byKey.get(key)!;
+        byKey.set(key, {
+          ...existing,
+          marks: {
+            fard1: existing.marks.fard1 ?? s.marks.fard1 ?? null,
+            fard2: existing.marks.fard2 ?? s.marks.fard2 ?? null,
+            fard3: existing.marks.fard3 ?? s.marks.fard3 ?? null,
+            fard4: existing.marks.fard4 ?? s.marks.fard4 ?? null,
+            activities: existing.marks.activities ?? s.marks.activities ?? null,
+          },
+        });
+      }
+    }
+    return order.map((k, idx) => ({ ...byKey.get(k)!, number: idx + 1 }));
   }
 
   /**
@@ -1827,6 +1945,46 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
       reader.readAsDataURL(file);
     });
+  }
+
+  /**
+   * Convert file to base64 and opportunistically downscale to speed up OCR without losing precision
+   * - Keeps width up to 2000px to preserve numbers/names clarity but reduces huge photos
+   * - Uses JPEG at 0.9 quality for balanced size/quality
+   */
+  private async fileToOptimizedBase64(file: File): Promise<string> {
+    // Fast path for small files
+    if (file.size <= 1.5 * 1024 * 1024) {
+      return this.fileToBase64(file);
+    }
+
+    // Draw into canvas to downscale
+    const imgDataUrl = await this.fileToBase64(file);
+    const img = (await new Promise((resolve, reject) => {
+      const image = new Image();
+      image.onload = () => resolve(image);
+      image.onerror = (e) => reject(e);
+      image.src = imgDataUrl;
+    })) as any;
+
+    const maxWidth = 2000;
+    const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+    const targetW = Math.max(1, Math.round(img.width * scale));
+    const targetH = Math.max(1, Math.round(img.height * scale));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return imgDataUrl;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(img as any, 0, 0, targetW, targetH);
+
+    // Use original mime if supported, otherwise JPEG
+    const mime = file.type && /image\/(png|jpeg|webp)/.test(file.type) ? file.type : "image/jpeg";
+    const optimized = canvas.toDataURL(mime, 0.9);
+    return optimized;
   }
 }
 
