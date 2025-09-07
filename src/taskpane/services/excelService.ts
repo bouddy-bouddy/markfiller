@@ -50,6 +50,89 @@ class ExcelService {
   }
 
   /**
+   * Extract workbook metadata like المستوى (level) and القسم (section) from visible headers.
+   * Searches first 10 rows for common Arabic labels and nearby values.
+   */
+  async getWorkbookMetadata(): Promise<{ level?: string; section?: string; class?: string }> {
+    try {
+      return await Excel.run(async (context) => {
+        const sheet = context.workbook.worksheets.getActiveWorksheet();
+        const range = sheet.getUsedRange();
+        range.load("values");
+        await context.sync();
+
+        const values: any[][] = (range.values || []) as any[][];
+        const rowsToScan = values.slice(0, Math.min(10, values.length));
+
+        const result: { level?: string; section?: string; class?: string } = {};
+
+        const labelMatchers: Array<{
+          kind: "level" | "section";
+          patterns: string[];
+        }> = [
+          { kind: "level", patterns: ["المستوى", "مستوى", "المستوي"] },
+          { kind: "section", patterns: ["القسم", "قسم", "الفوج", "الشعبة", "الفصل"] },
+        ];
+
+        const getNeighborValue = (r: number, c: number): string | undefined => {
+          const row = rowsToScan[r] || [];
+          const normalize = (v: any) => (v == null ? "" : v.toString().trim());
+
+          // 1) Same row: scan up to 3 cells to the right to skip colon cells
+          for (let off = 1; off <= 3; off++) {
+            const val = normalize(row[c + off]);
+            if (val && val !== ":" && val !== "-" && val !== "؛") return val;
+          }
+
+          // 2) Same row: one cell left (sometimes the colon is to the right)
+          const left = normalize(row[c - 1]);
+          if (left && left !== ":" && left !== "-" && left !== "؛") return left;
+
+          // 3) Below cells in same column and one to the right (merged header above)
+          for (let down = 1; down <= 2; down++) {
+            const below = normalize(rowsToScan[r + down]?.[c]);
+            if (below) return below;
+            const belowRight = normalize(rowsToScan[r + down]?.[c + 1]);
+            if (belowRight) return belowRight;
+          }
+
+          return undefined;
+        };
+
+        for (let r = 0; r < rowsToScan.length; r++) {
+          const row = rowsToScan[r];
+          for (let c = 0; c < row.length; c++) {
+            const cell = row[c];
+            if (!cell || typeof cell !== "string") continue;
+            const text = cell.toString();
+
+            for (const matcher of labelMatchers) {
+              if (matcher.patterns.some((p) => text.includes(p))) {
+                const val = getNeighborValue(r, c);
+                if (val) {
+                  if (matcher.kind === "level" && !result.level) result.level = val;
+                  if (matcher.kind === "section" && !result.section) {
+                    result.section = val;
+                    result.class = val; // UI alias
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Backfill alias if only one is present
+        if (result.section && !result.class) result.class = result.section;
+        if (result.class && !result.section) result.section = result.class;
+        return result;
+      });
+    } catch (error) {
+      console.warn("Could not read workbook metadata:", error);
+      return {};
+    }
+  }
+
+  /**
    * Validates the Excel file and intelligently analyzes its structure
    */
   async validateExcelFile(): Promise<boolean> {

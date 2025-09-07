@@ -1,5 +1,7 @@
-import React, { useMemo, useRef } from "react";
-import { Text, Card, Button, Badge, Avatar, ProgressBar } from "@fluentui/react-components";
+/* global HTMLDivElement, console */
+/* eslint-disable no-console */
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Text, Card, Button, Badge } from "@fluentui/react-components";
 import {
   ChartMultiple24Regular,
   DocumentAdd24Regular,
@@ -7,18 +9,14 @@ import {
   Warning24Regular,
   CheckmarkCircle24Regular,
   DocumentPdf24Regular,
-  Phone24Regular,
-  Chat24Regular,
   Star24Filled,
-  Star24Regular,
   DataTrending24Regular,
-  ArrowTrendingDown24Regular,
 } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { Bar, Doughnut, Line } from "react-chartjs-2";
+import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
   ArcElement,
@@ -31,6 +29,7 @@ import {
   PointElement,
 } from "chart.js";
 import type { ChartData } from "chart.js";
+import excelService from "../../services/excelService";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineElement, PointElement);
 
@@ -49,6 +48,28 @@ const DashboardContainer = styled.div`
   margin-bottom: 20px;
 `;
 
+const MetaBar = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: #ffffff;
+  border: 1px dashed rgba(14, 124, 66, 0.35);
+  border-radius: 10px;
+`;
+
+const MetaItem = styled.div`
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  color: #0f172a;
+`;
+
+const MetaLabel = styled.span`
+  color: #64748b;
+`;
+
 const StatsHeader = styled.div`
   text-align: center;
   margin-bottom: 32px;
@@ -62,12 +83,8 @@ const StatsHeader = styled.div`
 const MainTitle = styled.div`
   font-size: 28px;
   font-weight: 700;
-  color: #1e293b;
+  color: #0e7c42;
   margin-bottom: 8px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
   white-space: nowrap;
   overflow: visible;
   text-align: right;
@@ -530,6 +547,20 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
   onReset,
 }) => {
   const reportRef = useRef<HTMLDivElement>(null);
+  const [meta, setMeta] = useState<{ level?: string; class?: string }>({});
+
+  useEffect(() => {
+    let mounted = true;
+    excelService
+      .getWorkbookMetadata()
+      .then((m) => {
+        if (mounted) setMeta(m);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const shownTypes: MarkType[] = useMemo(() => {
     const list: MarkType[] = [];
     if (detectedMarkTypes.hasFard1) list.push("fard1");
@@ -539,13 +570,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     if (detectedMarkTypes.hasActivities) list.push("activities");
     return list.filter((t) => statistics.markTypes[t].count > 0);
   }, [detectedMarkTypes, statistics]);
-  // Check if any mark type was detected
-  const hasDetectedTypes =
-    detectedMarkTypes.hasFard1 ||
-    detectedMarkTypes.hasFard2 ||
-    detectedMarkTypes.hasFard3 ||
-    detectedMarkTypes.hasFard4 ||
-    detectedMarkTypes.hasActivities;
+  // Derived set of shown types already handles detected types
 
   // Helper to determine which stats to display based on detected types
   const shouldShowStat = (type: MarkType): boolean => {
@@ -618,7 +643,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
 
     try {
       const element = reportRef.current;
-      const canvas = await html2canvas(element as HTMLDivElement, {
+      const canvas = await html2canvas(element as any, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
@@ -628,30 +653,36 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
 
-      // Add professional header
-      pdf.setFontSize(24);
+      // Header
+      pdf.setFontSize(22);
       pdf.setTextColor(14, 124, 66);
-      pdf.text("MarkFiller - تقرير الإحصائيات", 105, 20, { align: "right" });
+      pdf.text("MarkFiller - تقرير الإحصائيات", 200 - 15, 18, { align: "right" });
 
+      // Sub header with metadata
       pdf.setFontSize(12);
-      pdf.setTextColor(100, 116, 139);
+      pdf.setTextColor(31, 41, 55);
       const currentDate = new Date().toLocaleDateString("ar-MA");
-      pdf.text(`تم إنشاؤه في: ${currentDate}`, 105, 30, { align: "center" });
+      const metaLineRight = `المستوى: ${meta.level || "غير محدد"}`;
+      const metaLineLeft = `القسم: ${meta.class || "غير محدد"}`;
+      pdf.text(metaLineRight, 200 - 15, 26, { align: "right" });
+      pdf.text(metaLineLeft, 15, 26, { align: "left" });
+      pdf.setTextColor(100, 116, 139);
+      pdf.text(`تم إنشاؤه في: ${currentDate}`, 105, 34, { align: "center" });
 
-      // Add content
-      const imgWidth = 190;
+      // Content image with margins
+      const imgWidth = 180;
       const pageHeight = 277;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
       let heightLeft = imgHeight;
-      let position = 40;
+      let position = 44;
 
-      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      pdf.addImage(imgData, "PNG", 15, position, imgWidth, imgHeight);
       heightLeft -= pageHeight - position;
 
       while (heightLeft > 0) {
         position = heightLeft - imgHeight;
         pdf.addPage();
-        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        pdf.addImage(imgData, "PNG", 15, position, imgWidth, imgHeight);
         heightLeft -= pageHeight;
       }
 
@@ -731,6 +762,16 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
           <StatsHeader>
             <MainTitle>MarkFiller - تقرير الإحصائيات</MainTitle>
             <Subtitle>تحليل شامل لنتائج التلاميذ</Subtitle>
+            <MetaBar>
+              <MetaItem>
+                <MetaLabel>المستوى</MetaLabel>
+                <span>:{meta.level || "غير محدد"}</span>
+              </MetaItem>
+              <MetaItem>
+                <MetaLabel>القسم</MetaLabel>
+                <span>:{meta.class || "غير محدد"}</span>
+              </MetaItem>
+            </MetaBar>
             <GeneratedDate>تم إنشاؤه في: {new Date().toLocaleDateString("ar-MA")}</GeneratedDate>
           </StatsHeader>
 
