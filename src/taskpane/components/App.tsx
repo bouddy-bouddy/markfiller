@@ -11,7 +11,6 @@ import ImageProcessingStep from "./steps/ImageProcessingStep";
 import ReviewConfirmStep from "./steps/ReviewConfirmStep";
 import MappingStep from "./steps/MappingStep";
 import StatisticsStep from "./steps/StatisticsStep";
-// IntelligentMarkTypeDialog removed
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
 import NeedHelpSection from "./shared/NeedHelpSection";
@@ -1139,10 +1138,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
               />
             )}
           </div>
-
-          {/* Intelligent Mark Type Dialog removed */}
-
-          {/* Student Name Correction Dialog */}
         </div>
 
         {/* Persistent Need Help Section */}
@@ -1151,7 +1146,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         {/* Global Developer Footer */}
         <div className="developer-footer">
           <div className="developer-name">تم تطوير هذه الأداة من طرف أمين الخالدي - Amine Elkhalidy</div>
-          <div className="copyright-text">جميع الحقوق محفوظة لصاحبها</div>
+          <div className="copyright-text">جميع الحقوق محفوظة</div>
         </div>
       </div>
     </FluentProvider>

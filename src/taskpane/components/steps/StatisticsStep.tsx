@@ -1077,11 +1077,11 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         {/* Enhanced Action Buttons */}
         <ActionButtonsContainer>
           <PrimaryActionButton appearance="primary" icon={<DocumentAdd24Regular />} onClick={onReset}>
-            إنشاء عملية استخراج جديدة
+            عملية استخراج جديدة
           </PrimaryActionButton>
 
           <SecondaryActionButton appearance="secondary" icon={<DocumentPdf24Regular />} onClick={exportPdf}>
-            تصدير / طباعة PDF
+            تصدير PDF
           </SecondaryActionButton>
         </ActionButtonsContainer>
       </StepContent>
