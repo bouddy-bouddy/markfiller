@@ -122,7 +122,6 @@ const GlobalStyle = createGlobalStyle`
   }
   
   .step-content {
-    padding-right: 16px;
     padding-left: 16px;
   }
 

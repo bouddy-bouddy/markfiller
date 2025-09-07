@@ -45,7 +45,7 @@ const StepTitle = styled.div`
 const DashboardContainer = styled.div`
   background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
   border-radius: 20px;
-  padding: 24px;
+  padding: 24px !important;
   margin-bottom: 20px;
 `;
 
@@ -70,7 +70,7 @@ const MainTitle = styled.div`
   background-clip: text;
   white-space: nowrap;
   overflow: visible;
-  text-align: center;
+  text-align: right;
   line-height: 1.2;
 `;
 
@@ -728,7 +728,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       // Add professional header
       pdf.setFontSize(24);
       pdf.setTextColor(14, 124, 66);
-      pdf.text("MarkFiller - تقرير الإحصائيات", 105, 20, { align: "center" });
+      pdf.text("MarkFiller - تقرير الإحصائيات", 105, 20, { align: "right" });
 
       pdf.setFontSize(12);
       pdf.setTextColor(100, 116, 139);
