@@ -353,103 +353,6 @@ const DistributionFill = styled.div<{ width: string; color: string }>`
   border-radius: 4px;
 `;
 
-// Contact & Support Section
-const SupportSection = styled.div`
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 16px;
-  padding: 24px;
-  margin: 32px 0;
-  text-align: center;
-`;
-
-const SupportTitle = styled.div`
-  font-size: 24px;
-  font-weight: 700;
-  color: #1e293b;
-  margin-bottom: 8px;
-`;
-
-const SupportSubtitle = styled.div`
-  font-size: 16px;
-  color: #64748b;
-  margin-bottom: 20px;
-`;
-
-const ContactGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-top: 20px;
-`;
-
-const ContactCard = styled.div`
-  background: rgba(14, 124, 66, 0.05);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  text-decoration: none;
-  color: inherit;
-
-  &:hover {
-    background: rgba(14, 124, 66, 0.1);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(14, 124, 66, 0.15);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-`;
-
-const ContactIcon = styled.div`
-  color: #0e7c42;
-  font-size: 24px;
-`;
-
-const ContactText = styled.div`
-  font-weight: 600;
-  color: #1e293b;
-  text-align: center;
-`;
-
-const ContactLink = styled.a`
-  background: rgba(14, 124, 66, 0.05);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 12px;
-  padding: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  transition: all 0.3s ease;
-  cursor: pointer;
-  text-decoration: none;
-  color: inherit;
-
-  &:hover {
-    background: rgba(14, 124, 66, 0.1);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(14, 124, 66, 0.15);
-    text-decoration: none;
-    color: inherit;
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  &:visited {
-    color: inherit;
-  }
-`;
-
 // Additional styled components for fixing inline styles
 const StepContent = styled.div`
   width: 100%;
@@ -1128,28 +1031,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               </RecommendationsCard>
             </>
           )}
-
-          {/* Support Section */}
-          <SupportSection>
-            <SupportTitle>بحاجة إلى مساعدة؟</SupportTitle>
-            <SupportSubtitle>في حالة وجود أي مشكلة أو للحصول على الدعم التقني، تواصل معنا:</SupportSubtitle>
-
-            <ContactGrid>
-              <ContactLink href="tel:+212708033586">
-                <ContactIcon>
-                  <Phone24Regular />
-                </ContactIcon>
-                <ContactText>+212 708-03-35-86</ContactText>
-              </ContactLink>
-
-              <ContactLink href="https://wa.me/212708033586" target="_blank" rel="noopener noreferrer">
-                <ContactIcon>
-                  <Chat24Regular />
-                </ContactIcon>
-                <ContactText>واتساب</ContactText>
-              </ContactLink>
-            </ContactGrid>
-          </SupportSection>
         </DashboardContainer>
 
         {/* Enhanced Action Buttons */}

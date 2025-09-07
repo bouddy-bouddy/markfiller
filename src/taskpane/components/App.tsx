@@ -14,6 +14,7 @@ import StatisticsStep from "./steps/StatisticsStep";
 // IntelligentMarkTypeDialog removed
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
+import NeedHelpSection from "./shared/NeedHelpSection";
 
 // GlobalStyle for App.tsx
 const GlobalStyle = createGlobalStyle`
@@ -350,32 +351,47 @@ const GlobalStyle = createGlobalStyle`
     outline-offset: 2px !important;
   }
 
-  /* Developer Footer Styles */
+  /* Simple, modern Developer Footer */
   .developer-footer {
-    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+    background: #0f172a;
     color: #e2e8f0;
-    padding: 24px;
-    margin-top: 32px;
-    border-radius: 16px;
+    padding: 20px 16px;
+    margin-top: 24px;
+    border-radius: 12px;
     text-align: center;
-    border: 1px solid rgba(14, 124, 66, 0.2);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    box-shadow: 0 6px 16px rgba(2, 6, 23, 0.25);
   }
 
   .developer-name {
     font-size: 16px;
     font-weight: 700;
-    margin-bottom: 8px;
-    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    margin-bottom: 6px;
+    color: #16a34a;
   }
 
   .copyright-text {
-    font-size: 14px;
+    font-size: 12px;
     color: #94a3b8;
-    font-style: italic;
+    font-weight: 500;
+  }
+
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes rotate {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
   }
 `;
 
@@ -1128,6 +1144,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
           {/* Student Name Correction Dialog */}
         </div>
+
+        {/* Persistent Need Help Section */}
+        <NeedHelpSection />
 
         {/* Global Developer Footer */}
         <div className="developer-footer">
