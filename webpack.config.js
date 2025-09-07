@@ -21,7 +21,7 @@ module.exports = async (env, options) => {
     entry: {
       polyfill: ["core-js/stable", "regenerator-runtime/runtime"],
       vendor: ["react", "react-dom", "core-js", "@fluentui/react-components", "@fluentui/react-icons"],
-      taskpane: ["./src/taskpane/index.tsx", "./src/taskpane/taskpane.html"],
+      taskpane: ["./src/taskpane/index.tsx"],
       commands: "./src/commands/commands.ts",
     },
     output: {
