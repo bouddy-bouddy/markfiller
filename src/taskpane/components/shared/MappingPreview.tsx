@@ -353,11 +353,6 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
             <SummaryNumber style={{ color: "#ef4444" }}>{summary.studentsNotFound}</SummaryNumber>
             <SummaryLabel>تلاميذ غير موجودين</SummaryLabel>
           </SummaryItem>
-
-          <SummaryItem>
-            <SummaryNumber style={{ color: "#0e7c42" }}>{summary.totalMarksToInsert}</SummaryNumber>
-            <SummaryLabel>علامات سيتم إدخالها</SummaryLabel>
-          </SummaryItem>
         </SummaryGrid>
       </SummaryCard>
 
