@@ -1,9 +1,10 @@
 import React from "react";
-import { Button, Text, Card } from "@fluentui/react-components";
+import { Button, Text, Card, Badge } from "@fluentui/react-components";
 import { CheckmarkCircle24Regular, DismissCircle24Regular, WarningRegular, Edit24Regular } from "@fluentui/react-icons";
 import DataTable from "../shared/DataTable";
 import { Student, DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
+import StatusAlert from "../shared/StatusAlert";
 
 const StepTitle = styled.div`
   display: flex;
@@ -89,6 +90,7 @@ interface ReviewConfirmStepProps {
   tableKey?: number;
   onRefreshNamesFromMassar?: () => void;
   detectedMarkTypes: DetectedMarkTypes;
+  accuracyPercent?: number;
 }
 
 const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
@@ -105,6 +107,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
   tableKey = 0,
   onRefreshNamesFromMassar,
   detectedMarkTypes,
+  accuracyPercent,
 }) => {
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
@@ -130,6 +133,15 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
         <Text size={300} style={{ marginBottom: "16px", color: "#666", display: "block" }}>
           يمكنك تصحيح أي علامة غير صحيحة بالنقر عليها
         </Text>
+
+        {typeof accuracyPercent === "number" && (
+          <div style={{ marginBottom: "16px" }}>
+            <StatusAlert
+              type={accuracyPercent >= 90 ? "success" : accuracyPercent >= 75 ? "info" : "warning"}
+              message={`دقة الاستخراج التقديرية: ${accuracyPercent}%`}
+            />
+          </div>
+        )}
 
         {data && data.length > 0 && (
           <>

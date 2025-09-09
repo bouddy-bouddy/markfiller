@@ -4,6 +4,7 @@ import { createGlobalStyle } from "styled-components";
 import geminiOcrService from "../services/geminiOcrService";
 import excelService from "../services/excelService";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
+import { computeExtractionAccuracy } from "../utils/accuracy";
 
 import OcrErrorDisplay from "./shared/OcrErrorDisplay";
 import FileAnalysisStep from "./steps/FileAnalysisStep";
@@ -501,6 +502,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   // Statistics
   const [markStats, setMarkStats] = useState<Statistics | null>(null);
+  // Extraction accuracy (percentage 0-100)
+  const [extractionAccuracy, setExtractionAccuracy] = useState<number | null>(null);
 
   // Processing stages
   const [processingStage, setProcessingStage] = useState<number>(0);
@@ -610,6 +613,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       // Proceed directly with extracted data (name correction removed)
       setExtractedData(enhancedResults.students);
       setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
+      // Compute heuristic extraction accuracy
+      const accuracy = computeExtractionAccuracy(enhancedResults.students, enhancedResults.detectedMarkTypes);
+      setExtractionAccuracy(accuracy);
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
       generateMarkStatistics(enhancedResults.students, enhancedResults.detectedMarkTypes);
@@ -1011,6 +1017,13 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   const handleDataUpdate = (newData: Student[]) => {
     setExtractedData(newData);
     generateMarkStatistics(newData, detectedMarkTypes);
+    // Recompute accuracy after manual edits
+    try {
+      const updated = computeExtractionAccuracy(newData, detectedMarkTypes);
+      setExtractionAccuracy(updated);
+    } catch (e) {
+      // noop
+    }
   };
 
   // Name correction handlers removed
@@ -1041,6 +1054,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setIsInserting(false);
 
     setMarkStats(null);
+    setExtractionAccuracy(null);
     // Name correction states removed
   };
 
@@ -1116,6 +1130,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                 onDataUpdate={handleDataUpdate}
                 tableKey={tableKey}
                 detectedMarkTypes={detectedMarkTypes}
+                accuracyPercent={extractionAccuracy ?? undefined}
               />
             )}
 
