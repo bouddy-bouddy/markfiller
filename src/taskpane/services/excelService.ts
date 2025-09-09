@@ -62,7 +62,7 @@ class ExcelService {
         await context.sync();
 
         const values: any[][] = (range.values || []) as any[][];
-        const rowsToScan = values.slice(0, Math.min(10, values.length));
+        const rowsToScan = values.slice(0, Math.min(20, values.length));
 
         const result: { level?: string; section?: string; class?: string } = {};
 
@@ -182,7 +182,7 @@ class ExcelService {
     let foundIndicators = 0;
 
     // Flatten the 2D array and check each cell
-    for (let row of values.slice(0, 10)) {
+    for (let row of values.slice(0, 20)) {
       // Only check first 10 rows for headers
       for (let cell of row) {
         if (cell && typeof cell === "string") {
@@ -687,7 +687,7 @@ class ExcelService {
     // Try to find the row that has headers by looking for known column headers
     const headerKeywords = ["رقم التلميذ", "إسم التلميذ", "تاريخ", "رقم", "اسم"];
 
-    for (let i = 0; i < Math.min(10, values.length); i++) {
+    for (let i = 0; i < Math.min(20, values.length); i++) {
       const row = values[i];
       // Check if this row contains any of our header keywords
       if (

@@ -362,9 +362,9 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
           <Text size={400} weight="semibold" style={{ color: "#0e7c42" }}>
             تفاصيل التطابق
           </Text>
-          <Text size={300} style={{ color: "#64748b", marginTop: "4px", display: "block" }}>
+          {/* <Text size={300} style={{ color: "#64748b", marginTop: "4px", display: "block" }}>
             العلامات الملونة بالأخضر سيتم إدخالها، الرمادية لن يتم إدخالها
-          </Text>
+          </Text> */}
         </div>
 
         <div style={{ maxHeight: "400px", overflowY: "auto", margin: "16px" }}>
