@@ -134,6 +134,16 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
           يمكنك تصحيح أي علامة غير صحيحة بالنقر عليها
         </Text>
 
+        {/* Persistent reassurance notice */}
+        <div style={{ marginBottom: "12px" }}>
+          <StatusAlert
+            type="info"
+            message={
+              "ملاحظة: قد يحدث هامش بسيط للخطأ في الاستخراج. إذا لاحظت أي عدم دقة، يمكنك بكل بساطة إعادة رفع الصورة وإعادة تشغيل عملية الاستخراج حتى تحصل على النتائج الصحيحة. كما يمكنك تعديل القيم يدويًا هنا قبل المتابعة."
+            }
+          />
+        </div>
+
         {typeof accuracyPercent === "number" && (
           <div style={{ marginBottom: "16px" }}>
             <StatusAlert
