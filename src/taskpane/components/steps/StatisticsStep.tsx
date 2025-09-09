@@ -529,6 +529,14 @@ interface Statistics {
     totalMarksCounted: number;
   };
   recommendations?: string[];
+  mastery?: {
+    masteredPct: number;
+    inProgressPct: number;
+    notMasteredPct: number;
+    masteredCount: number;
+    inProgressCount: number;
+    notMasteredCount: number;
+  };
 }
 
 interface StatisticsStepProps {
@@ -825,6 +833,42 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   <KPILabel>النقاط المحسوبة</KPILabel>
                   <KPIValue>{statistics.overall.totalMarksCounted}</KPIValue>
                 </KPICard>
+
+                {/* Mastery breakdown cards */}
+                {statistics.mastery && (
+                  <>
+                    <KPICard>
+                      <KPIIcon>
+                        <CheckmarkCircle24Regular />
+                      </KPIIcon>
+                      <KPILabel>المتحكمون (≥ 15)</KPILabel>
+                      <KPIValue>{statistics.mastery.masteredPct}%</KPIValue>
+                      <Text size={200} style={{ color: "#64748b" }}>
+                        {statistics.mastery.masteredCount} من {statistics.totalStudents}
+                      </Text>
+                    </KPICard>
+                    <KPICard>
+                      <KPIIcon>
+                        <DataTrending24Regular />
+                      </KPIIcon>
+                      <KPILabel>في طور التحكم (10 - 14.99)</KPILabel>
+                      <KPIValue>{statistics.mastery.inProgressPct}%</KPIValue>
+                      <Text size={200} style={{ color: "#64748b" }}>
+                        {statistics.mastery.inProgressCount} من {statistics.totalStudents}
+                      </Text>
+                    </KPICard>
+                    <KPICard>
+                      <KPIIcon>
+                        <Warning24Regular />
+                      </KPIIcon>
+                      <KPILabel>غير متحكمين (&lt; 10)</KPILabel>
+                      <KPIValue>{statistics.mastery.notMasteredPct}%</KPIValue>
+                      <Text size={200} style={{ color: "#64748b" }}>
+                        {statistics.mastery.notMasteredCount} من {statistics.totalStudents}
+                      </Text>
+                    </KPICard>
+                  </>
+                )}
               </KPIGrid>
             </>
           )}

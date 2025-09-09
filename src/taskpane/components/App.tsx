@@ -463,6 +463,14 @@ interface Statistics {
     totalMarksCounted: number;
   };
   recommendations?: string[];
+  mastery?: {
+    masteredPct: number; // المتحكمون
+    inProgressPct: number; // في طور التحكم
+    notMasteredPct: number; // غير متحكمين
+    masteredCount: number;
+    inProgressCount: number;
+    notMasteredCount: number;
+  };
 }
 
 const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
@@ -875,6 +883,44 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         totalMarksCounted: overallCount,
       };
     }
+
+    // Mastery breakdown (based on overall average across active types per student)
+    const classifyStudent = (studentMarks: Record<MarkType, number | null>): number | null => {
+      const activeValues: number[] = [];
+      (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
+        if (!isTypeDetected(type)) return;
+        const v = studentMarks[type];
+        if (typeof v === "number") activeValues.push(v);
+      });
+      if (activeValues.length === 0) return null;
+      return activeValues.reduce((s, v) => s + v, 0) / activeValues.length;
+    };
+
+    let masteredCount = 0; // >= 15
+    let inProgressCount = 0; // 10..14.99
+    let notMasteredCount = 0; // < 10 or no marks
+    students.forEach((s) => {
+      const avg = classifyStudent(s.marks as any);
+      if (avg === null) {
+        notMasteredCount += 1;
+      } else if (avg >= 15) {
+        masteredCount += 1;
+      } else if (avg >= 10) {
+        inProgressCount += 1;
+      } else {
+        notMasteredCount += 1;
+      }
+    });
+
+    const total = students.length || 1;
+    stats.mastery = {
+      masteredPct: Math.round((masteredCount / total) * 100),
+      inProgressPct: Math.round((inProgressCount / total) * 100),
+      notMasteredPct: Math.round((notMasteredCount / total) * 100),
+      masteredCount,
+      inProgressCount,
+      notMasteredCount,
+    };
 
     // Recommendations
     const recs: string[] = [];
