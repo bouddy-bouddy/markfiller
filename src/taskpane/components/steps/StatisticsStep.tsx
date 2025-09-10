@@ -907,27 +907,43 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       // Clean up the off-screen container immediately after rendering
       document.body.removeChild(container);
 
-      // 5) Assemble PDF with consistent margins and pagination
-      const imgData = canvas.toDataURL("image/png");
+      // 5) Assemble PDF with exact slicing to avoid overlap/duplication across pages
       const pdf = new jsPDF("p", "mm", "a4");
 
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
       const margin = 10; // mm
-      const imgWidth = pageWidth - margin * 2;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      const imgWidth = pageWidth - margin * 2; // target image width in mm
 
-      let heightLeft = imgHeight;
-      let position = margin;
+      // ratio: mm per pixel at the chosen width
+      const mmPerPixel = imgWidth / canvas.width;
+      const printableHeightMm = pageHeight - margin * 2;
+      const sliceHeightPx = Math.floor(printableHeightMm / mmPerPixel);
 
-      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight, "", "FAST");
-      heightLeft -= pageHeight - margin * 2;
+      let y = 0;
+      let isFirstPage = true;
+      while (y < canvas.height) {
+        const currentSliceHeightPx = Math.min(sliceHeightPx, canvas.height - y);
 
-      while (heightLeft > 0) {
-        position = margin - (imgHeight - heightLeft);
-        pdf.addPage();
-        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight, "", "FAST");
-        heightLeft -= pageHeight - margin * 2;
+        // Create a temporary canvas for this slice
+        const sliceCanvas = document.createElement("canvas");
+        sliceCanvas.width = canvas.width;
+        sliceCanvas.height = currentSliceHeightPx;
+        const ctx = sliceCanvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(canvas, 0, y, canvas.width, currentSliceHeightPx, 0, 0, canvas.width, currentSliceHeightPx);
+        }
+
+        const sliceData = sliceCanvas.toDataURL("image/png");
+        const sliceHeightMm = currentSliceHeightPx * mmPerPixel;
+
+        if (!isFirstPage) {
+          pdf.addPage();
+        }
+        pdf.addImage(sliceData, "PNG", margin, margin, imgWidth, sliceHeightMm, "", "FAST");
+
+        isFirstPage = false;
+        y += currentSliceHeightPx;
       }
 
       const currentDate = new Date().toLocaleDateString("ar-MA");
