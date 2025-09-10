@@ -1502,61 +1502,32 @@ class ExcelService {
       }
     }
 
-    // Token-set and order-agnostic match (handles swapped first/last names)
-    const nameTokens = new Set(nameToFind.split(/\s+/).filter(Boolean));
-    for (let i = 1; i < values.length; i++) {
-      const cellName = this.getMergedStudentName(values[i], nameColumn);
-      const normalizedCellName = this.normalizeArabicText(cellName);
-      const cellTokens = new Set(normalizedCellName.split(/\s+/).filter(Boolean));
-
-      // Require at least 2 overlapping tokens or 70% token overlap
-      const overlap = [...nameTokens].filter((t) => cellTokens.has(t)).length;
-      const required = Math.max(2, Math.ceil(Math.min(nameTokens.size, cellTokens.size) * 0.7));
-      if (overlap >= required) {
-        return i;
-      }
-    }
-
-    // Then try partial name matching (first/last name)
-    const nameParts = nameToFind.split(/\s+/);
-    for (let i = 1; i < values.length; i++) {
-      const cellName = this.getMergedStudentName(values[i], nameColumn);
-      const normalizedCellName = this.normalizeArabicText(cellName);
-      const cellNameParts = normalizedCellName.split(/\s+/);
-
-      // Check for first and last name match
-      if (nameParts.length > 0 && cellNameParts.length > 0) {
-        // First name match
-        if (nameParts[0] === cellNameParts[0]) {
-          // Last name match (if available)
-          if (
-            nameParts.length > 1 &&
-            cellNameParts.length > 1 &&
-            nameParts[nameParts.length - 1] === cellNameParts[cellNameParts.length - 1]
-          ) {
-            return i;
-          }
-
-          // At least first name matches
-          return i;
-        }
-
-        // Last name match
+    // Order-agnostic full-name equality (all tokens must match, order can differ)
+    {
+      const targetTokens = nameToFind.split(/\s+/).filter(Boolean).sort();
+      for (let i = 1; i < values.length; i++) {
+        const cellName = this.getMergedStudentName(values[i], nameColumn);
+        const normalizedCellName = this.normalizeArabicText(cellName);
+        const cellTokens = normalizedCellName.split(/\s+/).filter(Boolean).sort();
         if (
-          nameParts.length > 1 &&
-          cellNameParts.length > 1 &&
-          nameParts[nameParts.length - 1] === cellNameParts[cellNameParts.length - 1]
+          targetTokens.length >= 2 &&
+          cellTokens.length === targetTokens.length &&
+          cellTokens.every((t, idx) => t === targetTokens[idx])
         ) {
           return i;
         }
       }
     }
 
-    // Finally try fuzzy matching
+    // Finally try fuzzy matching requiring high similarity of the FULL name only
     for (let i = 1; i < values.length; i++) {
       const cellName = this.getMergedStudentName(values[i], nameColumn);
       const normalizedCellName = this.normalizeArabicText(cellName);
-      if (this.compareNames(nameToFind, normalizedCellName)) {
+      // Require strong similarity score and identical token count to avoid first-name-only matches
+      const tokensA = nameToFind.split(/\s+/).filter(Boolean);
+      const tokensB = normalizedCellName.split(/\s+/).filter(Boolean);
+      const strongSimilarity = this.compareNames(nameToFind, normalizedCellName);
+      if (strongSimilarity && tokensA.length === tokensB.length) {
         return i;
       }
     }
@@ -1565,7 +1536,9 @@ class ExcelService {
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
       const concatenated = this.normalizeArabicText(row.map((c) => (c == null ? "" : c.toString())).join(" "));
-      if (concatenated.includes(nameToFind)) {
+      // Only consider as match if full token sequence appears, not just first name
+      const pattern = new RegExp(`(^|\\s)${nameToFind.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}($|\\s)`);
+      if (pattern.test(concatenated)) {
         return i;
       }
     }
