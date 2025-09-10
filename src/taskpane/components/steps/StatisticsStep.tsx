@@ -46,6 +46,7 @@ const DashboardContainer = styled.div`
   border-radius: 20px;
   padding: 24px !important;
   margin-bottom: 20px;
+  direction: rtl;
 `;
 
 const MetaBar = styled.div`
@@ -78,6 +79,7 @@ const StatsHeader = styled.div`
   border-radius: 16px;
   border: 1px solid rgba(14, 124, 66, 0.1);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  page-break-inside: avoid;
 `;
 
 const MainTitle = styled.div`
@@ -109,6 +111,7 @@ const KPIGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 32px;
+  page-break-inside: avoid;
 `;
 
 const KPICard = styled(Card)`
@@ -191,6 +194,7 @@ const ChartsGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
   gap: 20px;
   margin-bottom: 32px;
+  page-break-inside: avoid;
 `;
 
 const ChartCard = styled(Card)`
@@ -221,6 +225,7 @@ const PerformanceGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 20px;
   margin-bottom: 32px;
+  page-break-inside: avoid;
 `;
 
 const PerformanceCard = styled(Card)`
@@ -308,6 +313,7 @@ const DistributionGrid = styled.div`
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 20px;
   margin-bottom: 32px;
+  page-break-inside: avoid;
 `;
 
 const DistributionCard = styled(Card)`
@@ -645,65 +651,286 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     return Math.max(dist["0-5"], dist["5-10"], dist["10-15"], dist["15-20"]);
   };
 
-  // Enhanced PDF export with professional formatting
+  // PDF export using a dedicated, clean layout (image-only),
+  // to avoid Arabic font issues in jsPDF while producing a professional report
   const exportPdf = async () => {
     if (!reportRef.current) return;
 
     try {
-      const element = reportRef.current;
-      const canvas = await html2canvas(element as any, {
-        scale: 2,
+      // 1) Prepare chart snapshots to embed as images in the PDF layout
+      const chartCanvases = reportRef.current.querySelectorAll("canvas");
+      const barChartSrc = chartCanvases[0] ? (chartCanvases[0] as HTMLCanvasElement).toDataURL("image/png") : "";
+      const donutChartSrc = chartCanvases[1] ? (chartCanvases[1] as HTMLCanvasElement).toDataURL("image/png") : "";
+
+      // 2) Build a dedicated, off-screen report container with fixed A4 width
+      const a4CssWidthPx = 794; // A4 width at ~96dpi
+      const pdfMarginPx = 32;
+      const container = document.createElement("div");
+      container.id = "markfiller-pdf-report";
+      container.style.cssText = [
+        "position: fixed",
+        "left: -10000px",
+        "top: 0",
+        `width: ${a4CssWidthPx}px`,
+        "box-sizing: border-box",
+        "background: #ffffff",
+        "color: #0f172a",
+        "direction: rtl",
+        "padding: 24px",
+        "font-family: 'Segoe UI', Tahoma, 'Cairo', 'Noto Naskh Arabic', Arial, sans-serif",
+        "line-height: 1.5",
+      ].join(";");
+
+      // Helper builders for sections
+      const kpi = statistics.overall
+        ? [
+            { label: "المتوسط العام", value: formatNumber(statistics.overall.overallAverage) },
+            { label: "نسبة النجاح", value: `${Math.round((statistics.overall.passRate || 0) * 100)}%` },
+            { label: "نسبة الرسوب", value: `${Math.round((statistics.overall.failRate || 0) * 100)}%` },
+            { label: "إجمالي التلاميذ", value: String(statistics.totalStudents) },
+            { label: "النقاط المحسوبة", value: String(statistics.overall.totalMarksCounted) },
+          ]
+        : [];
+
+      const mastery = statistics.mastery
+        ? [
+            {
+              label: "المتحكمون (≥ 15)",
+              value: `${statistics.mastery.masteredPct}% — ${statistics.mastery.masteredCount}/${statistics.totalStudents}`,
+            },
+            {
+              label: "في طور التحكم (10 - 14.99)",
+              value: `${statistics.mastery.inProgressPct}% — ${statistics.mastery.inProgressCount}/${statistics.totalStudents}`,
+            },
+            {
+              label: "غير متحكمين (< 10)",
+              value: `${statistics.mastery.notMasteredPct}% — ${statistics.mastery.notMasteredCount}/${statistics.totalStudents}`,
+            },
+          ]
+        : [];
+
+      const distributionsHtml = ((): string => {
+        const parts: string[] = [];
+        (shownTypes as MarkType[]).forEach((type) => {
+          const dist = statistics.distribution[type];
+          if (!dist) return;
+          const max = Math.max(dist["15-20"], dist["10-15"], dist["5-10"], dist["0-5"]);
+          const row = (label: string, value: number, color: string) => {
+            const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+            return `
+              <div class="dist-row">
+                <div class="dist-label">${label}</div>
+                <div class="dist-count">${value} تلميذ</div>
+                <div class="dist-bar"><span style="width:${pct}%;background:${color}"></span></div>
+              </div>`;
+          };
+          parts.push(`
+            <div class="card" style="page-break-inside: avoid">
+              <div class="card-title">${getMarkTypeName(type)}</div>
+              ${row("ممتاز (16-20)", dist["15-20"], "#10b981")}
+              ${row("جيد جداً (13-15.9)", dist["10-15"], "#3b82f6")}
+              ${row("مقبول (10-12.9)", dist["5-10"], "#f59e0b")}
+              ${row("ضعيف (0-9.9)", dist["0-5"], "#ef4444")}
+            </div>`);
+        });
+        return parts.join("");
+      })();
+
+      const topHtml = ((): string => {
+        const cards: string[] = [];
+        (shownTypes as MarkType[]).forEach((type) => {
+          const items = (statistics.topStudentsByType?.[type] || []).slice(0, 3);
+          if (items.length === 0) return;
+          const rows = items
+            .map(
+              (s, idx) => `
+              <tr>
+                <td class="rank">${idx + 1}</td>
+                <td>${s.name}</td>
+                <td class="score">${formatNumber(s.value)}</td>
+              </tr>`
+            )
+            .join("");
+          cards.push(`
+            <div class="card">
+              <div class="card-title">${getMarkTypeName(type)} - المتفوقون</div>
+              <table class="table">
+                <thead><tr><th>#</th><th>الاسم</th><th>النقطة</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`);
+        });
+        return cards.join("");
+      })();
+
+      const difficultyHtml = ((): string => {
+        const cards: string[] = [];
+        (shownTypes as MarkType[]).forEach((type) => {
+          const items = (statistics.bottomStudentsByType?.[type] || []).filter((s) => s.value < 10).slice(0, 10);
+          if (items.length === 0) return;
+          const rows = items
+            .map(
+              (s, idx) => `
+              <tr>
+                <td class="rank">${idx + 1}</td>
+                <td>${s.name}</td>
+                <td class="score low">${formatNumber(s.value)}</td>
+              </tr>`
+            )
+            .join("");
+          cards.push(`
+            <div class="card">
+              <div class="card-title">${getMarkTypeName(type)} - التلاميذ في صعوبة</div>
+              <table class="table danger">
+                <thead><tr><th>#</th><th>الاسم</th><th>النقطة</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>`);
+        });
+        return cards.join("");
+      })();
+
+      const recommendationsHtml = (statistics.recommendations || []).map((rec) => `<li>${rec}</li>`).join("");
+
+      const metaLevel = meta.level || "غير محدد";
+      const metaClass = meta.class || "غير محدد";
+      const createdAt = new Date().toLocaleDateString("ar-MA");
+
+      // 3) Compose HTML for the PDF report
+      container.innerHTML = `
+        <style>
+          .header { text-align:center; margin-bottom:16px; }
+          .title { font-size:26px; font-weight:700; color:#0e7c42; }
+          .subtitle { color:#64748b; margin-top:4px; }
+          .meta { display:flex; gap:12px; justify-content:space-between; background:#f8fafc; border:1px dashed rgba(14,124,66,.35); border-radius:8px; padding:10px 12px; margin:12px 0; }
+          .meta .pair { display:flex; gap:6px; align-items:center; }
+          .section { margin-top:18px; page-break-inside: avoid; }
+          .section h3 { margin:0 0 10px 0; font-size:18px; color:#1e293b; }
+          .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
+          .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
+          .card { border:1px solid rgba(14,124,66,.15); border-radius:12px; padding:14px; background:linear-gradient(135deg,#fff,#f8fafc); }
+          .kpi { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+          .kpi .label { font-size:13px; color:#64748b; }
+          .kpi .value { font-size:22px; font-weight:700; color:#0e7c42; }
+          .card-title { font-weight:700; margin-bottom:10px; color:#1e293b; }
+          .charts { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+          .chart { border:1px solid rgba(14,124,66,.12); border-radius:10px; padding:8px; text-align:center; }
+          .chart img { width:100%; height:auto; }
+          .dist-row { display:grid; grid-template-columns: auto 100px 1fr; gap:10px; align-items:center; margin:10px 0; }
+          .dist-label { color:#1e293b; }
+          .dist-count { color:#0e7c42; font-weight:700; text-align:center; }
+          .dist-bar { background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden; }
+          .dist-bar span { display:block; height:100%; border-radius:4px; }
+          .table { width:100%; border-collapse: collapse; }
+          .table th, .table td { border-bottom:1px solid #e5e7eb; padding:8px; }
+          .table th { background:#f1f5f9; text-align:center; color:#0f172a; }
+          .table td { text-align:center; }
+          .table .rank { width:48px; font-weight:700; }
+          .table .score { font-weight:700; color:#0e7c42; }
+          .table.danger .score.low { color:#ef4444; }
+          .recs { list-style: none; padding:0; margin:0; display:grid; gap:8px; }
+          .recs li { background: rgba(14,124,66,.06); border-left:4px solid #0e7c42; padding:10px 12px; border-radius:6px; }
+          .footer { margin-top:18px; font-size:12px; color:#94a3b8; text-align:center; }
+        </style>
+        <div class="header">
+          <div class="title">MarkFiller - تقرير الإحصائيات</div>
+          <div class="subtitle">تحليل شامل لنتائج التلاميذ</div>
+        </div>
+        <div class="meta">
+          <div class="pair"><span>المستوى:</span><strong>${metaLevel}</strong></div>
+          <div class="pair"><span>القسم:</span><strong>${metaClass}</strong></div>
+          <div class="pair"><span>تاريخ الإنشاء:</span><strong>${createdAt}</strong></div>
+        </div>
+        ${
+          kpi.length
+            ? `<div class="section"><h3>ملخص الإحصائيات</h3><div class="grid-3">${kpi
+                .map(
+                  (i) =>
+                    `<div class="card kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`
+                )
+                .join("")}${
+                mastery.length
+                  ? mastery
+                      .map(
+                        (i) =>
+                          `<div class="card kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`
+                      )
+                      .join("")
+                  : ""
+              }</div></div>`
+            : ""
+        }
+
+        <div class="section">
+          <h3>الرسوم البيانية</h3>
+          <div class="charts">
+            ${barChartSrc ? `<div class="chart"><img src="${barChartSrc}" alt="bar" /></div>` : ""}
+            ${donutChartSrc ? `<div class="chart"><img src="${donutChartSrc}" alt="donut" /></div>` : ""}
+          </div>
+        </div>
+
+        <div class="section">
+          <h3>توزيع الدرجات</h3>
+          <div class="grid">${distributionsHtml}</div>
+        </div>
+
+        <div class="section">
+          <h3>المتفوقون الثلاثة الأوائل</h3>
+          <div class="grid">${topHtml}</div>
+        </div>
+
+        <div class="section">
+          <h3>التلاميذ في صعوبة (متوسط أقل من 10)</h3>
+          <div class="grid">${difficultyHtml}</div>
+        </div>
+
+        ${
+          recommendationsHtml
+            ? `<div class="section"><h3>توصيات تحسين الأداء</h3><ul class="recs">${recommendationsHtml}</ul></div>`
+            : ""
+        }
+
+        <div class="footer">تم إنشاء هذا التقرير بواسطة MarkFiller</div>
+      `;
+
+      document.body.appendChild(container);
+
+      // 4) Render off-screen layout to canvas
+      const canvas = await html2canvas(container as any, {
+        scale: Math.max(2, Math.ceil(window.devicePixelRatio || 2)),
         useCORS: true,
         allowTaint: true,
         backgroundColor: "#ffffff",
+        windowWidth: a4CssWidthPx,
       });
 
+      // Clean up the off-screen container immediately after rendering
+      document.body.removeChild(container);
+
+      // 5) Assemble PDF with consistent margins and pagination
       const imgData = canvas.toDataURL("image/png");
       const pdf = new jsPDF("p", "mm", "a4");
 
-      // Header
-      pdf.setFontSize(22);
-      pdf.setTextColor(14, 124, 66);
-      pdf.text("MarkFiller - تقرير الإحصائيات", 200 - 15, 18, { align: "right" });
-
-      // Sub header with metadata
-      pdf.setFontSize(12);
-      pdf.setTextColor(31, 41, 55);
-      const currentDate = new Date().toLocaleDateString("ar-MA");
-      const metaLineRight = `المستوى: ${meta.level || "غير محدد"}`;
-      const metaLineLeft = `القسم: ${meta.class || "غير محدد"}`;
-      pdf.text(metaLineRight, 200 - 15, 26, { align: "right" });
-      pdf.text(metaLineLeft, 15, 26, { align: "left" });
-      pdf.setTextColor(100, 116, 139);
-      pdf.text(`تم إنشاؤه في: ${currentDate}`, 105, 34, { align: "center" });
-
-      // Content image with margins
-      const imgWidth = 180;
-      const pageHeight = 277;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 10; // mm
+      const imgWidth = pageWidth - margin * 2;
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      let heightLeft = imgHeight;
-      let position = 44;
 
-      pdf.addImage(imgData, "PNG", 15, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight - position;
+      let heightLeft = imgHeight;
+      let position = margin;
+
+      pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight, "", "FAST");
+      heightLeft -= pageHeight - margin * 2;
 
       while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
+        position = margin - (imgHeight - heightLeft);
         pdf.addPage();
-        pdf.addImage(imgData, "PNG", 15, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+        pdf.addImage(imgData, "PNG", margin, position, imgWidth, imgHeight, "", "FAST");
+        heightLeft -= pageHeight - margin * 2;
       }
 
-      // Add footer to each page
-      const totalPages = pdf.internal.pages.length - 1;
-      for (let i = 1; i <= totalPages; i++) {
-        pdf.setPage(i);
-        pdf.setFontSize(10);
-        pdf.setTextColor(156, 163, 175);
-        pdf.text(`صفحة ${i} من ${totalPages}`, 105, 290, { align: "center" });
-        pdf.text("تم إنشاؤه بواسطة MarkFiller Excel Add-in", 105, 285, { align: "center" });
-      }
-
+      const currentDate = new Date().toLocaleDateString("ar-MA");
       pdf.save(`MarkFiller-Statistics-${currentDate}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
