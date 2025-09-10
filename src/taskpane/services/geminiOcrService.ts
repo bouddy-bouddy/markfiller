@@ -1,5 +1,5 @@
 /* global fetch, File, FileReader, console, process, Image, document */
-import { Student, DetectedMarkTypes } from "../types";
+import { Student, DetectedMarkTypes, StudentUncertainty } from "../types";
 
 class GeminiOCRService {
   private geminiApiKey: string;
@@ -28,7 +28,7 @@ class GeminiOCRService {
         byName.set(key, { ...s, number: byName.size + 1 });
       } else {
         const existing = byName.get(key)!;
-        byName.set(key, {
+        const merged: Student = {
           ...existing,
           marks: {
             fard1: existing.marks.fard1 ?? s.marks.fard1 ?? null,
@@ -37,7 +37,33 @@ class GeminiOCRService {
             fard4: existing.marks.fard4 ?? s.marks.fard4 ?? null,
             activities: existing.marks.activities ?? s.marks.activities ?? null,
           },
-        });
+          uncertain: {
+            name: existing.uncertain?.name || false || s.uncertain?.name || false,
+            marks: {
+              fard1:
+                (existing.marks.fard1 !== null
+                  ? existing.uncertain?.marks?.fard1
+                  : (s.uncertain?.marks?.fard1 ?? true)) || false,
+              fard2:
+                (existing.marks.fard2 !== null
+                  ? existing.uncertain?.marks?.fard2
+                  : (s.uncertain?.marks?.fard2 ?? true)) || false,
+              fard3:
+                (existing.marks.fard3 !== null
+                  ? existing.uncertain?.marks?.fard3
+                  : (s.uncertain?.marks?.fard3 ?? true)) || false,
+              fard4:
+                (existing.marks.fard4 !== null
+                  ? existing.uncertain?.marks?.fard4
+                  : (s.uncertain?.marks?.fard4 ?? true)) || false,
+              activities:
+                (existing.marks.activities !== null
+                  ? existing.uncertain?.marks?.activities
+                  : (s.uncertain?.marks?.activities ?? true)) || false,
+            },
+          },
+        };
+        byName.set(key, merged);
       }
     }
 
@@ -107,6 +133,10 @@ class GeminiOCRService {
             fard3: student.marks?.fard3 ?? null,
             fard4: student.marks?.fard4 ?? null,
             activities: student.marks?.activities ?? null,
+          },
+          uncertain: {
+            name: false,
+            marks: { fard1: false, fard2: false, fard3: false, fard4: false, activities: false },
           },
         }));
         structuredDetected = {
@@ -199,6 +229,10 @@ class GeminiOCRService {
         fard3: student.marks?.fard3 ?? null,
         fard4: student.marks?.fard4 ?? null,
         activities: student.marks?.activities ?? null,
+      },
+      uncertain: {
+        name: false,
+        marks: { fard1: false, fard2: false, fard3: false, fard4: false, activities: false },
       },
     }));
     const detectedMarkTypes: DetectedMarkTypes = {
@@ -782,12 +816,17 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     // Extract marks using the column mapping
-    const marks = this.extractMarksAdvanced(cells, headerAnalysis, detectedMarkTypes);
+    const { marks, flags } = this.extractMarksAdvanced(cells, headerAnalysis, detectedMarkTypes);
+    let nameUncertain = false;
+    if (!this.isValidStudentName(studentName)) {
+      nameUncertain = true;
+    }
 
     return {
       number: studentNumber,
       name: studentName,
       marks,
+      uncertain: { name: nameUncertain, marks: flags },
     };
   }
 
@@ -1102,13 +1141,20 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       markColumnMapping: Record<string, keyof Student["marks"]>;
     },
     detectedMarkTypes: DetectedMarkTypes
-  ): Student["marks"] {
+  ): { marks: Student["marks"]; flags: StudentUncertainty["marks"] } {
     const marks: Student["marks"] = {
       fard1: null,
       fard2: null,
       fard3: null,
       fard4: null,
       activities: null,
+    };
+    const flags: StudentUncertainty["marks"] = {
+      fard1: false,
+      fard2: false,
+      fard3: false,
+      fard4: false,
+      activities: false,
     };
 
     // Use column mapping to extract marks
@@ -1119,6 +1165,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
         if (markValue !== null) {
           marks[markType] = markValue;
           console.log(`📊 Found ${markType} mark: ${cells[columnIndex]} -> ${markValue}`);
+          (flags as any)[markType] = false;
         }
       }
     });
@@ -1126,10 +1173,16 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // If no structured marks found, try intelligent fallback
     if (Object.values(marks).every((mark) => mark === null)) {
       const nameCol = headerAnalysis.columnStructure.find((c) => c.type === "name")?.index;
-      this.extractMarksIntelligently(cells, marks, detectedMarkTypes, nameCol);
+      const fb = this.extractMarksIntelligently(cells, detectedMarkTypes, nameCol);
+      (Object.keys(marks) as Array<keyof Student["marks"]>).forEach((k) => {
+        if (fb.marks[k] !== null) {
+          marks[k] = fb.marks[k];
+          (flags as any)[k] = fb.flags[k] ?? true;
+        }
+      });
     }
 
-    return marks;
+    return { marks, flags };
   }
 
   /**
@@ -1137,16 +1190,23 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    */
   private extractMarksIntelligently(
     cells: string[],
-    marks: Student["marks"],
     detectedMarkTypes: DetectedMarkTypes,
     probableNameIndex?: number
-  ): void {
+  ): { marks: Student["marks"]; flags: StudentUncertainty["marks"] } {
+    const marks: Student["marks"] = { fard1: null, fard2: null, fard3: null, fard4: null, activities: null };
+    const flags: StudentUncertainty["marks"] = {
+      fard1: false,
+      fard2: false,
+      fard3: false,
+      fard4: false,
+      activities: false,
+    };
     const numericCellPositionsAll = cells
       .map((cell, index) => ({ cell, index }))
       .filter(({ cell }) => this.isNumeric(cell))
       .sort((a, b) => a.index - b.index);
 
-    if (numericCellPositionsAll.length === 0) return;
+    if (numericCellPositionsAll.length === 0) return { marks, flags };
 
     const isNameIndexProvided = typeof probableNameIndex === "number";
     const hasAfterName =
@@ -1159,19 +1219,25 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
     if (detectedMarkTypes.hasFard1 && markIndex < numericCellPositions.length) {
       marks.fard1 = this.parseMarkValue(numericCellPositions[markIndex++].cell);
+      if (marks.fard1 !== null) flags.fard1 = true;
     }
     if (detectedMarkTypes.hasFard2 && markIndex < numericCellPositions.length) {
       marks.fard2 = this.parseMarkValue(numericCellPositions[markIndex++].cell);
+      if (marks.fard2 !== null) flags.fard2 = true;
     }
     if (detectedMarkTypes.hasFard3 && markIndex < numericCellPositions.length) {
       marks.fard3 = this.parseMarkValue(numericCellPositions[markIndex++].cell);
+      if (marks.fard3 !== null) flags.fard3 = true;
     }
     if (detectedMarkTypes.hasFard4 && markIndex < numericCellPositions.length) {
       marks.fard4 = this.parseMarkValue(numericCellPositions[markIndex++].cell);
+      if (marks.fard4 !== null) flags.fard4 = true;
     }
     if (detectedMarkTypes.hasActivities && markIndex < numericCellPositions.length) {
       marks.activities = this.parseMarkValue(numericCellPositions[markIndex++].cell);
+      if (marks.activities !== null) flags.activities = true;
     }
+    return { marks, flags };
   }
 
   /**
@@ -1278,17 +1344,37 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
           fard4: null,
           activities: null,
         };
+        const flags: StudentUncertainty["marks"] = {
+          fard1: false,
+          fard2: false,
+          fard3: false,
+          fard4: false,
+          activities: false,
+        };
 
         const numbers = cells.filter((cell) => this.isNumeric(cell));
-        if (numbers.length > 0 && detectedMarkTypes.hasFard1) marks.fard1 = this.parseMarkValue(numbers[0]);
-        if (numbers.length > 1 && detectedMarkTypes.hasFard2) marks.fard2 = this.parseMarkValue(numbers[1]);
-        if (numbers.length > 2 && detectedMarkTypes.hasFard3) marks.fard3 = this.parseMarkValue(numbers[2]);
-        if (numbers.length > 3 && detectedMarkTypes.hasActivities) marks.activities = this.parseMarkValue(numbers[3]);
+        if (numbers.length > 0 && detectedMarkTypes.hasFard1) {
+          marks.fard1 = this.parseMarkValue(numbers[0]);
+          if (marks.fard1 !== null) flags.fard1 = true;
+        }
+        if (numbers.length > 1 && detectedMarkTypes.hasFard2) {
+          marks.fard2 = this.parseMarkValue(numbers[1]);
+          if (marks.fard2 !== null) flags.fard2 = true;
+        }
+        if (numbers.length > 2 && detectedMarkTypes.hasFard3) {
+          marks.fard3 = this.parseMarkValue(numbers[2]);
+          if (marks.fard3 !== null) flags.fard3 = true;
+        }
+        if (numbers.length > 3 && detectedMarkTypes.hasActivities) {
+          marks.activities = this.parseMarkValue(numbers[3]);
+          if (marks.activities !== null) flags.activities = true;
+        }
 
         students.push({
           number: i + 1,
           name: studentName,
           marks,
+          uncertain: { name: true, marks: flags },
         });
 
         console.log(`🆘 Emergency extracted: ${studentName} with ${numbers.length} marks`);
@@ -1335,16 +1421,26 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     for (let i = 0; i < allNames.length; i++) {
       const markValue = i < allMarks.length ? this.parseMarkValue(allMarks[i]) : null;
 
+      const marks: Student["marks"] = {
+        fard1: detectedMarkTypes.hasFard1 ? markValue : null,
+        fard2: detectedMarkTypes.hasFard2 ? markValue : null,
+        fard3: detectedMarkTypes.hasFard3 ? markValue : null,
+        fard4: detectedMarkTypes.hasFard4 ? markValue : null,
+        activities: detectedMarkTypes.hasActivities ? markValue : null,
+      };
+      const flags: StudentUncertainty["marks"] = {
+        fard1: marks.fard1 !== null,
+        fard2: marks.fard2 !== null,
+        fard3: marks.fard3 !== null,
+        fard4: marks.fard4 !== null,
+        activities: marks.activities !== null,
+      };
+
       students.push({
         number: i + 1,
         name: allNames[i],
-        marks: {
-          fard1: detectedMarkTypes.hasFard1 ? markValue : null,
-          fard2: detectedMarkTypes.hasFard2 ? markValue : null,
-          fard3: detectedMarkTypes.hasFard3 ? markValue : null,
-          fard4: detectedMarkTypes.hasFard4 ? markValue : null,
-          activities: detectedMarkTypes.hasActivities ? markValue : null,
-        },
+        marks,
+        uncertain: { name: true, marks: flags },
       });
     }
 
@@ -1695,13 +1791,22 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       fard4: null,
       activities: null,
     };
+    const flags: StudentUncertainty["marks"] = {
+      fard1: false,
+      fard2: false,
+      fard3: false,
+      fard4: false,
+      activities: false,
+    };
 
     // Assign numbers to marks in order
     const markKeys: (keyof Student["marks"])[] = ["fard1", "fard2", "fard3", "activities"];
     for (let i = 0; i < Math.min(numbers.length, markKeys.length); i++) {
       const numValue = parseFloat(numbers[i].replace(",", "."));
       if (!isNaN(numValue) && numValue >= 0 && numValue <= 20) {
-        marks[markKeys[i]] = numValue;
+        const key = markKeys[i];
+        marks[key] = numValue;
+        flags[key] = true;
       }
     }
 
@@ -1709,6 +1814,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       number: studentNumber,
       name: extractedName,
       marks: marks,
+      uncertain: { name: true, marks: flags },
     };
 
     console.log(`🆘 Last resort extraction created:`, student);

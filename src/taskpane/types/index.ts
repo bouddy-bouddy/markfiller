@@ -16,6 +16,8 @@ export interface Student {
   number: number;
   name: string;
   marks: StudentMarks;
+  /** Optional OCR uncertainty flags for this student */
+  uncertain?: StudentUncertainty;
 }
 
 /**
@@ -33,6 +35,22 @@ export const markTypeNames: Record<MarkType, string> = {
   fard4: "الفرض الرابع",
   activities: "الأنشطة",
 };
+
+/**
+ * Per-student OCR uncertainty flags. When a mark is flagged true, the UI can highlight it for review.
+ * Note: Avoids referencing MarkType here to keep declaration order simple.
+ */
+export interface StudentUncertainty {
+  name?: boolean;
+  marks: {
+    fard1?: boolean;
+    fard2?: boolean;
+    fard3?: boolean;
+    fard4?: boolean;
+    activities?: boolean;
+    [key: string]: boolean | undefined;
+  };
+}
 
 /**
  * Detected mark types from OCR

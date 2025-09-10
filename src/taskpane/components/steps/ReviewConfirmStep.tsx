@@ -160,6 +160,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
               data={data}
               onDataUpdate={onDataUpdate}
               detectedMarkTypes={detectedMarkTypes}
+              accuracyPercent={accuracyPercent}
             />
 
             <ButtonContainer>

@@ -17,6 +17,7 @@ interface DataTableProps {
   data: Student[];
   onDataUpdate: (newData: Student[]) => void;
   detectedMarkTypes: DetectedMarkTypes;
+  accuracyPercent?: number;
 }
 
 interface EditingCell {
@@ -157,6 +158,17 @@ const EditableCell = styled.div`
   }
 `;
 
+const UncertainWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(220, 38, 38, 0.35);
+  background: rgba(254, 226, 226, 0.6);
+`;
+
 const MarkValue = styled.span`
   font-weight: 600;
   color: #1f2937;
@@ -201,7 +213,7 @@ const StyledInput = styled(Input)`
   }
 `;
 
-const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkTypes }) => {
+const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkTypes, accuracyPercent }) => {
   const [editableData, setEditableData] = useState<Student[]>(data);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
 
@@ -252,6 +264,13 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkT
         ...newData[studentIndex].marks,
         [markType]: newValue === null ? null : (parseFloat(newValue.toString()).toFixed(2) as unknown as number),
       },
+      uncertain: {
+        name: newData[studentIndex].uncertain?.name || false,
+        marks: {
+          ...(newData[studentIndex].uncertain?.marks || {}),
+          [markType]: false,
+        },
+      },
     };
 
     setEditableData(newData);
@@ -278,6 +297,8 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkT
   const renderCell = (student: Student, index: number, markType: keyof StudentMarks) => {
     const isEditing = editingCell?.studentIndex === index && editingCell?.markType === markType;
     const value = student.marks[markType];
+    const showUncertainty = typeof accuracyPercent === "number" && accuracyPercent < 100;
+    const isUncertain = showUncertainty && !!student.uncertain?.marks?.[markType];
 
     if (isEditing) {
       return (
@@ -297,12 +318,25 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkT
 
     return (
       <EditableCell onClick={() => setEditingCell({ studentIndex: index, markType })}>
-        <MarkValue>{formatMark(value)}</MarkValue>
-        <CellActions>
-          <EditIcon>
-            <Edit24Regular style={{ fontSize: "16px" }} />
-          </EditIcon>
-        </CellActions>
+        {isUncertain ? (
+          <UncertainWrapper title="قيمة مشكوك في دقتها - يرجى المراجعة">
+            <MarkValue style={{ color: "#991b1b" }}>{formatMark(value)}</MarkValue>
+            <CellActions>
+              <EditIcon>
+                <Edit24Regular style={{ fontSize: "16px" }} />
+              </EditIcon>
+            </CellActions>
+          </UncertainWrapper>
+        ) : (
+          <>
+            <MarkValue>{formatMark(value)}</MarkValue>
+            <CellActions>
+              <EditIcon>
+                <Edit24Regular style={{ fontSize: "16px" }} />
+              </EditIcon>
+            </CellActions>
+          </>
+        )}
       </EditableCell>
     );
   };
