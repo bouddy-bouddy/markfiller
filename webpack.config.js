@@ -17,7 +17,7 @@ async function getHttpsOptions() {
 module.exports = async (env, options) => {
   const dev = options.mode === "development";
   const config = {
-    devtool: "source-map",
+    devtool: dev ? "eval-cheap-module-source-map" : "source-map",
     entry: {
       polyfill: ["core-js/stable", "regenerator-runtime/runtime"],
       vendor: ["react", "react-dom", "core-js", "@fluentui/react-components", "@fluentui/react-icons"],
@@ -95,6 +95,20 @@ module.exports = async (env, options) => {
         Promise: ["es6-promise", "Promise"],
       }),
     ],
+    cache: {
+      type: "filesystem",
+      buildDependencies: {
+        config: [__filename],
+      },
+    },
+    optimization: {
+      splitChunks: {
+        chunks: "all",
+        maxInitialRequests: 25,
+        minSize: 20000,
+      },
+      runtimeChunk: "single",
+    },
     devServer: {
       hot: true,
       headers: {

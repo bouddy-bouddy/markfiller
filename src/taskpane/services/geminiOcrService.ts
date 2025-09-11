@@ -3,6 +3,22 @@ import { Student, DetectedMarkTypes, StudentUncertainty } from "../types";
 
 class GeminiOCRService {
   private geminiApiKey: string;
+  // Micro-caches and precompiled helpers to reduce hot-path allocations
+  private cacheNormalizeNameForComparison: Map<string, string> = new Map();
+  private cachePreprocessMark: Map<string, string | null> = new Map();
+  private ratioPattern: RegExp = /^(\d{1,2})\s*\/?\s*(?:out\s*of\s*)?(\d{1,2})$/i;
+  private arabicDigitMap: Record<string, string> = {
+    "٠": "0",
+    "١": "1",
+    "٢": "2",
+    "٣": "3",
+    "٤": "4",
+    "٥": "5",
+    "٦": "6",
+    "٧": "7",
+    "٨": "8",
+    "٩": "9",
+  };
 
   constructor() {
     this.geminiApiKey = process.env.GEMINI_API_KEY || "";
@@ -205,14 +221,17 @@ class GeminiOCRService {
     if (!this.isValidImageFile(imageFile)) {
       throw new Error("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
     }
-    const base64Image = await this.fileToBase64(imageFile);
+    // Use optimized base64 to reduce payload where possible
+    const base64Image = await this.fileToOptimizedBase64(imageFile);
     const base64Content = base64Image.split(",")[1];
     let structuredResult: { students: any[]; markTypes: any };
+    // Kick off a text extraction concurrently; merge behavior remains unchanged
+    const textPromise = this.callGeminiAPI(base64Content);
     try {
       structuredResult = await this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
     } catch (e) {
       console.warn("Structured parse failed, falling back to text extraction once.", e);
-      const response = await this.callGeminiAPI(base64Content);
+      const response = await textPromise.catch(() => null as any);
       if (!response || !response.text) {
         throw new Error("لم يتم التعرف على أي نص في الصورة");
       }
@@ -246,7 +265,7 @@ class GeminiOCRService {
 
     // Always run a secondary text extraction and merge to avoid partial results
     try {
-      const response = await this.callGeminiAPI(base64Content);
+      const response = await textPromise;
       if (response && response.text) {
         const fallback = this.extractStudentData(response.text);
 
@@ -1879,6 +1898,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    */
   private preprocessMark(mark: string): string | null {
     if (!mark) return null;
+    const cached = this.cachePreprocessMark.get(mark);
+    if (cached !== undefined) return cached;
 
     // Remove any spaces
     let cleaned = mark.replace(/\s+/g, "");
@@ -1914,6 +1935,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       console.log(`  Converted ${mark} to ${cleaned}`);
     }
 
+    this.cachePreprocessMark.set(mark, cleaned);
     return cleaned;
   }
 
@@ -1926,7 +1948,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     const pre = this.preprocessMark(mark) ?? mark;
 
     // Handle ratio formats like "14/20" or "7/10"
-    const ratio = pre.match(/^(\d{1,2})\s*\/?\s*(?:out\s*of\s*)?(\d{1,2})$/i);
+    const ratio = pre.match(this.ratioPattern);
     if (ratio) {
       const num = parseInt(ratio[1], 10);
       const den = parseInt(ratio[2], 10);
@@ -1949,24 +1971,13 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Normalize Arabic numbers to English
    */
   private normalizeArabicNumber(text: string): string {
-    const numeralMap: Record<string, string> = {
-      "٠": "0",
-      "١": "1",
-      "٢": "2",
-      "٣": "3",
-      "٤": "4",
-      "٥": "5",
-      "٦": "6",
-      "٧": "7",
-      "٨": "8",
-      "٩": "9",
-    };
-
-    return text.replace(/[٠-٩]/g, (d) => numeralMap[d] || d);
+    return text.replace(/[٠-٩]/g, (d) => this.arabicDigitMap[d] || d);
   }
 
   private normalizeNameForComparison(text: string): string {
     if (!text) return "";
+    const cached = this.cacheNormalizeNameForComparison.get(text);
+    if (cached !== undefined) return cached;
     let s = text.toString();
     s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "");
     s = s.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
@@ -1986,6 +1997,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     s = s.replace(/[\uFEFB-\uFEFE]/g, "لا");
     s = s.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, " ");
     s = s.replace(/\s+/g, " ").trim().toLowerCase();
+    this.cacheNormalizeNameForComparison.set(text, s);
     return s;
   }
 
@@ -2084,6 +2096,48 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       return this.fileToBase64(file);
     }
 
+    const maxWidth = 2000;
+
+    try {
+      const bitmap = typeof createImageBitmap === "function" ? await createImageBitmap(file) : null;
+      if (bitmap) {
+        const scale = bitmap.width > maxWidth ? maxWidth / bitmap.width : 1;
+        const targetW = Math.max(1, Math.round(bitmap.width * scale));
+        const targetH = Math.max(1, Math.round(bitmap.height * scale));
+
+        // @ts-ignore OffscreenCanvas may not be typed
+        const off: any = typeof OffscreenCanvas !== "undefined" ? new OffscreenCanvas(targetW, targetH) : null;
+        if (off) {
+          const ctx = off.getContext("2d");
+          if (ctx) {
+            // @ts-ignore drawImage on OffscreenCanvasRenderingContext2D
+            ctx.drawImage(bitmap as any, 0, 0, targetW, targetH);
+            const mime = file.type && /image\/(png|jpeg|webp)/.test(file.type) ? file.type : "image/jpeg";
+            // @ts-ignore convertToBlob is available on OffscreenCanvas
+            const blob = await off.convertToBlob({ type: mime, quality: 0.9 });
+            return await new Promise<string>((resolve) => {
+              const fr = new FileReader();
+              fr.onload = () => resolve(fr.result as string);
+              fr.readAsDataURL(blob);
+            });
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx2 = canvas.getContext("2d");
+        if (ctx2) {
+          // @ts-ignore drawImage accepts ImageBitmap
+          ctx2.drawImage(bitmap as any, 0, 0, targetW, targetH);
+          const mime = file.type && /image\/(png|jpeg|webp)/.test(file.type) ? file.type : "image/jpeg";
+          return canvas.toDataURL(mime, 0.9);
+        }
+      }
+    } catch (_e) {
+      // Fallback below
+    }
+
     // Draw into canvas to downscale
     const imgDataUrl = await this.fileToBase64(file);
     const img = (await new Promise((resolve, reject) => {
@@ -2093,7 +2147,6 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       image.src = imgDataUrl;
     })) as any;
 
-    const maxWidth = 2000;
     const scale = img.width > maxWidth ? maxWidth / img.width : 1;
     const targetW = Math.max(1, Math.round(img.width * scale));
     const targetH = Math.max(1, Math.round(img.height * scale));
@@ -2107,10 +2160,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     ctx.imageSmoothingQuality = "high";
     ctx.drawImage(img as any, 0, 0, targetW, targetH);
 
-    // Use original mime if supported, otherwise JPEG
     const mime = file.type && /image\/(png|jpeg|webp)/.test(file.type) ? file.type : "image/jpeg";
-    const optimized = canvas.toDataURL(mime, 0.9);
-    return optimized;
+    return canvas.toDataURL(mime, 0.9);
   }
 }
 

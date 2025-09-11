@@ -148,7 +148,7 @@ const ReviewConfirmStep: React.FC<ReviewConfirmStepProps> = ({
           <div style={{ marginBottom: "16px" }}>
             <StatusAlert
               type={accuracyPercent >= 90 ? "success" : accuracyPercent >= 75 ? "info" : "warning"}
-              message={`دقة الاستخراج التقديرية: ${accuracyPercent}%`}
+              message={`دقة الاستخراج التقديرية: %${accuracyPercent}`}
             />
           </div>
         )}

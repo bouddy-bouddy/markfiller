@@ -14,8 +14,7 @@ import {
 } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
 import styled from "styled-components";
-import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
+// Defer loading heavy PDF/image snapshot libraries until needed
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -657,6 +656,10 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     if (!reportRef.current) return;
 
     try {
+      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
+        import("jspdf"),
+        import("html2canvas"),
+      ]);
       // 1) Prepare chart snapshots to embed as images in the PDF layout
       const chartCanvases = reportRef.current.querySelectorAll("canvas");
       const barChartSrc = chartCanvases[0] ? (chartCanvases[0] as HTMLCanvasElement).toDataURL("image/png") : "";

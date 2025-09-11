@@ -1,17 +1,22 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, Suspense } from "react";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { createGlobalStyle } from "styled-components";
-import geminiOcrService from "../services/geminiOcrService";
 import excelService from "../services/excelService";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes, MarkType } from "../types";
 import { computeExtractionAccuracy } from "../utils/accuracy";
 
 import OcrErrorDisplay from "./shared/OcrErrorDisplay";
-import FileAnalysisStep from "./steps/FileAnalysisStep";
-import ImageProcessingStep from "./steps/ImageProcessingStep";
-import ReviewConfirmStep from "./steps/ReviewConfirmStep";
-import MappingStep from "./steps/MappingStep";
-import StatisticsStep from "./steps/StatisticsStep";
+const FileAnalysisStep = React.lazy(
+  () => import(/* webpackChunkName: "step-file-analysis" */ "./steps/FileAnalysisStep")
+);
+const ImageProcessingStep = React.lazy(
+  () => import(/* webpackChunkName: "step-image-processing" */ "./steps/ImageProcessingStep")
+);
+const ReviewConfirmStep = React.lazy(
+  () => import(/* webpackChunkName: "step-review-confirm" */ "./steps/ReviewConfirmStep")
+);
+const MappingStep = React.lazy(() => import(/* webpackChunkName: "step-mapping" */ "./steps/MappingStep"));
+const StatisticsStep = React.lazy(() => import(/* webpackChunkName: "step-statistics" */ "./steps/StatisticsStep"));
 import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
 import NeedHelpSection from "./shared/NeedHelpSection";
@@ -594,7 +599,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setProcessingProgress(0);
 
     try {
-      // Process the image using enhanced OCR service
+      // Process the image using enhanced OCR service (lazy-loaded)
       console.log("🚀 STARTING OCR PROCESSING - About to call Google Vision API");
       console.log("📸 Image file details:", {
         name: selectedImage.name,
@@ -603,6 +608,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         lastModified: new Date(selectedImage.lastModified).toISOString(),
       });
 
+      const { default: geminiOcrService } = await import("../services/geminiOcrService");
       const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
       console.log("✅ OCR PROCESSING COMPLETED - Google Vision API response processed");
@@ -1120,88 +1126,98 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
           <div className="steps-container">
             {/* Conditionally render the step that is currently active */}
             {currentStep === AppStep.FileAnalysis && (
-              <FileAnalysisStep
-                isActive={true}
-                isCompleted={isStepCompleted(AppStep.FileAnalysis)}
-                excelStatus={excelStatus}
-                onValidateExcel={async () => {
-                  try {
-                    const isValid = await excelService.validateExcelFile();
-                    setExcelStatus({
-                      isValid,
-                      checked: true,
-                      message: isValid ? "تم التحقق من ملف مسار بنجاح" : "يرجى فتح ملف مسار المناسب في Excel",
-                    });
+              <Suspense fallback={null}>
+                <FileAnalysisStep
+                  isActive={true}
+                  isCompleted={isStepCompleted(AppStep.FileAnalysis)}
+                  excelStatus={excelStatus}
+                  onValidateExcel={async () => {
+                    try {
+                      const isValid = await excelService.validateExcelFile();
+                      setExcelStatus({
+                        isValid,
+                        checked: true,
+                        message: isValid ? "تم التحقق من ملف مسار بنجاح" : "يرجى فتح ملف مسار المناسب في Excel",
+                      });
 
-                    if (isValid) {
-                      completeStep(AppStep.FileAnalysis);
-                      advanceToStep(AppStep.ImageProcessing);
+                      if (isValid) {
+                        completeStep(AppStep.FileAnalysis);
+                        advanceToStep(AppStep.ImageProcessing);
+                      }
+                    } catch (error) {
+                      console.error("Excel validation error:", error);
+                      setExcelStatus({
+                        isValid: false,
+                        checked: true,
+                        message: "حدث خطأ أثناء التحقق من ملف Excel",
+                      });
                     }
-                  } catch (error) {
-                    console.error("Excel validation error:", error);
-                    setExcelStatus({
-                      isValid: false,
-                      checked: true,
-                      message: "حدث خطأ أثناء التحقق من ملف Excel",
-                    });
-                  }
-                }}
-              />
+                  }}
+                />
+              </Suspense>
             )}
 
             {/* Image Processing Step */}
             {currentStep === AppStep.ImageProcessing && (
-              <ImageProcessingStep
-                isActive={true}
-                isCompleted={isStepCompleted(AppStep.ImageProcessing)}
-                selectedImage={selectedImage}
-                imagePreview={imagePreview}
-                isProcessing={isProcessing}
-                onImageUpload={handleImageUpload}
-                onProcessImage={processImage}
-                onRemoveImage={handleRemoveImage}
-                fileInputRef={fileInputRef}
-              ></ImageProcessingStep>
+              <Suspense fallback={null}>
+                <ImageProcessingStep
+                  isActive={true}
+                  isCompleted={isStepCompleted(AppStep.ImageProcessing)}
+                  selectedImage={selectedImage}
+                  imagePreview={imagePreview}
+                  isProcessing={isProcessing}
+                  onImageUpload={handleImageUpload}
+                  onProcessImage={processImage}
+                  onRemoveImage={handleRemoveImage}
+                  fileInputRef={fileInputRef}
+                ></ImageProcessingStep>
+              </Suspense>
             )}
 
             {/* Review and Confirm Step */}
             {currentStep === AppStep.ReviewConfirm && extractedData && (
-              <ReviewConfirmStep
-                key={`review-${tableKey}`}
-                isActive={true}
-                isCompleted={isStepCompleted(AppStep.ReviewConfirm)}
-                data={extractedData}
-                onConfirm={handleConfirmData}
-                onCancel={resetApp}
-                onDataUpdate={handleDataUpdate}
-                tableKey={tableKey}
-                detectedMarkTypes={detectedMarkTypes}
-                accuracyPercent={extractionAccuracy ?? undefined}
-              />
+              <Suspense fallback={null}>
+                <ReviewConfirmStep
+                  key={`review-${tableKey}`}
+                  isActive={true}
+                  isCompleted={isStepCompleted(AppStep.ReviewConfirm)}
+                  data={extractedData}
+                  onConfirm={handleConfirmData}
+                  onCancel={resetApp}
+                  onDataUpdate={handleDataUpdate}
+                  tableKey={tableKey}
+                  detectedMarkTypes={detectedMarkTypes}
+                  accuracyPercent={extractionAccuracy ?? undefined}
+                />
+              </Suspense>
             )}
 
             {/* NEW: Mapping Preview Step */}
             {currentStep === AppStep.MappingPreview && extractedData && (
-              <MappingStep
-                isActive={true}
-                isCompleted={isStepCompleted(AppStep.MappingPreview)}
-                extractedData={extractedData}
-                detectedMarkTypes={detectedMarkTypes}
-                onConfirmMapping={handleConfirmMapping}
-                onCancel={resetApp}
-                isInserting={isInserting}
-              />
+              <Suspense fallback={null}>
+                <MappingStep
+                  isActive={true}
+                  isCompleted={isStepCompleted(AppStep.MappingPreview)}
+                  extractedData={extractedData}
+                  detectedMarkTypes={detectedMarkTypes}
+                  onConfirmMapping={handleConfirmMapping}
+                  onCancel={resetApp}
+                  isInserting={isInserting}
+                />
+              </Suspense>
             )}
 
             {/* Statistics Step */}
             {currentStep === AppStep.Statistics && markStats && (
-              <StatisticsStep
-                isActive={true}
-                isCompleted={isStepCompleted(AppStep.Statistics)}
-                statistics={markStats}
-                detectedMarkTypes={detectedMarkTypes}
-                onReset={resetApp}
-              />
+              <Suspense fallback={null}>
+                <StatisticsStep
+                  isActive={true}
+                  isCompleted={isStepCompleted(AppStep.Statistics)}
+                  statistics={markStats}
+                  detectedMarkTypes={detectedMarkTypes}
+                  onReset={resetApp}
+                />
+              </Suspense>
             )}
           </div>
         </div>
