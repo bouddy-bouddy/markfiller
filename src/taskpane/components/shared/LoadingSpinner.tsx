@@ -61,6 +61,7 @@ const SpinnerWrapper = styled.div`
   .fui-Spinner {
     --fui-Spinner--size: 48px;
     --fui-Spinner--color: #0e7c42;
+    color: #0e7c42 !important;
   }
 `;
 
@@ -133,6 +134,15 @@ const ProgressFill = styled.div<{ width: string }>`
   }
 `;
 
+const ProgressPercent = styled(Text)`
+  color: #0e7c42 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  margin-top: 8px !important;
+  position: relative;
+  z-index: 2;
+`;
+
 const CloudProcessingText = styled(Text)`
   color: #4b5563 !important;
   font-size: 13px !important;
@@ -176,7 +186,7 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
   return (
     <SpinnerCard>
       <SpinnerWrapper>
-        <Spinner size="large" />
+        <Spinner size="large" color="#0e7c42" />
       </SpinnerWrapper>
 
       <MessageText>{message}</MessageText>
@@ -184,9 +194,12 @@ const LoadingSpinner = (props: LoadingSpinnerProps): JSX.Element => {
       {stage && <StageText>{stage}</StageText>}
 
       {progress > 0 && (
-        <ProgressContainer>
-          <ProgressFill width={`${progress}%`} />
-        </ProgressContainer>
+        <>
+          <ProgressContainer>
+            <ProgressFill width={`${progress}%`} />
+          </ProgressContainer>
+          <ProgressPercent>{Math.round(progress)}%</ProgressPercent>
+        </>
       )}
 
       {isCloudProcessing && (
