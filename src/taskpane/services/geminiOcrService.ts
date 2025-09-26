@@ -3,6 +3,44 @@ import { Student, DetectedMarkTypes, StudentUncertainty } from "../types";
 
 class GeminiOCRService {
   private geminiApiKey: string;
+  // Configurable model and endpoint fallbacks
+  private getModelCandidates(): string[] {
+    const envModel = (process.env.GEMINI_MODEL || "").trim();
+    const defaults = [
+      // Prefer the latest Pro family first (newest to oldest)
+      "gemini-2.5-pro-latest",
+      "gemini-2.5-pro",
+      "gemini-2.0-pro-latest",
+      "gemini-2.0-pro",
+      "gemini-1.5-pro-latest",
+      "gemini-1.5-pro",
+      // Secondary fallbacks
+      "gemini-2.5-flash-latest",
+      "gemini-2.5-flash",
+      "gemini-2.0-flash-latest",
+      "gemini-2.0-flash",
+      "gemini-1.5-flash",
+      "gemini-1.5-flash-8b",
+      // Vision legacy
+      "gemini-pro-vision",
+    ];
+    if (envModel) {
+      return [envModel, ...defaults.filter((m) => m !== envModel)];
+    }
+    return defaults;
+  }
+
+  private getApiBases(): string[] {
+    const envBase = (process.env.GEMINI_API_BASE || "").trim();
+    const defaults = [
+      "https://generativelanguage.googleapis.com/v1",
+      "https://generativelanguage.googleapis.com/v1beta",
+    ];
+    if (envBase) {
+      return [envBase, ...defaults.filter((b) => b !== envBase)];
+    }
+    return defaults;
+  }
   // Micro-caches and precompiled helpers to reduce hot-path allocations
   private cacheNormalizeNameForComparison: Map<string, string> = new Map();
   private cachePreprocessMark: Map<string, string | null> = new Map();
@@ -301,9 +339,6 @@ class GeminiOCRService {
     base64Image: string,
     mimeType: string = "image/jpeg"
   ): Promise<{ students: any[]; markTypes: any }> {
-    const model = "gemini-1.5-pro";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
     const structuredPrompt = `You are an expert OCR system for Moroccan student marksheets. Extract the data and return it as valid JSON.
 
 Analyze this marksheet image and extract:
@@ -384,22 +419,8 @@ Return ONLY the JSON, no other text.`;
         },
       ],
     };
-
-    const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("Gemini API error:", errorData);
-      throw new Error(`Gemini API error: ${response.status}`);
-    }
-
-    const data = await response.json();
+    const { data, model, base } = await this.generateContentWithFallback(requestBody);
+    console.log(`Using Gemini model: ${model} via ${base}`);
 
     if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
       throw new Error("Invalid response from Gemini API");
@@ -455,11 +476,6 @@ Return ONLY the JSON, no other text.`;
    * Call Gemini API with optimized prompt for student marks sheets
    */
   private async callGeminiAPI(base64Image: string): Promise<{ text: string }> {
-    // Use Gemini 1.5 Pro for superior OCR accuracy on complex documents like marksheets
-    // Gemini 1.5 Pro has better vision capabilities and understanding of structured documents
-    const model = "gemini-1.5-pro";
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-
     const prompt = `You are an expert OCR system specializing in Arabic educational documents. Analyze this marksheet image and extract student data with maximum precision.
 
 This is a Moroccan student marksheet containing:
@@ -526,31 +542,8 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
         },
       ],
     } as const;
-
-    const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error("Gemini API error:", errorData);
-
-      if (response.status === 400) {
-        throw new Error("فشل الاتصال بخدمة Gemini: خطأ في طلب API. يرجى التحقق من الصورة.");
-      } else if (response.status === 403) {
-        throw new Error("فشل الاتصال بخدمة Gemini: خطأ في المصادقة. يرجى التحقق من مفتاح API.");
-      } else if (response.status === 404) {
-        throw new Error("فشل الاتصال بخدمة Gemini: نموذج غير موجود. تم تحديث النموذج إلى إصدار مدعوم.");
-      } else {
-        throw new Error("فشل الاتصال بخدمة Gemini. يرجى المحاولة مرة أخرى.");
-      }
-    }
-
-    const data = await response.json();
+    const { data, model, base } = await this.generateContentWithFallback(requestBody);
+    console.log(`Using Gemini model: ${model} via ${base}`);
     console.log("🔍 GEMINI API - COMPLETE RAW RESPONSE:");
     console.log("Full API Response:", JSON.stringify(data, null, 2));
 
@@ -560,6 +553,49 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
     const text = data.candidates[0].content.parts[0].text;
     return { text };
+  }
+
+  // Generic sender with model and endpoint fallbacks
+  private async generateContentWithFallback(requestBody: any): Promise<{ data: any; model: string; base: string }> {
+    const tried: Array<{ model: string; base: string; status?: number; error?: any }> = [];
+    for (const base of this.getApiBases()) {
+      for (const model of this.getModelCandidates()) {
+        const apiUrl = `${base}/models/${model}:generateContent`;
+        try {
+          const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(requestBody),
+          });
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            console.error("Gemini API error:", errorData);
+            tried.push({ model, base, status: response.status, error: errorData });
+            // On 404/403, try next model/base
+            if (response.status === 404 || response.status === 403) {
+              continue;
+            }
+            if (response.status === 400) {
+              throw new Error("فشل الاتصال بخدمة Gemini: خطأ في طلب API. يرجى التحقق من الصورة.");
+            }
+            if (response.status === 429) {
+              throw new Error("خدمة Gemini مشغولة. حاول بعد قليل.");
+            }
+            throw new Error("فشل الاتصال بخدمة Gemini. يرجى المحاولة مرة أخرى.");
+          }
+          const data = await response.json();
+          return { data, model, base };
+        } catch (err) {
+          console.warn(`Gemini request failed for ${model} via ${base}`, err);
+          tried.push({ model, base, error: err });
+          continue;
+        }
+      }
+    }
+    const attempted = tried.map((t) => `${t.base?.includes("/v1") ? "v1" : "v1beta"}/${t.model}`).join(", ");
+    throw new Error(
+      `فشل الاتصال بخدمة Gemini: لم يتم العثور على نموذج متاح لهذا المشروع أو لا يوجد وصول. تأكد من صحة مفتاح API وتمكين خدمة Generative Language API. (تمت المحاولة: ${attempted})`
+    );
   }
 
   /**
