@@ -1,8 +1,10 @@
 /* global File, HTMLInputElement, FileReader, console */
 /* eslint-disable no-console */
 import React, { useState, useRef, useEffect, Suspense } from "react";
-import { FluentProvider, webLightTheme } from "@fluentui/react-components";
+import { FluentProvider, webLightTheme, Spinner, Text } from "@fluentui/react-components";
 import excelService from "../services/excelService";
+import { licenseService } from "../services/licenseService";
+import LicenseActivation from "./LicenseActivation";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes } from "../types";
 import { computeExtractionAccuracy } from "../utils/accuracy";
 import { GlobalStyle } from "../styles/globalStyles";
@@ -26,8 +28,6 @@ import AppHeader from "./shared/AppHeader";
 import StepNavigation from "./shared/StepNavigation";
 import NeedHelpSection from "./shared/NeedHelpSection";
 
-// Global styles moved to ../styles/globalStyles
-
 interface AppProps {
   title: string;
   isOfficeInitialized?: boolean;
@@ -36,6 +36,10 @@ interface AppProps {
 // Statistics types moved to ../types/statistics
 
 const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
+  // License state
+  const [isLicenseValid, setIsLicenseValid] = useState<boolean>(false);
+  const [isCheckingLicense, setIsCheckingLicense] = useState<boolean>(true);
+
   // State for selected image
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
@@ -65,8 +69,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     hasActivities: false,
   });
 
-  // Dialog states removed
-
   // Student name correction states
   const [tableKey] = useState<number>(0); // Force re-render key
 
@@ -85,9 +87,49 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // Reference for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Check license on app initialization
+  useEffect(() => {
+    checkLicenseOnStartup();
+  }, []);
+
+  const checkLicenseOnStartup = async () => {
+    setIsCheckingLicense(true);
+
+    try {
+      if (licenseService.hasStoredLicense()) {
+        const result = await licenseService.validateLicense();
+
+        if (result.valid) {
+          setIsLicenseValid(true);
+          // Track app launch
+          await licenseService.trackUsage("app_launched");
+        } else {
+          // License invalid, show activation screen
+          setIsLicenseValid(false);
+        }
+      } else {
+        // No license stored, show activation screen
+        setIsLicenseValid(false);
+      }
+    } catch (error) {
+      console.error("License check failed:", error);
+      setIsLicenseValid(false);
+    } finally {
+      setIsCheckingLicense(false);
+    }
+  };
+
+  const handleLicenseValidated = () => {
+    setIsLicenseValid(true);
+    // Track successful license validation
+    licenseService.trackUsage("license_validated");
+  };
+
   // Check Excel file on initialization
   useEffect(() => {
     const checkExcelFile = async () => {
+      if (!isLicenseValid) return; // Don't check Excel if no license
+
       try {
         const isValid = await excelService.validateExcelFile();
         setExcelStatus({
@@ -110,14 +152,20 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       }
     };
 
-    if (isOfficeInitialized) {
+    if (isOfficeInitialized && isLicenseValid) {
       checkExcelFile();
     }
-  }, [isOfficeInitialized]);
+  }, [isOfficeInitialized, isLicenseValid]);
 
   // Handle image upload
   const handleImageUpload = (file: File) => {
     if (file) {
+      // Track image upload
+      licenseService.trackUsage("image_uploaded", {
+        fileSize: file.size,
+        fileType: file.type,
+      });
+
       // Check if file is an image
       if (!file.type.startsWith("image/")) {
         setError("الرجاء اختيار ملف صورة صالح");
@@ -146,9 +194,24 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     }
   };
 
+  const handleRemoveImage = () => {
+    setSelectedImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+    setError(null);
+  };
+
   // Process image with enhanced OCR
   const processImage = async (): Promise<void> => {
     if (!selectedImage) return;
+
+    // Track OCR processing start
+    await licenseService.trackUsage("ocr_started", {
+      imageSize: selectedImage.size,
+      imageType: selectedImage.type,
+    });
 
     setIsProcessing(true);
     setError(null);
@@ -168,162 +231,53 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       const { default: geminiOcrService } = await import("../services/geminiOcrService");
       const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
-      console.log("✅ OCR PROCESSING COMPLETED - Gemini OCR results processed");
-      console.log("📊 Extracted data summary:", {
-        studentsCount: students.length,
+      console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
+      console.log("👥 Extracted students:", students.length);
+      console.log("📊 Detected mark types:", detectedMarkTypes);
+
+      setExtractedData(students);
+      setDetectedMarkTypes(detectedMarkTypes);
+
+      // Track successful OCR completion
+      await licenseService.trackUsage("ocr_completed", {
+        studentsExtracted: students.length,
         detectedMarkTypes,
-        sampleStudent: students[0] || null,
+        success: true,
       });
 
-      setProcessingStage(4);
-      setProcessingProgress(100);
+      // Calculate statistics
+      const stats = generateMarkStatistics(students, detectedMarkTypes);
+      setMarkStats(stats);
 
-      // Results are already processed by Gemini service
-      const enhancedResults = { students, detectedMarkTypes };
-
-      // Proceed directly with extracted data (name correction removed)
-      setExtractedData(enhancedResults.students);
-      setDetectedMarkTypes(enhancedResults.detectedMarkTypes);
-      // Compute heuristic extraction accuracy
-      const accuracy = computeExtractionAccuracy(enhancedResults.students, enhancedResults.detectedMarkTypes);
+      // Estimate extraction accuracy
+      const accuracy = computeExtractionAccuracy(students, detectedMarkTypes);
       setExtractionAccuracy(accuracy);
+
       completeStep(AppStep.ImageProcessing);
       advanceToStep(AppStep.ReviewConfirm);
-      setMarkStats(generateMarkStatistics(enhancedResults.students, enhancedResults.detectedMarkTypes));
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message || "حدث خطأ أثناء معالجة الصورة. الرجاء المحاولة مرة أخرى.");
+    } catch (error) {
+      console.error("OCR processing failed:", error);
 
-        // Try to extract error code
-        if (err.message.includes("حجم الصورة")) {
-          setErrorCode("IMAGE_TOO_LARGE");
-        } else if (err.message.includes("تنسيق الصورة")) {
-          setErrorCode("UNSUPPORTED_FORMAT");
-        } else if (err.message.includes("لم يتم التعرف على أي نص")) {
-          setErrorCode("NO_TEXT_DETECTED");
-        } else if (err.message.includes("لم يتم العثور على أي بيانات")) {
-          setErrorCode("NO_MARKS_DETECTED");
-        } else if (err.message.includes("API")) {
-          setErrorCode("API_ERROR");
-        } else {
-          setErrorCode("UNKNOWN_ERROR");
-        }
-      } else {
-        setError("حدث خطأ غير معروف أثناء معالجة الصورة");
-        setErrorCode("UNKNOWN_ERROR");
-      }
-      console.error(err);
+      // Track OCR failure
+      await licenseService.trackUsage("ocr_failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+        success: false,
+      });
+
+      setError("فشل في معالجة الصورة. يرجى التأكد من وضوح الصورة والمحاولة مرة أخرى.");
+      setErrorCode("OCR_PROCESSING_FAILED");
     } finally {
       setIsProcessing(false);
     }
-
-    return;
   };
 
-  // Statistics generation moved to ../utils/statistics
-
-  // Handle image removal
-  const handleRemoveImage = () => {
-    setSelectedImage(null);
-    setImagePreview(null);
-    setError(null);
+  // Step helpers
+  const completeStep = (step: AppStep) => {
+    setCompletedSteps((prev) => new Set([...prev, step]));
   };
 
-  const handleConfirmData = async () => {
-    try {
-      const isValidFile = await excelService.validateExcelFile();
-      if (!isValidFile) {
-        setError("يرجى التأكد من فتح ملف مسار صحيح في Excel");
-        return;
-      }
-
-      if (!extractedData) {
-        setError("لا توجد بيانات لإدخالها");
-        return;
-      }
-
-      // After reviewing the data, proceed to mapping step
-      completeStep(AppStep.ReviewConfirm);
-      advanceToStep(AppStep.MappingPreview);
-    } catch (err) {
-      setError("حدث خطأ أثناء التحقق من البيانات");
-      console.error(err);
-    }
-  };
-
-  // NEW: Handle mapping confirmation and actual Excel insertion
-  const handleConfirmMapping = async () => {
-    try {
-      setIsInserting(true);
-      setError(null);
-
-      const isValidFile = await excelService.validateExcelFile();
-      if (!isValidFile) {
-        setError("يرجى التأكد من فتح ملف مسار صحيح في Excel");
-        return;
-      }
-
-      if (!extractedData) {
-        setError("لا توجد بيانات لإدخالها");
-        return;
-      }
-
-      console.log("🚀 Starting Excel insertion with enhanced mapping...");
-
-      // Use the new insertAllMarks method for comprehensive mapping
-      const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
-
-      console.log("📊 Insertion results:", results);
-
-      if (results.notFound > 0) {
-        setError(
-          `تم إدخال ${results.success} علامة بنجاح. ${results.notFound} تلميذ لم يتم العثور عليهم في ملف Excel.`
-        );
-      } else {
-        setError(null);
-      }
-
-      // Move to statistics step
-      completeStep(AppStep.MappingPreview);
-      // Ensure statistics are recalculated with latest detected types before showing the step
-      generateMarkStatistics(extractedData, detectedMarkTypes);
-      advanceToStep(AppStep.Statistics);
-    } catch (err) {
-      setError("حدث خطأ أثناء إدخال البيانات في Excel");
-      console.error(err);
-    } finally {
-      setIsInserting(false);
-    }
-  };
-
-  // Dialog handler removed
-
-  // Update extracted data
-  const handleDataUpdate = (newData: Student[]) => {
-    setExtractedData(newData);
-    generateMarkStatistics(newData, detectedMarkTypes);
-    // Recompute accuracy after manual edits
-    try {
-      const updated = computeExtractionAccuracy(newData, detectedMarkTypes);
-      setExtractionAccuracy(updated);
-    } catch (e) {
-      // noop
-    }
-  };
-
-  // Name correction handlers removed
-
-  // Step navigation helpers
   const advanceToStep = (step: AppStep) => {
     setCurrentStep(step);
-  };
-
-  const completeStep = (step: AppStep) => {
-    setCompletedSteps((prev) => {
-      const newSet = new Set(prev);
-      newSet.add(step);
-      return newSet;
-    });
   };
 
   const isStepCompleted = (step: AppStep): boolean => {
@@ -331,39 +285,132 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   };
 
   const resetApp = () => {
+    setCurrentStep(AppStep.ImageProcessing);
+    setCompletedSteps(new Set([AppStep.FileAnalysis]));
+    setExtractedData(null);
     setSelectedImage(null);
     setImagePreview(null);
-    setExtractedData(null);
-    setCurrentStep(AppStep.FileAnalysis);
-    setCompletedSteps(new Set());
-    setIsInserting(false);
-
     setMarkStats(null);
     setExtractionAccuracy(null);
+    setError(null);
+    setIsInserting(false);
+
+    // Track restart
+    licenseService.trackUsage("app_restarted");
   };
+
+  const handleDataUpdate = (updatedData: Student[]) => {
+    setExtractedData(updatedData);
+    const stats = generateMarkStatistics(updatedData, detectedMarkTypes);
+    setMarkStats(stats);
+    const accuracy = computeExtractionAccuracy(updatedData, detectedMarkTypes);
+    setExtractionAccuracy(accuracy);
+  };
+
+  const handleConfirmData = () => {
+    completeStep(AppStep.ReviewConfirm);
+    advanceToStep(AppStep.MappingPreview);
+  };
+
+  const handleConfirmMapping = async () => {
+    if (!extractedData) return;
+
+    setIsInserting(true);
+
+    try {
+      // Track marks insertion start
+      await licenseService.trackUsage("marks_insertion_started", {
+        studentsCount: extractedData.length,
+      });
+
+      const results = await excelService.insertMarks(extractedData);
+
+      // Track successful insertion
+      await licenseService.trackUsage("marks_insertion_completed", {
+        successful: results.success,
+        notFound: results.notFound,
+        totalStudents: extractedData.length,
+      });
+
+      completeStep(AppStep.MappingPreview);
+      advanceToStep(AppStep.Statistics);
+    } catch (error) {
+      console.error("Marks insertion failed:", error);
+
+      // Track insertion failure
+      await licenseService.trackUsage("marks_insertion_failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
+
+      setError("فشل في إدراج العلامات. يرجى المحاولة مرة أخرى.");
+    } finally {
+      setIsInserting(false);
+    }
+  };
+
+  // Show loading spinner while checking license
+  if (isCheckingLicense) {
+    return (
+      <FluentProvider theme={webLightTheme}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100vh",
+            padding: "40px",
+          }}
+        >
+          <Spinner size="large" />
+          <Text style={{ marginTop: "16px", textAlign: "center" }}>جاري التحقق من الترخيص...</Text>
+        </div>
+      </FluentProvider>
+    );
+  }
+
+  // Show license activation if not valid
+  if (!isLicenseValid) {
+    return (
+      <FluentProvider theme={webLightTheme}>
+        <LicenseActivation onLicenseValidated={handleLicenseValidated} />
+      </FluentProvider>
+    );
+  }
 
   return (
     <FluentProvider theme={webLightTheme}>
       <GlobalStyle />
-      <div className="app-container">
-        <AppHeader title={title || "استيراد النقط - مسار"} />
+      <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+        {/* Header */}
+        <AppHeader title={title} />
 
-        <div className="progress-container">
-          <StepNavigation currentStep={currentStep} completedSteps={completedSteps} onStepClick={advanceToStep} />
-        </div>
+        {/* Step Navigation */}
+        <StepNavigation currentStep={currentStep} completedSteps={completedSteps} />
 
-        <div className="app-content">
-          {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
+        {/* Main content area */}
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          {/* Error Display */}
+          {error && (
+            <OcrErrorDisplay
+              error={error}
+              errorCode={errorCode}
+              onRetry={() => {
+                setError(null);
+                setErrorCode("UNKNOWN_ERROR");
+              }}
+            />
+          )}
 
-          <div className="steps-container">
-            {/* Conditionally render the step that is currently active */}
+          <div style={{ flex: 1, overflow: "auto" }}>
+            {/* File Analysis Step */}
             {currentStep === AppStep.FileAnalysis && (
               <Suspense fallback={null}>
                 <FileAnalysisStep
                   isActive={true}
                   isCompleted={isStepCompleted(AppStep.FileAnalysis)}
                   excelStatus={excelStatus}
-                  onValidateExcel={async () => {
+                  onRetryValidation={async () => {
                     try {
                       const isValid = await excelService.validateExcelFile();
                       setExcelStatus({
@@ -402,7 +449,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                   onProcessImage={processImage}
                   onRemoveImage={handleRemoveImage}
                   fileInputRef={fileInputRef}
-                ></ImageProcessingStep>
+                />
               </Suspense>
             )}
 
