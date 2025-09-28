@@ -884,11 +884,11 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       }
 
       // Build a safe filename: MarkFiller-Statistics-<ClassName>-<YYYY-MM-DD>.pdf
-      const dateStr = new Intl.DateTimeFormat("en-CA", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(new Date());
+      const now = new Date();
+      const dd = String(now.getDate()).padStart(2, "0");
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const yyyy = String(now.getFullYear());
+      const dateStr = `${dd}_${mm}_${yyyy}`;
       const classLabelRaw = meta.class || "غير محدد";
       const safeClass = classLabelRaw
         .toString()
@@ -897,7 +897,7 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         .replace(/-+/g, "-")
         .replace(/^-+/, "")
         .replace(/-+$/, "");
-      pdf.save(`MarkFiller-Statistics-${safeClass}-${dateStr}.pdf`);
+      pdf.save(`MarkFiller-Statistics-${safeClass}_${dateStr}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     }
