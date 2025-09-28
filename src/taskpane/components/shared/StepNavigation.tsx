@@ -10,7 +10,7 @@ interface StepNavigationProps {
 
 const StepNavigation: React.FC<StepNavigationProps> = ({ currentStep, completedSteps, onStepClick }) => {
   const steps = [
-    { id: AppStep.FileAnalysis, label: "تحليل ملف مسار" },
+    { id: AppStep.FileAnalysis, label: "ملف مسار" },
     { id: AppStep.ImageProcessing, label: "معالجة الصورة" },
     { id: AppStep.ReviewConfirm, label: "مراجعة وتأكيد" },
     { id: AppStep.MappingPreview, label: "تطابق العلامات" },

@@ -13,12 +13,20 @@ export const GlobalStyle = createGlobalStyle`
     font-feature-settings: 'ss01', 'ss02', 'cv01', 'cv02';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    height: 100%;
   }
 
   body {
     padding: 0;
-    height: 100vh;
+    height: auto;
+    min-height: 100vh;
     overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  /* Ensure the Office container fills the available height */
+  #container {
+    height: 100%;
   }
 
   /* Container styles */

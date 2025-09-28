@@ -2,6 +2,7 @@
 /* eslint-disable no-console */
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { FluentProvider, webLightTheme, Spinner, Text } from "@fluentui/react-components";
+import styled from "styled-components";
 import excelService from "../services/excelService";
 import { licenseService } from "../services/licenseService";
 import LicenseActivation from "./LicenseActivation";
@@ -86,6 +87,11 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
   // Reference for file input
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Spinner with brand color
+  const GreenSpinner = styled(Spinner)`
+    color: #0e7c42;
+  `;
 
   // Check license on app initialization
   useEffect(() => {
@@ -358,12 +364,14 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            height: "100vh",
+            minHeight: "60vh",
             padding: "40px",
           }}
         >
-          <Spinner size="large" />
-          <Text style={{ marginTop: "16px", textAlign: "center" }}>جاري التحقق من الترخيص...</Text>
+          <GreenSpinner size="large" />
+          <Text style={{ marginTop: "16px", textAlign: "center", fontWeight: "bold", color: "" }}>
+            جاري التحقق من الترخيص
+          </Text>
         </div>
       </FluentProvider>
     );
@@ -381,7 +389,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   return (
     <FluentProvider theme={webLightTheme}>
       <GlobalStyle />
-      <div style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <div style={{ height: "100%", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
         <AppHeader title={title} />
 
@@ -389,11 +397,11 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         <StepNavigation currentStep={currentStep} completedSteps={completedSteps} onStepClick={advanceToStep} />
 
         {/* Main content area */}
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {/* Error Display */}
           {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
 
-          <div style={{ flex: 1, overflow: "auto" }}>
+          <div style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
             {/* File Analysis Step */}
             {currentStep === AppStep.FileAnalysis && (
               <Suspense fallback={null}>
