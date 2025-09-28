@@ -236,7 +236,7 @@ interface FileAnalysisStepProps {
   isActive: boolean;
   isCompleted: boolean;
   excelStatus: ExcelStatus;
-  onValidateExcel?: () => void;
+  onValidateExcel?: () => Promise<void> | void;
 }
 
 const FileAnalysisStep: React.FC<FileAnalysisStepProps> = ({ isActive, isCompleted, excelStatus, onValidateExcel }) => {

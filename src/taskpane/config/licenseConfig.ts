@@ -44,5 +44,5 @@ export const getApiEndpoint = (endpoint: string): string => {
 // Validation helper
 export const isValidLicenseKey = (key: string): boolean => {
   // Basic validation - adjust according to your license key format
-  return key && key.length >= 10 && /^[A-Z0-9-]+$/i.test(key);
+  return !!key && key.length >= 10 && /^[A-Z0-9-]+$/i.test(key);
 };

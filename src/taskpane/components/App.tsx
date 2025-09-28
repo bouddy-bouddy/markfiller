@@ -323,7 +323,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         studentsCount: extractedData.length,
       });
 
-      const results = await excelService.insertMarks(extractedData);
+      const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
 
       // Track successful insertion
       await licenseService.trackUsage("marks_insertion_completed", {
@@ -386,21 +386,12 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         <AppHeader title={title} />
 
         {/* Step Navigation */}
-        <StepNavigation currentStep={currentStep} completedSteps={completedSteps} />
+        <StepNavigation currentStep={currentStep} completedSteps={completedSteps} onStepClick={advanceToStep} />
 
         {/* Main content area */}
         <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           {/* Error Display */}
-          {error && (
-            <OcrErrorDisplay
-              error={error}
-              errorCode={errorCode}
-              onRetry={() => {
-                setError(null);
-                setErrorCode("UNKNOWN_ERROR");
-              }}
-            />
-          )}
+          {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
 
           <div style={{ flex: 1, overflow: "auto" }}>
             {/* File Analysis Step */}
@@ -410,7 +401,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
                   isActive={true}
                   isCompleted={isStepCompleted(AppStep.FileAnalysis)}
                   excelStatus={excelStatus}
-                  onRetryValidation={async () => {
+                  onValidateExcel={async () => {
                     try {
                       const isValid = await excelService.validateExcelFile();
                       setExcelStatus({
