@@ -1107,7 +1107,6 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
     setMarkStats(null);
     setExtractionAccuracy(null);
-    // Name correction states removed
   };
 
   return (
