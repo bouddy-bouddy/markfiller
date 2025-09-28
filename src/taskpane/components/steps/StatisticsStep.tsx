@@ -1,4 +1,4 @@
-/* global HTMLDivElement, console */
+/* global HTMLDivElement, HTMLCanvasElement, document, window, console */
 /* eslint-disable no-console */
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Text, Card, Button, Badge } from "@fluentui/react-components";
@@ -13,6 +13,7 @@ import {
   DataTrending24Regular,
 } from "@fluentui/react-icons";
 import { DetectedMarkTypes, MarkType } from "../../types";
+import { Statistics } from "../../types/statistics";
 import styled from "styled-components";
 // Defer loading heavy PDF/image snapshot libraries until needed
 import { Bar, Doughnut } from "react-chartjs-2";
@@ -476,73 +477,7 @@ const SecondaryActionButton = styled(Button)`
   }
 `;
 
-// Type for mark statistics
-interface MarkTypeStats {
-  count: number;
-  sum: number;
-  min: number;
-  max: number;
-  avg: number;
-  median?: number;
-  stdDev?: number;
-  passCount?: number;
-  failCount?: number;
-  missingCount?: number;
-}
-
-// Type for mark distribution
-interface MarkDistribution {
-  "0-5": number;
-  "5-10": number;
-  "10-15": number;
-  "15-20": number;
-}
-
-// Type for statistics object
-interface Statistics {
-  totalStudents: number;
-  markTypes: Record<MarkType, MarkTypeStats>;
-  distribution: Record<MarkType, MarkDistribution>;
-  topStudentsByType?: Record<
-    MarkType,
-    Array<{
-      name: string;
-      value: number;
-    }>
-  >;
-  bottomStudentsByType?: Record<
-    MarkType,
-    Array<{
-      name: string;
-      value: number;
-    }>
-  >;
-  outliersByType?: Record<
-    MarkType,
-    {
-      high: Array<{ name: string; value: number }>;
-      low: Array<{ name: string; value: number }>;
-    }
-  >;
-  overall?: {
-    overallAverage: number;
-    overallMedian: number;
-    overallStdDev: number;
-    passRate: number;
-    failRate: number;
-    missingRate: number;
-    totalMarksCounted: number;
-  };
-  recommendations?: string[];
-  mastery?: {
-    masteredPct: number;
-    inProgressPct: number;
-    notMasteredPct: number;
-    masteredCount: number;
-    inProgressCount: number;
-    notMasteredCount: number;
-  };
-}
+// Statistics type imported from ../../types/statistics
 
 interface StatisticsStepProps {
   isActive: boolean;
@@ -667,7 +602,6 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
 
       // 2) Build a dedicated, off-screen report container with fixed A4 width
       const a4CssWidthPx = 794; // A4 width at ~96dpi
-      const pdfMarginPx = 32;
       const container = document.createElement("div");
       container.id = "markfiller-pdf-report";
       container.style.cssText = [
