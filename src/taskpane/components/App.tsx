@@ -8,6 +8,7 @@ import { computeExtractionAccuracy } from "../utils/accuracy";
 import { GlobalStyle } from "../styles/globalStyles";
 import { Statistics } from "../types/statistics";
 import { generateMarkStatistics } from "../utils/statistics";
+import DeveloperFooter from "./DeveloperFooter";
 
 import OcrErrorDisplay from "./shared/OcrErrorDisplay";
 const FileAnalysisStep = React.lazy(
@@ -457,10 +458,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         <NeedHelpSection />
 
         {/* Global Developer Footer */}
-        <div className="developer-footer">
-          <div className="developer-name">تم تطوير هذه الأداة من طرف أمين الخالدي - Amine Elkhalidy</div>
-          <div className="copyright-text">جميع الحقوق محفوظة</div>
-        </div>
+        <DeveloperFooter />
       </div>
     </FluentProvider>
   );

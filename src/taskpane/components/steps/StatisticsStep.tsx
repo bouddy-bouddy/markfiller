@@ -883,8 +883,21 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
         y += currentSliceHeightPx;
       }
 
-      const currentDate = new Date().toLocaleDateString("ar-MA");
-      pdf.save(`MarkFiller-Statistics-${currentDate}.pdf`);
+      // Build a safe filename: MarkFiller-Statistics-<ClassName>-<YYYY-MM-DD>.pdf
+      const dateStr = new Intl.DateTimeFormat("en-CA", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      const classLabelRaw = meta.class || "غير محدد";
+      const safeClass = classLabelRaw
+        .toString()
+        .replace(/[\\/:*?"<>|]+/g, "-")
+        .replace(/\s+/g, "-")
+        .replace(/-+/g, "-")
+        .replace(/^-+/, "")
+        .replace(/-+$/, "");
+      pdf.save(`MarkFiller-Statistics-${safeClass}-${dateStr}.pdf`);
     } catch (error) {
       console.error("Error generating PDF:", error);
     }
