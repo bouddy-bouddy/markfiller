@@ -381,7 +381,21 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   if (!isLicenseValid) {
     return (
       <FluentProvider theme={webLightTheme}>
-        <LicenseActivation onLicenseValidated={handleLicenseValidated} />
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 2147483647,
+            background: "#ffffff",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: "100vw",
+            height: "100vh",
+          }}
+        >
+          <LicenseActivation onLicenseValidated={handleLicenseValidated} />
+        </div>
       </FluentProvider>
     );
   }

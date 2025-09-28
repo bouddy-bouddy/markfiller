@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Card, CardHeader, Button, Input, Text, Spinner, MessageBar, Field, Select } from "@fluentui/react-components";
 import {
   Key20Regular,
@@ -32,6 +32,7 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
   const [showProfileForm, setShowProfileForm] = useState<boolean>(false);
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>({});
   const [isActivating, setIsActivating] = useState<boolean>(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // Check for existing license on component mount
   useEffect(() => {
@@ -105,6 +106,73 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
     setLicenseKey("");
   };
 
+  // Focus trap, Escape prevention, and beforeunload while activation is shown
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+    const getFocusable = (): HTMLElement[] => {
+      const nodes = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
+      return nodes.filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
+    };
+
+    // Initial focus to the license input if available
+    const focusables = getFocusable();
+    if (focusables.length > 0) {
+      focusables[0].focus();
+    } else {
+      container.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Prevent closing via Escape
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+
+      // Trap Tab focus within activation view
+      if (e.key === "Tab") {
+        const elements = getFocusable();
+        if (elements.length === 0) {
+          e.preventDefault();
+          return;
+        }
+
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || document.activeElement === container) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+
+    document.addEventListener("keydown", handleKeyDown, true);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, []);
+
   const renderLicenseInfo = () => {
     if (!validationResult || !validationResult.valid) return null;
 
@@ -155,7 +223,13 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
   }
 
   return (
-    <div style={{ padding: "24px", maxWidth: "500px", margin: "0 auto" }}>
+    <div
+      ref={containerRef}
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
+      style={{ padding: "24px", maxWidth: "500px", margin: "0 auto" }}
+    >
       <Card>
         <CardHeader
           header={
