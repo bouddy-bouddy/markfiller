@@ -1,4 +1,3 @@
-/* global setTimeout */
 import React, { useState, useEffect } from "react";
 import { Button, Input, Text, Spinner, Field } from "@fluentui/react-components";
 import {
@@ -10,8 +9,6 @@ import {
   DeviceEq24Regular,
   CheckmarkCircle24Filled,
   DismissCircle24Filled,
-  ChevronDown24Regular,
-  ChevronUp24Regular,
 } from "@fluentui/react-icons";
 import { licenseService, LicenseValidationResult } from "../services/licenseService";
 
@@ -19,22 +16,11 @@ interface LicenseActivationProps {
   onLicenseValidated: () => void;
 }
 
-interface TeacherProfile {
-  cin?: string;
-  phone?: string;
-  level?: "الإعدادي" | "الثانوي";
-  subject?: string;
-  classesCount?: number;
-  testsPerTerm?: number;
-}
-
 const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidated }) => {
   const [licenseKey, setLicenseKey] = useState<string>("");
   const [isValidating, setIsValidating] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [validationResult, setValidationResult] = useState<LicenseValidationResult | null>(null);
-  const [showProfileForm, setShowProfileForm] = useState<boolean>(false);
-  const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>({});
 
   useEffect(() => {
     checkExistingLicense();
@@ -70,17 +56,11 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
     setValidationResult(null);
 
     try {
-      const result = await licenseService.activateLicense(
-        licenseKey.trim(),
-        showProfileForm ? teacherProfile : undefined
-      );
+      const result = await licenseService.activateLicense(licenseKey.trim());
       setValidationResult(result);
 
       if (result.valid) {
-        await licenseService.trackUsage("license_activated", {
-          hasProfile: showProfileForm,
-          profileData: showProfileForm ? Object.keys(teacherProfile).length : 0,
-        });
+        await licenseService.trackUsage("license_activated");
 
         setTimeout(() => {
           onLicenseValidated();
@@ -150,7 +130,7 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
                 <Input
                   value={licenseKey}
                   onChange={(e) => setLicenseKey(e.target.value)}
-                  placeholder="أدخل مفتاح الترخيص هنا"
+                  placeholder="Insert license key here..."
                   disabled={isValidating}
                   style={styles.input}
                   className="rtlPlaceholder"
@@ -163,102 +143,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
               </div>
             </Field>
           </div>
-
-          {/* Profile Form Toggle */}
-          <div style={styles.toggleSection}>
-            <Button
-              appearance="subtle"
-              onClick={() => setShowProfileForm(!showProfileForm)}
-              disabled={isValidating}
-              style={styles.toggleButton}
-              icon={showProfileForm ? <ChevronUp24Regular /> : <ChevronDown24Regular />}
-            >
-              {showProfileForm ? "إخفاء" : "إضافة"} المعلومات الشخصية (اختياري)
-            </Button>
-          </div>
-
-          {/* Teacher Profile Form */}
-          {showProfileForm && (
-            <div style={styles.profileForm}>
-              <Text weight="semibold" style={styles.profileTitle}>
-                المعلومات الشخصية
-              </Text>
-
-              <div style={styles.formGrid}>
-                <Field label="رقم الهاتف" style={styles.fieldWrapper}>
-                  <Input
-                    value={teacherProfile.phone || ""}
-                    onChange={(e) => setTeacherProfile((prev) => ({ ...prev, phone: e.target.value }))}
-                    placeholder="+212612345678"
-                    style={styles.formInput}
-                    dir="rtl"
-                  />
-                </Field>
-
-                <Field label="المستوى التعليمي" style={styles.fieldWrapper}>
-                  <select
-                    value={teacherProfile.level || ""}
-                    onChange={(e) =>
-                      setTeacherProfile((prev) => ({
-                        ...prev,
-                        level: e.target.value as "الإعدادي" | "الثانوي",
-                      }))
-                    }
-                    aria-label="المستوى التعليمي"
-                    style={styles.selectInput}
-                  >
-                    <option value="">اختر المستوى</option>
-                    <option value="الإعدادي">الإعدادي</option>
-                    <option value="الثانوي">الثانوي</option>
-                  </select>
-                </Field>
-
-                <Field label="المادة المدرسة" style={styles.fieldWrapper}>
-                  <Input
-                    value={teacherProfile.subject || ""}
-                    onChange={(e) => setTeacherProfile((prev) => ({ ...prev, subject: e.target.value }))}
-                    placeholder="الرياضيات، الفيزياء، العربية..."
-                    style={styles.formInput}
-                    dir="rtl"
-                  />
-                </Field>
-
-                <div style={styles.numberInputsGrid}>
-                  <Field label="عدد الأقسام" style={styles.fieldWrapper}>
-                    <Input
-                      type="number"
-                      value={teacherProfile.classesCount?.toString() || ""}
-                      onChange={(e) =>
-                        setTeacherProfile((prev) => ({
-                          ...prev,
-                          classesCount: parseInt(e.target.value) || undefined,
-                        }))
-                      }
-                      placeholder="6"
-                      style={styles.formInput}
-                      dir="rtl"
-                    />
-                  </Field>
-
-                  <Field label="عدد الاختبارات في كل دورة" style={styles.fieldWrapper}>
-                    <Input
-                      type="number"
-                      value={teacherProfile.testsPerTerm?.toString() || ""}
-                      onChange={(e) =>
-                        setTeacherProfile((prev) => ({
-                          ...prev,
-                          testsPerTerm: parseInt(e.target.value) || undefined,
-                        }))
-                      }
-                      placeholder="4"
-                      style={styles.formInput}
-                      dir="rtl"
-                    />
-                  </Field>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Validation Result */}
           {validationResult && (
@@ -484,73 +368,6 @@ const styles: Record<string, React.CSSProperties> = {
     border: "2px dashed #d1fae5",
     background: "#f0fdf4",
     transition: "all 0.3s ease",
-  },
-  profileForm: {
-    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
-    borderRadius: "16px",
-    padding: "24px",
-    marginBottom: "24px",
-    border: "1px solid #e2e8f0",
-    direction: "rtl",
-    textAlign: "right",
-  },
-  profileTitle: {
-    marginBottom: "20px",
-    color: "#1e293b",
-    fontSize: "16px",
-    direction: "rtl",
-    textAlign: "right",
-  },
-  formGrid: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "16px",
-    direction: "rtl",
-    width: "100%",
-    overflow: "hidden",
-  },
-  fieldWrapper: {
-    direction: "rtl",
-    textAlign: "right",
-  },
-  formInput: {
-    width: "100%",
-    borderRadius: "10px",
-    border: "1.5px solid #e2e8f0",
-    padding: "12px 14px",
-    fontSize: "14px",
-    direction: "rtl",
-    textAlign: "right",
-    fontFamily: "inherit",
-    transition: "all 0.3s ease",
-  },
-  selectInput: {
-    width: "100%",
-    borderRadius: "10px",
-    border: "1.5px solid #e2e8f0",
-    padding: "12px 14px",
-    fontSize: "14px",
-    direction: "rtl",
-    textAlign: "right",
-    fontFamily: "inherit",
-    backgroundColor: "#ffffff",
-    cursor: "pointer",
-    appearance: "none",
-    backgroundImage:
-      "url(\"data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%230e7c42' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e\")",
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "left 12px center",
-    backgroundSize: "20px",
-    paddingLeft: "40px",
-    transition: "all 0.3s ease",
-    outline: "none",
-  },
-  numberInputsGrid: {
-    width: "100%",
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "6px",
-    direction: "rtl",
   },
   successMessage: {
     background: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)",
