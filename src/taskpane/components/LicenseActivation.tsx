@@ -340,7 +340,8 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
           {/* Help Text */}
           <div style={styles.helpBox}>
             <Text size={200} style={styles.helpText}>
-              💡 للحصول على مفتاح ترخيص، يرجى التواصل مع مطور التطبيق. سيتم إرسال المفتاح إليك عبر البريد الإلكتروني.
+              💡 للحصول على مفتاح ترخيص، يرجى التواصل مع مطور التطبيق.
+              <br /> سيتم إرسال المفتاح إليك عبر البريد الإلكتروني.
             </Text>
           </div>
         </div>
@@ -359,6 +360,7 @@ const styles: Record<string, React.CSSProperties> = {
     width: "100%",
     position: "relative",
     overflow: "auto",
+    direction: "rtl",
   },
   backgroundDecoration: {
     position: "absolute",
@@ -581,11 +583,11 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "12px",
     padding: "16px",
     border: "1px solid #bfdbfe",
+    textAlign: "right",
   },
   helpText: {
     color: "#1e40af",
     lineHeight: 1.6,
-    textAlign: "center",
   },
 };
 
