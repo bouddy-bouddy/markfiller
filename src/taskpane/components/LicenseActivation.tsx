@@ -1,13 +1,16 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Card, CardHeader, Button, Input, Text, Spinner, MessageBar, Field, Select } from "@fluentui/react-components";
+import React, { useState, useEffect } from "react";
+import { Button, Input, Text, Spinner, Field, Select } from "@fluentui/react-components";
 import {
-  Key20Regular,
-  Shield20Regular,
-  Person20Regular,
-  Calendar20Regular,
-  DeviceEq20Regular,
-  CheckmarkCircle20Filled,
-  ErrorCircle20Filled,
+  Shield24Regular,
+  ShieldCheckmark24Filled,
+  Key24Regular,
+  Person24Regular,
+  Calendar24Regular,
+  DeviceEq24Regular,
+  CheckmarkCircle24Filled,
+  DismissCircle24Filled,
+  ChevronDown24Regular,
+  ChevronUp24Regular,
 } from "@fluentui/react-icons";
 import { licenseService, LicenseValidationResult } from "../services/licenseService";
 
@@ -31,10 +34,7 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
   const [validationResult, setValidationResult] = useState<LicenseValidationResult | null>(null);
   const [showProfileForm, setShowProfileForm] = useState<boolean>(false);
   const [teacherProfile, setTeacherProfile] = useState<TeacherProfile>({});
-  const [isActivating, setIsActivating] = useState<boolean>(false);
-  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Check for existing license on component mount
   useEffect(() => {
     checkExistingLicense();
   }, []);
@@ -47,7 +47,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
       setValidationResult(result);
 
       if (result.valid) {
-        // Auto-proceed if license is valid
         setTimeout(() => {
           onLicenseValidated();
         }, 1500);
@@ -70,7 +69,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
     setValidationResult(null);
 
     try {
-      // First try to activate the license
       const result = await licenseService.activateLicense(
         licenseKey.trim(),
         showProfileForm ? teacherProfile : undefined
@@ -78,13 +76,11 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
       setValidationResult(result);
 
       if (result.valid) {
-        // Track activation event
         await licenseService.trackUsage("license_activated", {
           hasProfile: showProfileForm,
           profileData: showProfileForm ? Object.keys(teacherProfile).length : 0,
         });
 
-        // Proceed to main app after successful activation
         setTimeout(() => {
           onLicenseValidated();
         }, 2000);
@@ -96,7 +92,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
       });
     } finally {
       setIsValidating(false);
-      setIsActivating(false);
     }
   };
 
@@ -106,164 +101,75 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
     setLicenseKey("");
   };
 
-  // Focus trap, Escape prevention, and beforeunload while activation is shown
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const focusableSelector =
-      'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
-    const getFocusable = (): HTMLElement[] => {
-      const nodes = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector));
-      return nodes.filter((el) => !el.hasAttribute("disabled") && el.tabIndex !== -1);
-    };
-
-    // Initial focus to the license input if available
-    const focusables = getFocusable();
-    if (focusables.length > 0) {
-      focusables[0].focus();
-    } else {
-      container.focus();
-    }
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent closing via Escape
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        return;
-      }
-
-      // Trap Tab focus within activation view
-      if (e.key === "Tab") {
-        const elements = getFocusable();
-        if (elements.length === 0) {
-          e.preventDefault();
-          return;
-        }
-
-        const first = elements[0];
-        const last = elements[elements.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first || document.activeElement === container) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    };
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      e.preventDefault();
-      e.returnValue = "";
-    };
-
-    document.addEventListener("keydown", handleKeyDown, true);
-    window.addEventListener("beforeunload", handleBeforeUnload);
-
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown, true);
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
-
-  const renderLicenseInfo = () => {
-    if (!validationResult || !validationResult.valid) return null;
-
-    return (
-      <Card style={{ marginTop: "16px", padding: "16px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-          <CheckmarkCircle20Filled color="green" />
-          <Text weight="semibold">معلومات الترخيص</Text>
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-          {validationResult.teacherName && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Person20Regular />
-              <Text>{validationResult.teacherName}</Text>
-            </div>
-          )}
-
-          {validationResult.daysRemaining !== undefined && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <Calendar20Regular />
-              <Text>
-                {validationResult.daysRemaining > 0 ? `${validationResult.daysRemaining} يوم متبقي` : "ينتهي اليوم"}
-              </Text>
-            </div>
-          )}
-
-          {validationResult.devicesUsed !== undefined && validationResult.maxDevices && (
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <DeviceEq20Regular />
-              <Text>
-                الأجهزة: {validationResult.devicesUsed} من {validationResult.maxDevices}
-              </Text>
-            </div>
-          )}
-        </div>
-      </Card>
-    );
-  };
-
   if (isLoading) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", padding: "40px" }}>
-        <Spinner size="large" />
-        <Text style={{ marginTop: "16px" }}>جاري التحقق من الترخيص...</Text>
+      <div style={styles.loadingContainer}>
+        <div style={styles.loadingContent}>
+          <Spinner size="extra-large" />
+          <Text size={400} style={styles.loadingText}>
+            جاري التحقق من الترخيص...
+          </Text>
+        </div>
       </div>
     );
   }
 
   return (
-    <div
-      ref={containerRef}
-      role="dialog"
-      aria-modal="true"
-      tabIndex={-1}
-      style={{ padding: "24px", maxWidth: "500px", margin: "0 auto" }}
-    >
-      <Card>
-        <CardHeader
-          header={
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <Shield20Regular />
-              <Text size={600} weight="semibold">
-                تفعيل MarkFiller
-              </Text>
-            </div>
-          }
-          description="يرجى إدخال مفتاح الترخيص الخاص بك للمتابعة"
-        />
+    <div style={styles.container}>
+      <div style={styles.backgroundDecoration} />
 
-        <div style={{ padding: "24px" }}>
+      <div style={styles.card}>
+        {/* Header */}
+        <div style={styles.header}>
+          <div style={styles.iconContainer}>
+            <Shield24Regular style={styles.headerIcon} />
+          </div>
+          <Text size={800} weight="bold" style={styles.title}>
+            تفعيل MarkFiller
+          </Text>
+          <br />
+          <Text size={300} style={styles.subtitle}>
+            يرجى إدخال مفتاح الترخيص الخاص بك للمتابعة
+          </Text>
+        </div>
+
+        <div style={styles.content}>
           {/* License Key Input */}
-          <Field label="مفتاح الترخيص" required>
-            <div style={{ display: "flex", gap: "8px" }}>
-              <Input
-                value={licenseKey}
-                onChange={(e) => setLicenseKey(e.target.value)}
-                placeholder="أدخل مفتاح الترخيص هنا..."
-                disabled={isValidating || isActivating}
-                style={{ flex: 1 }}
-                contentBefore={<Key20Regular />}
-              />
-            </div>
-          </Field>
+          <div style={styles.inputSection}>
+            <Field
+              label={
+                <span style={styles.label}>
+                  <Key24Regular style={styles.labelIcon} />
+                  مفتاح الترخيص *
+                </span>
+              }
+              required
+            >
+              <div style={styles.inputWrapper}>
+                <Input
+                  value={licenseKey}
+                  onChange={(e) => setLicenseKey(e.target.value)}
+                  placeholder="أدخل مفتاح الترخيص هنا..."
+                  disabled={isValidating}
+                  style={styles.input}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      handleValidateLicense();
+                    }
+                  }}
+                />
+              </div>
+            </Field>
+          </div>
 
-          {/* Optional Teacher Profile Toggle */}
-          <div style={{ marginTop: "16px" }}>
+          {/* Profile Form Toggle */}
+          <div style={styles.toggleSection}>
             <Button
               appearance="subtle"
               onClick={() => setShowProfileForm(!showProfileForm)}
-              disabled={isValidating || isActivating}
+              disabled={isValidating}
+              style={styles.toggleButton}
+              icon={showProfileForm ? <ChevronUp24Regular /> : <ChevronDown24Regular />}
             >
               {showProfileForm ? "إخفاء" : "إضافة"} المعلومات الشخصية (اختياري)
             </Button>
@@ -271,26 +177,31 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
 
           {/* Teacher Profile Form */}
           {showProfileForm && (
-            <div style={{ marginTop: "16px", padding: "16px", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-              <Text weight="semibold" style={{ marginBottom: "12px" }}>
+            <div style={styles.profileForm}>
+              <Text weight="semibold" style={styles.profileTitle}>
                 المعلومات الشخصية
               </Text>
 
-              <div style={{ display: "grid", gap: "12px" }}>
+              <div style={styles.formGrid}>
                 <Field label="رقم الهاتف">
                   <Input
                     value={teacherProfile.phone || ""}
                     onChange={(e) => setTeacherProfile((prev) => ({ ...prev, phone: e.target.value }))}
                     placeholder="+212612345678"
+                    style={styles.formInput}
                   />
                 </Field>
 
                 <Field label="المستوى التعليمي">
                   <Select
                     value={teacherProfile.level || ""}
-                    onChange={(e) =>
-                      setTeacherProfile((prev) => ({ ...prev, level: e.target.value as "الإعدادي" | "الثانوي" }))
+                    onChange={(e, data) =>
+                      setTeacherProfile((prev) => ({
+                        ...prev,
+                        level: data.value as "الإعدادي" | "الثانوي",
+                      }))
                     }
+                    style={styles.formInput}
                   >
                     <option value="">اختر المستوى</option>
                     <option value="الإعدادي">الإعدادي</option>
@@ -303,18 +214,23 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
                     value={teacherProfile.subject || ""}
                     onChange={(e) => setTeacherProfile((prev) => ({ ...prev, subject: e.target.value }))}
                     placeholder="الرياضيات، الفيزياء، العربية..."
+                    style={styles.formInput}
                   />
                 </Field>
 
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
+                <div style={styles.numberInputsGrid}>
                   <Field label="عدد الأقسام">
                     <Input
                       type="number"
                       value={teacherProfile.classesCount?.toString() || ""}
                       onChange={(e) =>
-                        setTeacherProfile((prev) => ({ ...prev, classesCount: parseInt(e.target.value) || undefined }))
+                        setTeacherProfile((prev) => ({
+                          ...prev,
+                          classesCount: parseInt(e.target.value) || undefined,
+                        }))
                       }
                       placeholder="6"
+                      style={styles.formInput}
                     />
                   </Field>
 
@@ -323,9 +239,13 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
                       type="number"
                       value={teacherProfile.testsPerTerm?.toString() || ""}
                       onChange={(e) =>
-                        setTeacherProfile((prev) => ({ ...prev, testsPerTerm: parseInt(e.target.value) || undefined }))
+                        setTeacherProfile((prev) => ({
+                          ...prev,
+                          testsPerTerm: parseInt(e.target.value) || undefined,
+                        }))
                       }
                       placeholder="4"
+                      style={styles.formInput}
                     />
                   </Field>
                 </div>
@@ -335,59 +255,338 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
 
           {/* Validation Result */}
           {validationResult && (
-            <div style={{ marginTop: "16px" }}>
-              <MessageBar intent={validationResult.valid ? "success" : "error"} style={{ marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {validationResult.valid ? (
-                    <CheckmarkCircle20Filled color="green" />
-                  ) : (
-                    <ErrorCircle20Filled color="red" />
-                  )}
-                  <Text>{validationResult.message}</Text>
-                </div>
-              </MessageBar>
+            <div style={validationResult.valid ? styles.successMessage : styles.errorMessage}>
+              <div style={styles.messageContent}>
+                {validationResult.valid ? (
+                  <CheckmarkCircle24Filled style={styles.successIcon} />
+                ) : (
+                  <DismissCircle24Filled style={styles.errorIcon} />
+                )}
+                <Text weight="semibold">{validationResult.message}</Text>
+              </div>
 
-              {validationResult.valid && renderLicenseInfo()}
+              {validationResult.valid && (
+                <div style={styles.licenseInfo}>
+                  {validationResult.teacherName && (
+                    <div style={styles.infoItem}>
+                      <Person24Regular style={styles.infoIcon} />
+                      <Text size={300}>{validationResult.teacherName}</Text>
+                    </div>
+                  )}
+
+                  {validationResult.daysRemaining !== undefined && (
+                    <div style={styles.infoItem}>
+                      <Calendar24Regular style={styles.infoIcon} />
+                      <Text size={300}>
+                        {validationResult.daysRemaining > 0
+                          ? `${validationResult.daysRemaining} يوم متبقي`
+                          : "ينتهي اليوم"}
+                      </Text>
+                    </div>
+                  )}
+
+                  {validationResult.devicesUsed !== undefined && validationResult.maxDevices && (
+                    <div style={styles.infoItem}>
+                      <DeviceEq24Regular style={styles.infoIcon} />
+                      <Text size={300}>
+                        الأجهزة: {validationResult.devicesUsed} من {validationResult.maxDevices}
+                      </Text>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
           {/* Action Buttons */}
-          <div style={{ marginTop: "24px", display: "flex", gap: "12px" }}>
+          <div style={styles.actionButtons}>
             <Button
               appearance="primary"
               onClick={handleValidateLicense}
-              disabled={isValidating || isActivating || validationResult?.valid}
-              style={{ flex: 1 }}
+              disabled={isValidating || validationResult?.valid}
+              style={styles.primaryButton}
+              size="large"
             >
-              {isValidating || isActivating ? (
+              {isValidating ? (
                 <>
                   <Spinner size="tiny" />
-                  جاري التحقق...
+                  <span>جاري التحقق...</span>
                 </>
               ) : validationResult?.valid ? (
-                "تم التفعيل بنجاح"
+                <>
+                  <ShieldCheckmark24Filled />
+                  <span>تم التفعيل بنجاح</span>
+                </>
               ) : (
-                "تفعيل الترخيص"
+                <>
+                  <Shield24Regular />
+                  <span>تفعيل الترخيص</span>
+                </>
               )}
             </Button>
 
             {validationResult?.valid && (
-              <Button appearance="subtle" onClick={handleRemoveLicense} disabled={isValidating || isActivating}>
+              <Button
+                appearance="subtle"
+                onClick={handleRemoveLicense}
+                disabled={isValidating}
+                style={styles.secondaryButton}
+              >
                 إلغاء
               </Button>
             )}
           </div>
 
           {/* Help Text */}
-          <div style={{ marginTop: "16px", padding: "12px", backgroundColor: "#f0f8ff", borderRadius: "6px" }}>
-            <Text size={200}>
+          <div style={styles.helpBox}>
+            <Text size={200} style={styles.helpText}>
               💡 للحصول على مفتاح ترخيص، يرجى التواصل مع مطور التطبيق. سيتم إرسال المفتاح إليك عبر البريد الإلكتروني.
             </Text>
           </div>
         </div>
-      </Card>
+      </div>
     </div>
   );
+};
+
+const styles: Record<string, React.CSSProperties> = {
+  container: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    width: "100%",
+    position: "relative",
+    overflow: "auto",
+  },
+  backgroundDecoration: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background:
+      "radial-gradient(circle at 20% 50%, rgba(14, 124, 66, 0.05) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(16, 185, 129, 0.05) 0%, transparent 50%)",
+    pointerEvents: "none",
+  },
+  loadingContainer: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+  },
+  loadingContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "24px",
+  },
+  loadingText: {
+    color: "#0e7c42",
+    fontWeight: 600,
+  },
+  card: {
+    width: "100%",
+    maxWidth: "520px",
+    background: "#ffffff",
+    borderRadius: "24px",
+    boxShadow: "0 20px 50px rgba(14, 124, 66, 0.12), 0 10px 20px rgba(0, 0, 0, 0.08)",
+    overflow: "hidden",
+    position: "relative",
+    zIndex: 1,
+    border: "1px solid rgba(14, 124, 66, 0.1)",
+    marginBottom: "40px",
+  },
+  header: {
+    background: "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)",
+    padding: "40px 32px",
+    textAlign: "center",
+    position: "relative",
+  },
+  iconContainer: {
+    width: "72px",
+    height: "72px",
+    background: "rgba(255, 255, 255, 0.2)",
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 auto 20px",
+    backdropFilter: "blur(10px)",
+    border: "2px solid rgba(255, 255, 255, 0.3)",
+  },
+  headerIcon: {
+    fontSize: "36px",
+    color: "#ffffff",
+  },
+  title: {
+    color: "#ffffff",
+    marginBottom: "8px",
+    fontSize: "28px",
+  },
+  subtitle: {
+    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: "14px",
+  },
+  content: {
+    padding: "32px",
+  },
+  inputSection: {
+    marginBottom: "20px",
+  },
+  label: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#1e293b",
+    marginBottom: "8px",
+  },
+  labelIcon: {
+    fontSize: "18px",
+    color: "#0e7c42",
+  },
+  inputWrapper: {
+    position: "relative",
+  },
+  input: {
+    width: "100%",
+    borderRadius: "12px",
+    border: "2px solid #e2e8f0",
+    padding: "14px 16px",
+    fontSize: "15px",
+    transition: "all 0.3s ease",
+    fontFamily: "inherit",
+  },
+  toggleSection: {
+    marginBottom: "20px",
+  },
+  toggleButton: {
+    width: "100%",
+    justifyContent: "center",
+    borderRadius: "12px",
+    padding: "12px",
+    color: "#0e7c42",
+    fontWeight: 600,
+    border: "2px dashed #d1fae5",
+    background: "#f0fdf4",
+    transition: "all 0.3s ease",
+  },
+  profileForm: {
+    background: "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+    borderRadius: "16px",
+    padding: "24px",
+    marginBottom: "24px",
+    border: "1px solid #e2e8f0",
+  },
+  profileTitle: {
+    marginBottom: "20px",
+    color: "#1e293b",
+    fontSize: "16px",
+  },
+  formGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
+  formInput: {
+    width: "100%",
+    borderRadius: "10px",
+    border: "1.5px solid #e2e8f0",
+    padding: "12px 14px",
+    fontSize: "14px",
+  },
+  numberInputsGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
+  },
+  successMessage: {
+    background: "linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%)",
+    borderRadius: "16px",
+    padding: "20px",
+    marginBottom: "24px",
+    border: "2px solid #6ee7b7",
+  },
+  errorMessage: {
+    background: "linear-gradient(135deg, #fee2e2 0%, #fecaca 100%)",
+    borderRadius: "16px",
+    padding: "20px",
+    marginBottom: "24px",
+    border: "2px solid #fca5a5",
+  },
+  messageContent: {
+    display: "flex",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "16px",
+  },
+  successIcon: {
+    fontSize: "24px",
+    color: "#059669",
+  },
+  errorIcon: {
+    fontSize: "24px",
+    color: "#dc2626",
+  },
+  licenseInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+    paddingTop: "16px",
+    borderTop: "1px solid rgba(5, 150, 105, 0.2)",
+  },
+  infoItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+  },
+  infoIcon: {
+    fontSize: "20px",
+    color: "#059669",
+  },
+  actionButtons: {
+    display: "flex",
+    gap: "12px",
+    marginBottom: "24px",
+  },
+  primaryButton: {
+    flex: 1,
+    background: "linear-gradient(135deg, #0e7c42 0%, #10b981 100%)",
+    borderRadius: "12px",
+    padding: "16px",
+    fontSize: "16px",
+    fontWeight: 700,
+    border: "none",
+    color: "#ffffff",
+    boxShadow: "0 4px 12px rgba(14, 124, 66, 0.3)",
+    transition: "all 0.3s ease",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "8px",
+  },
+  secondaryButton: {
+    borderRadius: "12px",
+    padding: "16px 24px",
+    fontSize: "15px",
+    fontWeight: 600,
+    color: "#64748b",
+  },
+  helpBox: {
+    background: "linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)",
+    borderRadius: "12px",
+    padding: "16px",
+    border: "1px solid #bfdbfe",
+  },
+  helpText: {
+    color: "#1e40af",
+    lineHeight: 1.6,
+    textAlign: "center",
+  },
 };
 
 export default LicenseActivation;
