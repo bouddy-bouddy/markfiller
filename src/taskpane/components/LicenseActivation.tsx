@@ -277,14 +277,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
               </Text>
 
               <div style={{ display: "grid", gap: "12px" }}>
-                <Field label="رقم بطاقة التعريف الوطنية">
-                  <Input
-                    value={teacherProfile.cin || ""}
-                    onChange={(e) => setTeacherProfile((prev) => ({ ...prev, cin: e.target.value }))}
-                    placeholder="CB123456"
-                  />
-                </Field>
-
                 <Field label="رقم الهاتف">
                   <Input
                     value={teacherProfile.phone || ""}

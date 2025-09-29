@@ -388,10 +388,12 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             zIndex: 2147483647,
             background: "#ffffff",
             display: "flex",
-            alignItems: "center",
+            alignItems: "flex-start",
             justifyContent: "center",
             width: "100vw",
             height: "100vh",
+            overflowY: "auto",
+            padding: "24px 0",
           }}
         >
           <LicenseActivation onLicenseValidated={handleLicenseValidated} />
