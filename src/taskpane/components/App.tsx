@@ -326,31 +326,86 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setIsInserting(true);
 
     try {
-      // Track marks insertion start
-      await licenseService.trackUsage("marks_insertion_started", {
-        studentsCount: extractedData.length,
-      });
+      // 🔑 Get license key from licenseService
+      const licenseKey = licenseService.getStoredLicenseKey();
 
-      const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
+      if (!licenseKey) {
+        setError("لم يتم العثور على مفتاح الترخيص. يرجى تسجيل الدخول مرة أخرى.");
+        setIsInserting(false);
+        return;
+      }
 
-      // Track successful insertion
-      await licenseService.trackUsage("marks_insertion_completed", {
-        successful: results.success,
-        notFound: results.notFound,
-        totalStudents: extractedData.length,
-      });
+      console.log("🚀 Starting marks insertion with usage tracking...");
 
-      completeStep(AppStep.MappingPreview);
-      advanceToStep(AppStep.Statistics);
-    } catch (error) {
-      console.error("Marks insertion failed:", error);
+      // 📊 Count students for metadata
+      const totalStudents = extractedData.length;
 
-      // Track insertion failure
-      await licenseService.trackUsage("marks_insertion_failed", {
-        error: error instanceof Error ? error.message : "Unknown error",
-      });
+      // 🎯 WRAP WITH USAGE TRACKING
+      const trackResult = await uploadWithTracking(
+        licenseKey,
+        async () => {
+          // ✅ YOUR EXISTING LOGIC - NO CHANGES
+          console.log("📝 Inserting marks into Excel...");
 
-      setError("فشل في إدراج العلامات. يرجى المحاولة مرة أخرى.");
+          // Track marks insertion start
+          await licenseService.trackUsage("marks_insertion_started", {
+            studentsCount: extractedData.length,
+          });
+
+          // Insert marks
+          const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
+
+          // Track successful insertion
+          await licenseService.trackUsage("marks_insertion_completed", {
+            successful: results.success,
+            notFound: results.notFound,
+            totalStudents: extractedData.length,
+          });
+
+          console.log("📊 Insertion results:", results);
+
+          // Move to statistics step
+          completeStep(AppStep.MappingPreview);
+          advanceToStep(AppStep.Statistics);
+        },
+        {
+          fileName: selectedImage?.name || "marksheet-upload",
+          rowCount: totalStudents,
+        }
+      );
+
+      // ✅ SUCCESS - Show usage info
+      console.log(`✅ Upload tracked! Remaining uploads: ${trackResult.remainingUploads}`);
+
+      // ⚠️ WARN IF LOW
+      if (trackResult.remainingUploads <= 5) {
+        console.warn(`⚠️ Warning: Only ${trackResult.remainingUploads} uploads remaining!`);
+        setError(`تم الإدخال بنجاح! تنبيه: متبقي ${trackResult.remainingUploads} عمليات رفع فقط.`);
+      }
+    } catch (error: any) {
+      console.error("❌ Marks insertion failed:", error);
+
+      // 🚫 CHECK IF USAGE LIMIT ERROR
+      if (
+        error.message?.includes("تم تعليق الترخيص") ||
+        error.message?.includes("Upload limit reached") ||
+        error.message?.includes("suspended") ||
+        error.message?.includes("blocked")
+      ) {
+        setError("🚫 " + error.message);
+
+        // Track blocked upload
+        await licenseService.trackUsage("marks_insertion_blocked", {
+          reason: "usage_limit_exceeded",
+        });
+      } else {
+        // Track insertion failure
+        await licenseService.trackUsage("marks_insertion_failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+
+        setError("فشل في إدراج العلامات. يرجى المحاولة مرة أخرى.");
+      }
     } finally {
       setIsInserting(false);
     }
