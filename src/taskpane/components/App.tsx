@@ -8,6 +8,8 @@ import { licenseService } from "../services/licenseService";
 import LicenseActivation from "./LicenseActivation";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes } from "../types";
 import { computeExtractionAccuracy } from "../utils/accuracy";
+import { uploadWithTracking } from "../services/usageTracker";
+import { UsageDisplay } from "./UsageDisplay";
 import { GlobalStyle } from "../styles/globalStyles";
 import { Statistics } from "../types/statistics";
 import { generateMarkStatistics } from "../utils/statistics";

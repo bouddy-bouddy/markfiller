@@ -145,3 +145,28 @@ export interface MarkValidRanges {
   fard4?: { min: number; max: number };
   activities?: { min: number; max: number };
 }
+
+export interface UsageCheckResponse {
+  allowed: boolean;
+  reason?: string;
+  uploadCount: number;
+  uploadLimit: number;
+  remainingUploads?: number;
+  usagePercentage?: number;
+  status: string;
+}
+
+/**
+ * Usage tracking response after recording an upload
+ */
+export interface UsageTrackResponse {
+  success: boolean;
+  error?: string;
+  blocked?: boolean;
+  uploadCount: number;
+  uploadLimit: number;
+  remainingUploads: number;
+  usagePercentage: number;
+  suspended: boolean;
+  warning?: string;
+}
