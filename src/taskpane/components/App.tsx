@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect, Suspense } from "react";
 import { FluentProvider, webLightTheme, Spinner, Text } from "@fluentui/react-components";
 import styled from "styled-components";
+import TeacherGreeting from "./shared/TeacherGreeting";
 import excelService from "../services/excelService";
 import { licenseService } from "../services/licenseService";
 import LicenseActivation from "./LicenseActivation";
@@ -41,6 +42,8 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   // License state
   const [isLicenseValid, setIsLicenseValid] = useState<boolean>(false);
   const [isCheckingLicense, setIsCheckingLicense] = useState<boolean>(true);
+
+  const [teacherName, setTeacherName] = useState<string | null>(null);
 
   // State for selected image
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -108,6 +111,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
 
         if (result.valid) {
           setIsLicenseValid(true);
+          if (result.teacherName) {
+            setTeacherName(result.teacherName);
+          }
           // Track app launch
           await licenseService.trackUsage("app_launched");
         } else {
@@ -526,6 +532,9 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
       <div style={{ height: "100%", minHeight: "100vh", display: "flex", flexDirection: "column" }}>
         {/* Header */}
         <AppHeader title={title} />
+
+        {/* Add TeacherGreeting here */}
+        {teacherName && <TeacherGreeting teacherName={teacherName} />}
 
         {/* Step Navigation */}
         <StepNavigation currentStep={currentStep} completedSteps={completedSteps} onStepClick={advanceToStep} />
