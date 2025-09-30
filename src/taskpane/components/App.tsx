@@ -9,7 +9,6 @@ import LicenseActivation from "./LicenseActivation";
 import { Student, ExcelStatus, AppStep, DetectedMarkTypes } from "../types";
 import { computeExtractionAccuracy } from "../utils/accuracy";
 import { uploadWithTracking } from "../services/usageTracker";
-import { UsageDisplay } from "./UsageDisplay";
 import { GlobalStyle } from "../styles/globalStyles";
 import { Statistics } from "../types/statistics";
 import { generateMarkStatistics } from "../utils/statistics";
@@ -212,14 +211,75 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
   };
 
   // Process image with enhanced OCR
+  // const processImage = async (): Promise<void> => {
+  //   if (!selectedImage) return;
+
+  //   // Track OCR processing start
+  //   await licenseService.trackUsage("ocr_started", {
+  //     imageSize: selectedImage.size,
+  //     imageType: selectedImage.type,
+  //   });
+
+  //   setIsProcessing(true);
+  //   setError(null);
+  //   setProcessingStage(0);
+  //   setProcessingProgress(0);
+
+  //   try {
+  //     // Process the image using enhanced OCR service (lazy-loaded)
+  //     console.log("🚀 STARTING OCR PROCESSING - About to call Gemini OCR");
+  //     console.log("📸 Image file details:", {
+  //       name: selectedImage.name,
+  //       size: selectedImage.size,
+  //       type: selectedImage.type,
+  //       lastModified: new Date(selectedImage.lastModified).toISOString(),
+  //     });
+
+  //     const { default: geminiOcrService } = await import("../services/geminiOcrService");
+  //     const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
+
+  //     console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
+  //     console.log("👥 Extracted students:", students.length);
+  //     console.log("📊 Detected mark types:", detectedMarkTypes);
+
+  //     setExtractedData(students);
+  //     setDetectedMarkTypes(detectedMarkTypes);
+
+  //     // Track successful OCR completion
+  //     await licenseService.trackUsage("ocr_completed", {
+  //       studentsExtracted: students.length,
+  //       detectedMarkTypes,
+  //       success: true,
+  //     });
+
+  //     // Calculate statistics
+  //     const stats = generateMarkStatistics(students, detectedMarkTypes);
+  //     setMarkStats(stats);
+
+  //     // Estimate extraction accuracy
+  //     const accuracy = computeExtractionAccuracy(students, detectedMarkTypes);
+  //     setExtractionAccuracy(accuracy);
+
+  //     completeStep(AppStep.ImageProcessing);
+  //     advanceToStep(AppStep.ReviewConfirm);
+  //   } catch (error) {
+  //     console.error("OCR processing failed:", error);
+
+  //     // Track OCR failure
+  //     await licenseService.trackUsage("ocr_failed", {
+  //       error: error instanceof Error ? error.message : "Unknown error",
+  //       success: false,
+  //     });
+
+  //     setError("فشل في معالجة الصورة. يرجى التأكد من وضوح الصورة والمحاولة مرة أخرى.");
+  //     setErrorCode("OCR_PROCESSING_FAILED");
+  //   } finally {
+  //     setIsProcessing(false);
+  //   }
+  // };
+
   const processImage = async (): Promise<void> => {
     if (!selectedImage) return;
-
-    // Track OCR processing start
-    await licenseService.trackUsage("ocr_started", {
-      imageSize: selectedImage.size,
-      imageType: selectedImage.type,
-    });
 
     setIsProcessing(true);
     setError(null);
@@ -227,53 +287,109 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setProcessingProgress(0);
 
     try {
-      // Process the image using enhanced OCR service (lazy-loaded)
-      console.log("🚀 STARTING OCR PROCESSING - About to call Gemini OCR");
-      console.log("📸 Image file details:", {
-        name: selectedImage.name,
-        size: selectedImage.size,
-        type: selectedImage.type,
-        lastModified: new Date(selectedImage.lastModified).toISOString(),
-      });
+      // 🔑 Get license key
+      const licenseKey = licenseService.getStoredLicenseKey();
 
-      const { default: geminiOcrService } = await import("../services/geminiOcrService");
-      const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
+      if (!licenseKey) {
+        setError("لم يتم العثور على مفتاح الترخيص. يرجى تسجيل الدخول مرة أخرى.");
+        setIsProcessing(false);
+        return;
+      }
 
-      console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
-      console.log("👥 Extracted students:", students.length);
-      console.log("📊 Detected mark types:", detectedMarkTypes);
+      console.log("🚀 Starting OCR processing with usage tracking...");
 
-      setExtractedData(students);
-      setDetectedMarkTypes(detectedMarkTypes);
+      // 🎯 WRAP OCR WITH USAGE TRACKING
+      const trackResult = await uploadWithTracking(
+        licenseKey,
+        async () => {
+          // ✅ YOUR EXISTING OCR LOGIC
+          console.log("📸 Processing image with Gemini OCR...");
 
-      // Track successful OCR completion
-      await licenseService.trackUsage("ocr_completed", {
-        studentsExtracted: students.length,
-        detectedMarkTypes,
-        success: true,
-      });
+          // Track OCR start (for internal analytics)
+          await licenseService.trackUsage("ocr_started", {
+            imageSize: selectedImage.size,
+            imageType: selectedImage.type,
+          });
 
-      // Calculate statistics
-      const stats = generateMarkStatistics(students, detectedMarkTypes);
-      setMarkStats(stats);
+          // Process the image using enhanced OCR service (lazy-loaded)
+          console.log("🚀 STARTING OCR PROCESSING - About to call Gemini OCR");
+          console.log("📸 Image file details:", {
+            name: selectedImage.name,
+            size: selectedImage.size,
+            type: selectedImage.type,
+            lastModified: new Date(selectedImage.lastModified).toISOString(),
+          });
 
-      // Estimate extraction accuracy
-      const accuracy = computeExtractionAccuracy(students, detectedMarkTypes);
-      setExtractionAccuracy(accuracy);
+          const { default: geminiOcrService } = await import("../services/geminiOcrService");
+          const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
-      completeStep(AppStep.ImageProcessing);
-      advanceToStep(AppStep.ReviewConfirm);
-    } catch (error) {
-      console.error("OCR processing failed:", error);
+          console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
+          console.log("👥 Extracted students:", students.length);
+          console.log("📊 Detected mark types:", detectedMarkTypes);
 
-      // Track OCR failure
-      await licenseService.trackUsage("ocr_failed", {
-        error: error instanceof Error ? error.message : "Unknown error",
-        success: false,
-      });
+          setExtractedData(students);
+          setDetectedMarkTypes(detectedMarkTypes);
 
-      setError("فشل في معالجة الصورة. يرجى التأكد من وضوح الصورة والمحاولة مرة أخرى.");
-      setErrorCode("OCR_PROCESSING_FAILED");
+          // Track successful OCR completion
+          await licenseService.trackUsage("ocr_completed", {
+            studentsExtracted: students.length,
+            detectedMarkTypes,
+            success: true,
+          });
+
+          // Calculate statistics
+          const stats = generateMarkStatistics(students, detectedMarkTypes);
+          setMarkStats(stats);
+
+          // Estimate extraction accuracy
+          const accuracy = computeExtractionAccuracy(students, detectedMarkTypes);
+          setExtractionAccuracy(accuracy);
+
+          completeStep(AppStep.ImageProcessing);
+          advanceToStep(AppStep.ReviewConfirm);
+        },
+        {
+          fileName: selectedImage.name,
+          fileSize: selectedImage.size,
+        }
+      );
+
+      // ✅ SUCCESS - Show usage info
+      console.log(`✅ OCR tracked! Remaining uploads: ${trackResult.remainingUploads}`);
+
+      // ⚠️ WARN IF LOW
+      if (trackResult.remainingUploads <= 5) {
+        console.warn(`⚠️ Warning: Only ${trackResult.remainingUploads} uploads remaining!`);
+        // Show a non-blocking warning (don't use setError as it blocks the flow)
+        console.log(`📢 User has ${trackResult.remainingUploads} uploads left`);
+      }
+    } catch (error: any) {
+      console.error("❌ OCR processing failed:", error);
+
+      // 🚫 CHECK IF USAGE LIMIT ERROR
+      if (
+        error.message?.includes("تم تعليق الترخيص") ||
+        error.message?.includes("Upload limit reached") ||
+        error.message?.includes("suspended") ||
+        error.message?.includes("blocked")
+      ) {
+        setError("🚫 " + error.message);
+        setErrorCode("USAGE_LIMIT_EXCEEDED");
+
+        // Track blocked upload
+        await licenseService.trackUsage("ocr_blocked", {
+          reason: "usage_limit_exceeded",
+        });
+      } else {
+        // Track OCR failure
+        await licenseService.trackUsage("ocr_failed", {
+          error: error instanceof Error ? error.message : "Unknown error",
+          success: false,
+        });
+
+        setError("فشل في معالجة الصورة. يرجى التأكد من وضوح الصورة والمحاولة مرة أخرى.");
+        setErrorCode("OCR_PROCESSING_FAILED");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -326,86 +442,31 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     setIsInserting(true);
 
     try {
-      // 🔑 Get license key from licenseService
-      const licenseKey = licenseService.getStoredLicenseKey();
+      // Track marks insertion start
+      await licenseService.trackUsage("marks_insertion_started", {
+        studentsCount: extractedData.length,
+      });
 
-      if (!licenseKey) {
-        setError("لم يتم العثور على مفتاح الترخيص. يرجى تسجيل الدخول مرة أخرى.");
-        setIsInserting(false);
-        return;
-      }
+      const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
 
-      console.log("🚀 Starting marks insertion with usage tracking...");
+      // Track successful insertion
+      await licenseService.trackUsage("marks_insertion_completed", {
+        successful: results.success,
+        notFound: results.notFound,
+        totalStudents: extractedData.length,
+      });
 
-      // 📊 Count students for metadata
-      const totalStudents = extractedData.length;
+      completeStep(AppStep.MappingPreview);
+      advanceToStep(AppStep.Statistics);
+    } catch (error) {
+      console.error("Marks insertion failed:", error);
 
-      // 🎯 WRAP WITH USAGE TRACKING
-      const trackResult = await uploadWithTracking(
-        licenseKey,
-        async () => {
-          // ✅ YOUR EXISTING LOGIC - NO CHANGES
-          console.log("📝 Inserting marks into Excel...");
+      // Track insertion failure
+      await licenseService.trackUsage("marks_insertion_failed", {
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
 
-          // Track marks insertion start
-          await licenseService.trackUsage("marks_insertion_started", {
-            studentsCount: extractedData.length,
-          });
-
-          // Insert marks
-          const results = await excelService.insertAllMarks(extractedData, detectedMarkTypes);
-
-          // Track successful insertion
-          await licenseService.trackUsage("marks_insertion_completed", {
-            successful: results.success,
-            notFound: results.notFound,
-            totalStudents: extractedData.length,
-          });
-
-          console.log("📊 Insertion results:", results);
-
-          // Move to statistics step
-          completeStep(AppStep.MappingPreview);
-          advanceToStep(AppStep.Statistics);
-        },
-        {
-          fileName: selectedImage?.name || "marksheet-upload",
-          rowCount: totalStudents,
-        }
-      );
-
-      // ✅ SUCCESS - Show usage info
-      console.log(`✅ Upload tracked! Remaining uploads: ${trackResult.remainingUploads}`);
-
-      // ⚠️ WARN IF LOW
-      if (trackResult.remainingUploads <= 5) {
-        console.warn(`⚠️ Warning: Only ${trackResult.remainingUploads} uploads remaining!`);
-        setError(`تم الإدخال بنجاح! تنبيه: متبقي ${trackResult.remainingUploads} عمليات رفع فقط.`);
-      }
-    } catch (error: any) {
-      console.error("❌ Marks insertion failed:", error);
-
-      // 🚫 CHECK IF USAGE LIMIT ERROR
-      if (
-        error.message?.includes("تم تعليق الترخيص") ||
-        error.message?.includes("Upload limit reached") ||
-        error.message?.includes("suspended") ||
-        error.message?.includes("blocked")
-      ) {
-        setError("🚫 " + error.message);
-
-        // Track blocked upload
-        await licenseService.trackUsage("marks_insertion_blocked", {
-          reason: "usage_limit_exceeded",
-        });
-      } else {
-        // Track insertion failure
-        await licenseService.trackUsage("marks_insertion_failed", {
-          error: error instanceof Error ? error.message : "Unknown error",
-        });
-
-        setError("فشل في إدراج العلامات. يرجى المحاولة مرة أخرى.");
-      }
+      setError("فشل في إدراج العلامات. يرجى المحاولة مرة أخرى.");
     } finally {
       setIsInserting(false);
     }
