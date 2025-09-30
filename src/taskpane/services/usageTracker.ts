@@ -76,6 +76,7 @@ export async function uploadWithTracking(
   uploadFunction: () => Promise<void>,
   metadata?: {
     fileName?: string;
+    fileSize?: number;
     rowCount?: number;
   }
 ): Promise<UsageTrackResponse> {
