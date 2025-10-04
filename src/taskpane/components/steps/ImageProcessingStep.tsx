@@ -8,6 +8,7 @@ import {
   DeleteRegular,
 } from "@fluentui/react-icons";
 import LoadingSpinner from "../shared/LoadingSpinner";
+import QrUploadButton from "../QrUploadButton";
 import styled from "styled-components";
 
 const StepTitle = styled.div`
@@ -293,6 +294,80 @@ const SecondaryButton = styled(Button)`
   }
 `;
 
+// NEW: Styled component for upload options section
+const UploadOptionsContainer = styled.div`
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border-radius: 16px;
+  padding: 24px;
+  margin: 24px 0;
+  border: 2px solid rgba(14, 124, 66, 0.2);
+  box-shadow: 0 4px 12px -2px rgba(14, 124, 66, 0.1);
+`;
+
+const UploadOptionsTitle = styled(Text)`
+  font-weight: 700 !important;
+  color: #065f46 !important;
+  font-size: 17px !important;
+  margin-bottom: 16px !important;
+  display: block !important;
+  text-align: center !important;
+`;
+
+const UploadButtonsGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 16px;
+
+  @media (max-width: 600px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const UploadMethodCard = styled.div`
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  text-align: center;
+  border: 2px solid #e5e7eb;
+  transition: all 0.3s ease;
+  cursor: pointer;
+
+  &:hover {
+    border-color: #0e7c42;
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.2);
+  }
+`;
+
+const MethodIcon = styled.div`
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+  color: white;
+  font-size: 28px;
+`;
+
+const MethodTitle = styled(Text)`
+  font-weight: 600 !important;
+  color: #1f2937 !important;
+  font-size: 15px !important;
+  display: block !important;
+  margin-bottom: 6px !important;
+`;
+
+const MethodDescription = styled(Text)`
+  font-size: 13px !important;
+  color: #6b7280 !important;
+  display: block !important;
+  line-height: 1.4 !important;
+`;
+
 interface ImageProcessingStepProps {
   isActive: boolean;
   isCompleted: boolean;
@@ -324,6 +399,43 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
 
   // Processing stages
   const stages = ["تحليل الصورة", "استخراج النص", "تحديد هيكل الجدول", "استخراج العلامات", "التحقق من الدقة"];
+
+  // Handle QR image received
+  const handleQrImageReceived = async (imageUrl: string) => {
+    try {
+      console.log("📱 Image received from QR upload:", imageUrl);
+
+      // Get the API base URL
+      const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
+      const fullImageUrl = `${API_BASE_URL}${imageUrl}`;
+
+      console.log("🌐 Fetching image from:", fullImageUrl);
+
+      // Fetch the image from the server
+      const response = await fetch(fullImageUrl);
+
+      if (!response.ok) {
+        throw new Error(`فشل في تحميل الصورة: ${response.statusText}`);
+      }
+
+      const blob = await response.blob();
+      console.log("✅ Image blob received, size:", blob.size, "bytes");
+
+      // Convert to File object
+      const filename = imageUrl.split("/").pop() || "marksheet.jpg";
+      const file = new File([blob], filename, { type: blob.type });
+
+      console.log("📄 File created:", file.name, file.type, file.size);
+
+      // Call the parent's onImageUpload function
+      onImageUpload(file);
+
+      console.log("✅ Image successfully loaded from QR upload");
+    } catch (error) {
+      console.error("❌ Error loading QR image:", error);
+      alert(`حدث خطأ أثناء تحميل الصورة: ${error instanceof Error ? error.message : "خطأ غير معروف"}`);
+    }
+  };
 
   // Handle file drop
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
@@ -406,34 +518,80 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
           </div>
         </InfoCard>
 
-        <DropZone
-          onClick={() => fileInputRef.current?.click()}
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-        >
-          <input
-            type="file"
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            accept="image/*"
-            title="اختيار ملف صورة"
-            onChange={(e) => {
-              if (e.target.files && e.target.files[0]) {
-                onImageUpload(e.target.files[0]);
-              }
-            }}
-          />
+        {/* NEW: Upload Options Section - Only show if no image selected */}
+        {!selectedImage && (
+          <UploadOptionsContainer>
+            <UploadOptionsTitle>اختر طريقة رفع الصورة</UploadOptionsTitle>
 
-          <DropZoneIcon>
-            <CloudArrowUp24Regular style={{ fontSize: "32px" }} />
-          </DropZoneIcon>
+            <UploadButtonsGrid>
+              {/* Computer Upload Card */}
+              <UploadMethodCard onClick={() => fileInputRef.current?.click()}>
+                <MethodIcon>
+                  <Image24Regular />
+                </MethodIcon>
+                <MethodTitle>رفع من الحاسوب</MethodTitle>
+                <MethodDescription>اختر صورة محفوظة على جهاز الكمبيوتر</MethodDescription>
+              </UploadMethodCard>
 
-          <DropZoneText>اسحب الصورة هنا أو انقر للاختيار</DropZoneText>
+              {/* QR Upload Card */}
+              <UploadMethodCard as="div" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                <MethodIcon>📱</MethodIcon>
+                <MethodTitle>رفع عبر الهاتف</MethodTitle>
+                <MethodDescription>امسح رمز QR لرفع الصورة من هاتفك مباشرة</MethodDescription>
+                <div style={{ marginTop: "12px" }}>
+                  <QrUploadButton onImageReceived={handleQrImageReceived} disabled={isProcessing} />
+                </div>
+              </UploadMethodCard>
+            </UploadButtonsGrid>
+          </UploadOptionsContainer>
+        )}
 
-          <DropZoneSubtext>jpg, png, jpeg مدعومة، بحد أقصى 5 ميغابايت</DropZoneSubtext>
-        </DropZone>
+        {/* Drag and Drop Zone - Only show if no image selected */}
+        {!selectedImage && (
+          <DropZone
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              style={{ display: "none" }}
+              accept="image/*"
+              title="اختيار ملف صورة"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  onImageUpload(e.target.files[0]);
+                }
+              }}
+            />
 
+            <DropZoneIcon>
+              <CloudArrowUp24Regular style={{ fontSize: "32px" }} />
+            </DropZoneIcon>
+
+            <DropZoneText>اسحب الصورة هنا أو انقر للاختيار</DropZoneText>
+
+            <DropZoneSubtext>jpg, png, jpeg مدعومة، بحد أقصى 5 ميغابايت</DropZoneSubtext>
+          </DropZone>
+        )}
+
+        {/* Hidden file input - Always present */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          accept="image/*"
+          title="اختيار ملف صورة"
+          onChange={(e) => {
+            if (e.target.files && e.target.files[0]) {
+              onImageUpload(e.target.files[0]);
+            }
+          }}
+        />
+
+        {/* Image Preview and Processing - Only show if image selected */}
         {imagePreview && (
           <PreviewContainer>
             <PreviewTitle>معاينة الصورة</PreviewTitle>
@@ -485,30 +643,8 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
                 </div>
               </ActionButtonsContainer>
             )}
-
-            {/* Show detected mark types if completed and types were detected */}
-            {/* {isCompleted && hasDetectedTypes && (
-              <DetectedTypesContainer>
-                <DetectedIcon>
-                  <ListRegular style={{ fontSize: "20px" }} />
-                </DetectedIcon>
-                <div>
-                  <DetectedTitle>تم اكتشاف أنواع العلامات التالية:</DetectedTitle>
-                  <BadgesContainer>
-                    {getDetectedTypesText().map((type) => (
-                      <StyledBadge key={type} appearance="filled" color="success">
-                        {type}
-                      </StyledBadge>
-                    ))}
-                  </BadgesContainer>
-                </div>
-              </DetectedTypesContainer>
-            )} */}
           </PreviewContainer>
         )}
-
-        {/* OCR Quality Tips added here */}
-        {/* {isActive && !isProcessing && !isCompleted && <OcrQualityTips />} */}
 
         {children}
       </div>
