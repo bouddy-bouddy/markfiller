@@ -43,9 +43,7 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
 
       // Get API base URL - try multiple sources
       const API_BASE_URL =
-        process.env.REACT_APP_API_URL ||
-        (typeof window !== "undefined" && (window as any).REACT_APP_API_URL) ||
-        "http://localhost:3000";
+        process.env.REACT_APP_API_URL || (typeof window !== "undefined" && (window as any).REACT_APP_API_URL);
 
       console.log("🌐 API Base URL:", API_BASE_URL);
 
