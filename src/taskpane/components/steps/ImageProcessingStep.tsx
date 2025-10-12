@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Button, Text, Card } from "@fluentui/react-components";
+import { Button, Text } from "@fluentui/react-components";
 import {
   Image24Regular,
   ArrowRight24Regular,
@@ -11,6 +11,7 @@ import LoadingSpinner from "../shared/LoadingSpinner";
 import QrUploadButton from "../QrUploadButton";
 import styled from "styled-components";
 
+// ============= STYLED COMPONENTS =============
 const StepTitle = styled.div`
   display: flex;
   align-items: center;
@@ -67,165 +68,87 @@ const DropZone = styled.div`
   justify-content: center;
   gap: 20px;
   position: relative;
-  overflow: hidden;
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-      45deg,
-      rgba(14, 124, 66, 0.05) 0%,
-      rgba(16, 185, 129, 0.05) 50%,
-      rgba(14, 124, 66, 0.05) 100%
-    );
-    opacity: 0;
-    transition: opacity 0.3s ease;
-  }
 
   &:hover {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #10b981;
+    border-color: #059669;
+    background: linear-gradient(135deg, #e0f2fe 0%, #bfdbfe 100%);
     transform: translateY(-2px);
-    box-shadow:
-      0 20px 25px -5px rgba(14, 124, 66, 0.1),
-      0 10px 10px -5px rgba(14, 124, 66, 0.04);
-
-    &::before {
-      opacity: 1;
-    }
+    box-shadow: 0 12px 24px -8px rgba(14, 124, 66, 0.2);
   }
 
   &.drag-over {
-    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-    border-color: #10b981;
-    box-shadow:
-      0 0 0 6px rgba(14, 124, 66, 0.1),
-      0 20px 25px -5px rgba(14, 124, 66, 0.1);
+    border-color: #059669;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
     transform: scale(1.02);
   }
 `;
 
 const DropZoneIcon = styled.div`
+  color: #0e7c42;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  border-radius: 16px;
-  color: white;
-  box-shadow: 0 8px 16px -4px rgba(14, 124, 66, 0.3);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  ${DropZone}:hover & {
-    transform: scale(1.1);
-    box-shadow: 0 12px 20px -4px rgba(14, 124, 66, 0.4);
-  }
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: rgba(14, 124, 66, 0.1);
 `;
 
 const DropZoneText = styled(Text)`
-  font-weight: 700 !important;
   font-size: 18px !important;
+  font-weight: 600 !important;
   color: #1f2937 !important;
   margin: 0 !important;
 `;
 
 const DropZoneSubtext = styled(Text)`
-  color: #6b7280 !important;
   font-size: 14px !important;
+  color: #6b7280 !important;
   margin: 0 !important;
-  line-height: 1.5 !important;
 `;
 
-const InfoCard = styled(Card)`
-  margin-bottom: 24px;
-  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-  border: 2px solid rgba(14, 124, 66, 0.2);
-  padding: 24px;
-  border-radius: 16px;
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow:
-      0 20px 25px -5px rgba(0, 0, 0, 0.1),
-      0 10px 10px -5px rgba(0, 0, 0, 0.04);
-  }
+const InfoCard = styled.div`
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-right: 4px solid #f59e0b;
+  box-shadow: 0 4px 6px -1px rgba(245, 158, 11, 0.1);
 `;
 
 const InfoIcon = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  border-radius: 12px;
-  color: white;
+  color: #d97706;
   flex-shrink: 0;
-  margin-top: 2px;
-  box-shadow: 0 4px 6px -1px rgba(14, 124, 66, 0.2);
 `;
 
 const InfoTitle = styled(Text)`
   font-weight: 700 !important;
-  color: #0e7c42 !important;
-  display: block !important;
+  color: #92400e !important;
+  font-size: 15px !important;
   margin-bottom: 12px !important;
-  font-size: 16px !important;
+  display: block !important;
 `;
 
-const InfoList = styled.ol`
-  padding-right: 24px;
+const InfoList = styled.ul`
   margin: 0;
-  counter-reset: tip-counter;
-  list-style: none;
+  padding-right: 20px;
+  list-style-type: disc;
+  color: #92400e;
 `;
 
 const InfoListItem = styled.li`
-  margin-bottom: 10px;
-  position: relative;
-  padding-right: 28px;
+  margin-bottom: 8px;
   line-height: 1.6;
-  color: #4b5563;
-  font-weight: 500;
-
-  &::before {
-    counter-increment: tip-counter;
-    content: counter(tip-counter);
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 20px;
-    height: 20px;
-    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-    color: white;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 11px;
-    font-weight: 700;
-    box-shadow: 0 2px 4px rgba(14, 124, 66, 0.2);
-  }
+  font-size: 14px;
 `;
 
 const PreviewContainer = styled.div`
   margin-top: 24px;
   padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
   border-radius: 16px;
   border: 2px solid rgba(14, 124, 66, 0.1);
-  box-shadow:
-    0 4px 6px -1px rgba(0, 0, 0, 0.1),
-    0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
 `;
 
 const PreviewTitle = styled(Text)`
@@ -294,7 +217,6 @@ const SecondaryButton = styled(Button)`
   }
 `;
 
-// NEW: Styled component for upload options section
 const UploadOptionsContainer = styled.div`
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
   border-radius: 16px;
@@ -368,6 +290,7 @@ const MethodDescription = styled(Text)`
   line-height: 1.4 !important;
 `;
 
+// ============= COMPONENT PROPS =============
 interface ImageProcessingStepProps {
   isActive: boolean;
   isCompleted: boolean;
@@ -381,6 +304,7 @@ interface ImageProcessingStepProps {
   children?: React.ReactNode;
 }
 
+// ============= MAIN COMPONENT =============
 const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   isActive,
   isCompleted,
@@ -400,18 +324,22 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   // Processing stages
   const stages = ["تحليل الصورة", "استخراج النص", "تحديد هيكل الجدول", "استخراج العلامات", "التحقق من الدقة"];
 
-  // Handle QR image received
+  // ============= QR IMAGE HANDLER =============
   const handleQrImageReceived = async (imageUrl: string) => {
     try {
       console.log("📱 Image received from QR upload:", imageUrl);
 
-      // Get the API base URL
-      const API_BASE_URL = process.env.REACT_APP_API_URL || "http://localhost:3000";
-      const fullImageUrl = `${API_BASE_URL}${imageUrl}`;
+      // Check if it's a Cloudinary URL (starts with http/https)
+      const isCloudinaryUrl = imageUrl.startsWith("http://") || imageUrl.startsWith("https://");
+
+      // Use the URL directly if it's from Cloudinary, otherwise construct local URL
+      const fullImageUrl = isCloudinaryUrl
+        ? imageUrl
+        : `${process.env.REACT_APP_API_URL || "http://localhost:3000"}${imageUrl}`;
 
       console.log("🌐 Fetching image from:", fullImageUrl);
 
-      // Fetch the image from the server
+      // Fetch the image
       const response = await fetch(fullImageUrl);
 
       if (!response.ok) {
@@ -437,7 +365,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
     }
   };
 
-  // Handle file drop
+  // ============= DRAG & DROP HANDLERS =============
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     const file = e.dataTransfer.files[0];
@@ -456,28 +384,21 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
     e.currentTarget.classList.remove("drag-over");
   };
 
-  // Enhanced processImage function that shows stages
+  // ============= PROCESS IMAGE WITH STAGES =============
   const processImageWithStages = async () => {
     if (!selectedImage) return;
 
-    // Start processing
     setProcessingStage(0);
     setProcessingProgress(0);
 
-    // Update progress through stages
     const updateStage = (stage: number) => {
       setProcessingStage(stage);
       setProcessingProgress(((stage + 1) / stages.length) * 100);
     };
 
-    // Show initial stage
     updateStage(0);
-
-    // Call the actual process function (which will show actual progress)
     onProcessImage();
 
-    // In a real implementation, onProcessImage would update these stages
-    // This is just a simulation for the UI
     const simulateStages = async () => {
       for (let i = 1; i < stages.length; i++) {
         await new Promise((resolve) => setTimeout(resolve, 800));
@@ -485,10 +406,10 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
       }
     };
 
-    // Run the simulation in parallel with actual processing
     simulateStages();
   };
 
+  // ============= RENDER =============
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
       <StepTitle>
@@ -499,6 +420,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
       </StepTitle>
 
       <div className="step-content">
+        {/* Info Card */}
         <InfoCard>
           <div style={{ display: "flex", gap: "16px", alignItems: "start" }}>
             <InfoIcon>
@@ -518,7 +440,7 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
           </div>
         </InfoCard>
 
-        {/* NEW: Upload Options Section - Only show if no image selected */}
+        {/* Upload Options - Only show if no image selected */}
         {!selectedImage && (
           <UploadOptionsContainer>
             <UploadOptionsTitle>اختر طريقة رفع الصورة</UploadOptionsTitle>
@@ -554,19 +476,6 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
             onDragOver={handleDragOver}
             onDragLeave={handleDragLeave}
           >
-            <input
-              type="file"
-              ref={fileInputRef}
-              style={{ display: "none" }}
-              accept="image/*"
-              title="اختيار ملف صورة"
-              onChange={(e) => {
-                if (e.target.files && e.target.files[0]) {
-                  onImageUpload(e.target.files[0]);
-                }
-              }}
-            />
-
             <DropZoneIcon>
               <CloudArrowUp24Regular style={{ fontSize: "32px" }} />
             </DropZoneIcon>
@@ -631,7 +540,6 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
                   <SecondaryButton
                     appearance="outline"
                     onClick={() => {
-                      // Clear the selected image
                       if (typeof onRemoveImage === "function") {
                         onRemoveImage();
                       }
