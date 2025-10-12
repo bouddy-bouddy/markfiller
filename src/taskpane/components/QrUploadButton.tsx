@@ -237,22 +237,6 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
                   >
                     <img src={qrCodeDataUrl} alt="QR Code" style={{ maxWidth: "100%", height: "auto" }} />
                   </div>
-
-                  {uploadUrl && (
-                    <div
-                      style={{
-                        marginTop: "16px",
-                        padding: "12px",
-                        background: "#f0f9ff",
-                        borderRadius: "8px",
-                        border: "1px solid #bfdbfe",
-                      }}
-                    >
-                      <p style={{ fontSize: "12px", color: "#1e40af", margin: 0, wordBreak: "break-all" }}>
-                        <strong>رابط الرفع:</strong> {uploadUrl}
-                      </p>
-                    </div>
-                  )}
                 </div>
               )}
 
