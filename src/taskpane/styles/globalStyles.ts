@@ -140,7 +140,7 @@ export const GlobalStyle = createGlobalStyle`
     justify-content: space-between;
     position: relative;
     margin: 32px 0;
-    padding: 16px 0;
+    padding: 16px 8px;
   }
   
   /* Line connecting pills */

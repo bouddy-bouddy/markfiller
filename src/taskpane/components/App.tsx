@@ -488,8 +488,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            minHeight: "60vh",
-            padding: "40px",
+            height: "100vh",
           }}
         >
           <GreenSpinner size="large" />
@@ -540,7 +539,16 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
         <StepNavigation currentStep={currentStep} completedSteps={completedSteps} onStepClick={advanceToStep} />
 
         {/* Main content area */}
-        <div style={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            flex: 1,
+            minHeight: 0,
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            padding: "0 16px",
+          }}
+        >
           {/* Error Display */}
           {error && <OcrErrorDisplay errorMessage={error} errorCode={errorCode} />}
 

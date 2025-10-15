@@ -40,7 +40,7 @@ const GreetingContainer = styled.div`
   position: relative;
   background: linear-gradient(135deg, #0f6cbd 0%, #1e3a8a 50%, #7c3aed 100%);
   padding: 20px 32px;
-  margin: 0 -20px 16px -20px;
+  margin: 0 -20px 0 -20px;
   overflow: hidden;
   box-shadow: 0 4px 16px rgba(15, 108, 189, 0.25);
 
