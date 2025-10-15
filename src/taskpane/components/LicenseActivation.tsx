@@ -227,14 +227,6 @@ const LicenseActivation: React.FC<LicenseActivationProps> = ({ onLicenseValidate
               </Button>
             )}
           </div>
-
-          {/* Help Text */}
-          <div style={styles.helpBox}>
-            <Text size={200} style={styles.helpText}>
-              💡 للحصول على مفتاح ترخيص، يرجى التواصل مع مطور التطبيق.
-              <br /> سيتم إرسال المفتاح إليك عبر البريد الإلكتروني.
-            </Text>
-          </div>
         </div>
       </div>
     </div>
