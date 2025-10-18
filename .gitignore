@@ -6,3 +6,10 @@ dist
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Private documentation - NEVER commit
+PRIVATE-DOCS.txt
+NOTES.txt
+SETUP.txt
+INTERNAL-*.txt
+INTERNAL-*.md

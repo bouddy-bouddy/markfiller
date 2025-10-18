@@ -1,3 +1,5 @@
+/* Frontend License Service - Calls Backend API */
+
 export interface LicenseValidationResult {
   valid: boolean;
   message: string;
@@ -17,9 +19,14 @@ export interface DeviceInfo {
 }
 
 class LicenseService {
-  private readonly LMS_BASE_URL = "https://markfiller-lms.vercel.app"; // Replace with your actual LMS URL
+  private readonly API_BASE_URL: string;
   private readonly STORAGE_KEY = "markfiller_license";
   private readonly DEVICE_ID_KEY = "markfiller_device_id";
+
+  constructor() {
+    // Backend API URL - configure in .env
+    this.API_BASE_URL = process.env.BACKEND_API_URL || "http://localhost:3001";
+  }
 
   /**
    * Generate a unique device ID for this installation
@@ -78,7 +85,7 @@ class LicenseService {
   }
 
   /**
-   * Activate license with the LMS
+   * Activate license with the backend
    */
   async activateLicense(
     licenseKey: string,
@@ -96,17 +103,17 @@ class LicenseService {
       const deviceInfo = this.getDeviceInfo();
       const clientIP = await this.getClientIP();
 
-      const response = await fetch(`${this.LMS_BASE_URL}/api/activate`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/license/activate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          key: licenseKey.trim(),
+          licenseKey: licenseKey.trim(),
           deviceId,
-          userAgent: deviceInfo.userAgent,
-          ip: clientIP,
-          profile: teacherProfile,
+          deviceInfo,
+          clientIP,
+          teacherProfile,
         }),
       });
 
@@ -115,17 +122,17 @@ class LicenseService {
       if (!response.ok) {
         return {
           valid: false,
-          message: this.getErrorMessage(data.error || "فشل في تفعيل الترخيص"),
+          message: data.error || data.message || "فشل في تفعيل الترخيص",
         };
       }
 
-      // Store the license key locally for future validations
+      // Store the license key locally
       localStorage.setItem(this.STORAGE_KEY, licenseKey);
 
       return {
         valid: true,
         message: "تم تفعيل الترخيص بنجاح",
-        expiresAt: data.validUntil,
+        expiresAt: data.expiresAt,
       };
     } catch (error) {
       console.error("License activation error:", error);
@@ -151,18 +158,19 @@ class LicenseService {
 
     try {
       const deviceId = this.generateDeviceId();
+      const deviceInfo = this.getDeviceInfo();
       const clientIP = await this.getClientIP();
 
-      const response = await fetch(`${this.LMS_BASE_URL}/api/licenses/validate`, {
+      const response = await fetch(`${this.API_BASE_URL}/api/license/validate`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          key: storedLicense,
+          licenseKey: storedLicense,
           deviceId,
-          ip: clientIP,
-          userAgent: navigator.userAgent,
+          deviceInfo,
+          clientIP,
         }),
       });
 
@@ -176,7 +184,7 @@ class LicenseService {
 
         return {
           valid: false,
-          message: this.getErrorMessage(data.message || "الترخيص غير صالح"),
+          message: data.error || data.message || "الترخيص غير صالح",
         };
       }
 
@@ -220,7 +228,7 @@ class LicenseService {
   }
 
   /**
-   * Track usage events
+   * Track usage events via backend
    */
   async trackUsage(eventType: string, metadata?: any): Promise<void> {
     const storedLicense = localStorage.getItem(this.STORAGE_KEY);
@@ -229,39 +237,21 @@ class LicenseService {
     try {
       const deviceId = this.generateDeviceId();
 
-      await fetch(`${this.LMS_BASE_URL}/api/usage`, {
+      await fetch(`${this.API_BASE_URL}/api/license/track-usage`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          key: storedLicense,
+          licenseKey: storedLicense,
           deviceId,
           eventType,
           metadata,
-          timestamp: new Date().toISOString(),
         }),
       });
     } catch (error) {
-      // Silent fail for usage tracking
       console.warn("Usage tracking failed:", error);
     }
-  }
-
-  /**
-   * Convert error codes to user-friendly Arabic messages
-   */
-  private getErrorMessage(error: string): string {
-    const errorMessages: Record<string, string> = {
-      "Invalid key": "مفتاح الترخيص غير صحيح",
-      "License expired": "انتهت صلاحية الترخيص",
-      "License suspended": "تم تعليق الترخيص",
-      "Device limit exceeded": "تم تجاوز الحد الأقصى للأجهزة المسموح بها",
-      "Device not activated": "الجهاز غير مفعل",
-      "Activation failed": "فشل في التفعيل",
-    };
-
-    return errorMessages[error] || error;
   }
 }
 

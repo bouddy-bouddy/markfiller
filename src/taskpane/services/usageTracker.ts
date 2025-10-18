@@ -1,18 +1,18 @@
-// src/taskpane/services/usageTracker.ts
+/* Frontend Usage Tracker - Calls Backend API */
 import { UsageCheckResponse, UsageTrackResponse } from "../types";
 
-// Your backend API URL - UPDATE THIS!
-const API_BASE_URL = process.env.REACT_APP_API_URL || "https://your-production-api.com";
+const API_BASE_URL = process.env.BACKEND_API_URL || "http://localhost:3001";
 
 /**
  * Check if upload is allowed BEFORE attempting upload
  */
 export async function checkUploadAllowed(licenseKey: string): Promise<UsageCheckResponse> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/usage/track?licenseKey=${encodeURIComponent(licenseKey)}`, {
+    const response = await fetch(`${API_BASE_URL}/api/usage/check`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        "X-License-Key": licenseKey,
       },
     });
 
@@ -44,9 +44,9 @@ export async function trackUpload(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "X-License-Key": licenseKey,
       },
       body: JSON.stringify({
-        licenseKey,
         metadata,
       }),
     });
