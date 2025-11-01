@@ -59,7 +59,7 @@ export interface DetectedMarkTypes {
   hasFard1: boolean;
   hasFard2: boolean;
   hasFard3: boolean;
-  hasFard4: boolean; // Added for الفرض 4
+  hasFard4: boolean;
   hasActivities: boolean;
 }
 

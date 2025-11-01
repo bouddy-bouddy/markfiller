@@ -1,7 +1,6 @@
-/* global HTMLDivElement, HTMLCanvasElement, document, window, console */
-/* eslint-disable no-console */
+/* global HTMLDivElement */
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Text, Card, Button, Badge } from "@fluentui/react-components";
+import { Text, Badge } from "@fluentui/react-components";
 import {
   ChartMultiple24Regular,
   DocumentAdd24Regular,
@@ -12,10 +11,6 @@ import {
   Star24Filled,
   DataTrending24Regular,
 } from "@fluentui/react-icons";
-import { DetectedMarkTypes, MarkType } from "../../types";
-import { Statistics } from "../../types/statistics";
-import styled from "styled-components";
-// Defer loading heavy PDF/image snapshot libraries until needed
 import { Bar, Doughnut } from "react-chartjs-2";
 import {
   Chart as ChartJS,
@@ -29,455 +24,15 @@ import {
   PointElement,
 } from "chart.js";
 import type { ChartData } from "chart.js";
+
+import { DetectedMarkTypes, MarkType } from "../../types";
+import { Statistics } from "../../types/statistics";
 import excelService from "../../services/excel/excelService";
+import { getMarkTypeName, getMarkTypeColor, formatNumber } from "../../utils/markTypeHelpers";
+import { generatePdfReport } from "../../utils/pdfExport";
+import * as S from "./StatisticsStep.styles";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineElement, PointElement);
-
-const StepTitle = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-`;
-
-// Enhanced Dashboard Layout
-const DashboardContainer = styled.div`
-  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-  border-radius: 20px;
-  padding: 24px !important;
-  margin-bottom: 20px;
-  direction: rtl;
-`;
-
-const MetaBar = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
-  background: #ffffff;
-  border: 1px dashed rgba(14, 124, 66, 0.35);
-  border-radius: 10px;
-`;
-
-const MetaItem = styled.div`
-  display: flex;
-  gap: 8px;
-  justify-content: flex-end;
-  color: #0f172a;
-`;
-
-const MetaLabel = styled.span`
-  color: #64748b;
-`;
-
-const StatsHeader = styled.div`
-  text-align: center;
-  margin-bottom: 32px;
-  padding: 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  page-break-inside: avoid;
-`;
-
-const MainTitle = styled.div`
-  font-size: 28px;
-  font-weight: 700;
-  color: #0e7c42;
-  margin-bottom: 8px;
-  white-space: nowrap;
-  overflow: visible;
-  text-align: right;
-  line-height: 1.2;
-`;
-
-const Subtitle = styled.div`
-  font-size: 16px;
-  color: #64748b;
-  margin-bottom: 16px;
-`;
-
-const GeneratedDate = styled.div`
-  font-size: 14px;
-  color: #94a3b8;
-  font-style: italic;
-`;
-
-// Enhanced KPI Grid
-const KPIGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 16px;
-  margin-bottom: 32px;
-  page-break-inside: avoid;
-`;
-
-const KPICard = styled(Card)`
-  padding: 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  position: relative;
-  overflow: hidden;
-
-  &:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(14, 124, 66, 0.15);
-    border-color: rgba(14, 124, 66, 0.2);
-  }
-
-  &::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, #0e7c42 0%, #10b981 100%);
-  }
-`;
-
-const KPIValue = styled.div`
-  font-size: 36px;
-  font-weight: 700;
-  color: #0e7c42;
-  margin: 12px 0 8px 0;
-  line-height: 1;
-`;
-
-const KPILabel = styled.div`
-  font-size: 14px;
-  color: #64748b;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-`;
-
-const KPIIcon = styled.div`
-  position: absolute;
-  top: 16px;
-  left: 16px;
-  opacity: 0.1;
-  font-size: 48px;
-  color: #0e7c42;
-`;
-
-// Section Headers
-const SectionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 32px 0 20px 0;
-  padding: 16px 20px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 12px;
-  border: 1px solid rgba(14, 124, 66, 0.1);
-`;
-
-const SectionTitle = styled.div`
-  font-size: 20px;
-  font-weight: 700;
-  color: #1e293b;
-`;
-
-const SectionIcon = styled.div`
-  color: #0e7c42;
-`;
-
-// Enhanced Charts Grid
-const ChartsGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
-  gap: 20px;
-  margin-bottom: 32px;
-  page-break-inside: avoid;
-`;
-
-const ChartCard = styled(Card)`
-  padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(14, 124, 66, 0.1);
-  }
-`;
-
-const ChartTitle = styled.div`
-  font-size: 18px;
-  font-weight: 600;
-  color: #1e293b;
-  margin-bottom: 20px;
-  text-align: center;
-`;
-
-// Performance Tables
-const PerformanceGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 20px;
-  margin-bottom: 32px;
-  page-break-inside: avoid;
-`;
-
-const PerformanceCard = styled(Card)`
-  padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-`;
-
-const PerformanceTable = styled.div`
-  background: #ffffff;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid rgba(14, 124, 66, 0.1);
-`;
-
-const TableHeader = styled.div`
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%);
-  color: white;
-  padding: 16px;
-  font-weight: 600;
-  text-align: center;
-`;
-
-const TableRow = styled.div`
-  display: grid;
-  grid-template-columns: 40px 1fr 80px 80px;
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(14, 124, 66, 0.1);
-  align-items: center;
-  gap: 12px;
-  transition: background-color 0.2s ease;
-
-  &:hover {
-    background-color: rgba(14, 124, 66, 0.02);
-  }
-
-  &:last-child {
-    border-bottom: none;
-  }
-`;
-
-const RankBadge = styled.div<{ rank: number }>`
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 14px;
-  background: ${(props) =>
-    props.rank === 1
-      ? "linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)"
-      : props.rank === 2
-        ? "linear-gradient(135deg, #9ca3af 0%, #6b7280 100%)"
-        : props.rank === 3
-          ? "linear-gradient(135deg, #cd7c0f 0%, #92400e 100%)"
-          : "linear-gradient(135deg, #e2e8f0 0%, #cbd5e1 100%)"};
-  color: ${(props) => (props.rank <= 3 ? "white" : "#64748b")};
-`;
-
-const StudentName = styled.div`
-  font-weight: 500;
-  color: #1e293b;
-`;
-
-const ScoreBadge = styled(Badge)<{ score: number }>`
-  background: ${(props) =>
-    props.score >= 16
-      ? "linear-gradient(135deg, #10b981 0%, #059669 100%)"
-      : props.score >= 14
-        ? "linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)"
-        : props.score >= 10
-          ? "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)"
-          : "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)"} !important;
-  color: white !important;
-  font-weight: 600 !important;
-`;
-
-// Distribution Components
-const DistributionGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-  margin-bottom: 32px;
-  page-break-inside: avoid;
-`;
-
-const DistributionCard = styled(Card)`
-  padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border: 1px solid rgba(14, 124, 66, 0.1);
-  border-radius: 16px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-`;
-
-const DistributionHeader = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid rgba(14, 124, 66, 0.1);
-`;
-
-const DistributionTitle = styled.div<{ color: string }>`
-  font-size: 18px;
-  font-weight: 700;
-  color: ${(props) => props.color};
-`;
-
-const DistributionItem = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-  padding: 12px;
-  background: rgba(14, 124, 66, 0.02);
-  border-radius: 8px;
-  border-left: 4px solid #0e7c42;
-`;
-
-const DistributionRange = styled.div`
-  font-weight: 600;
-  color: #1e293b;
-`;
-
-const DistributionCount = styled.div`
-  font-weight: 700;
-  color: #0e7c42;
-`;
-
-const DistributionBar = styled.div`
-  height: 8px;
-  background: rgba(14, 124, 66, 0.1);
-  border-radius: 4px;
-  overflow: hidden;
-  margin: 8px 0;
-`;
-
-const DistributionFill = styled.div<{ width: string; color: string }>`
-  height: 100%;
-  background: ${(props) => props.color};
-  width: ${(props) => props.width};
-  transition: width 0.6s ease;
-  border-radius: 4px;
-`;
-
-// Additional styled components for fixing inline styles
-const StepContent = styled.div`
-  width: 100%;
-  max-width: 100%;
-  padding: 0;
-`;
-
-const RecommendationsList = styled.ul`
-  margin: 0;
-  padding: 0 24px;
-  list-style: none;
-`;
-
-const RecommendationItem = styled.li`
-  margin-bottom: 16px;
-  padding: 16px;
-  background: rgba(14, 124, 66, 0.05);
-  border-radius: 8px;
-  border-left: 4px solid #0e7c42;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-`;
-
-const RecommendationIcon = styled.div`
-  color: #0e7c42;
-  margin-top: 2px;
-  flex-shrink: 0;
-`;
-
-const RecommendationText = styled(Text)`
-  line-height: 1.6 !important;
-`;
-
-const RecommendationsCard = styled(PerformanceCard)`
-  margin-bottom: 32px;
-`;
-
-// Enhanced Action Buttons
-const ActionButtonsContainer = styled.div`
-  display: flex;
-  gap: 16px;
-  justify-content: center;
-  margin: 40px 0;
-  padding: 24px;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
-  border-radius: 16px;
-  border: 1px solid rgba(14, 124, 66, 0.1);
-`;
-
-const PrimaryActionButton = styled(Button)`
-  border-radius: 16px !important;
-  font-weight: 700 !important;
-  padding: 16px 32px !important;
-  background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
-  border: none !important;
-  box-shadow: 0 8px 24px rgba(14, 124, 66, 0.3) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  font-size: 16px !important;
-  min-width: 200px !important;
-
-  &:hover:not(:disabled) {
-    transform: translateY(-4px) !important;
-    box-shadow: 0 16px 32px rgba(14, 124, 66, 0.4) !important;
-  }
-
-  &:active:not(:disabled) {
-    transform: translateY(-2px) !important;
-  }
-
-  .fui-Button__icon {
-    margin-left: 8px !important;
-    font-size: 20px !important;
-  }
-`;
-
-const SecondaryActionButton = styled(Button)`
-  border-radius: 16px !important;
-  font-weight: 600 !important;
-  padding: 16px 32px !important;
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
-  border: 2px solid #0e7c42 !important;
-  color: #0e7c42 !important;
-  box-shadow: 0 4px 12px rgba(14, 124, 66, 0.1) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  font-size: 16px !important;
-  min-width: 200px !important;
-
-  &:hover:not(:disabled) {
-    background: linear-gradient(135deg, #0e7c42 0%, #10b981 100%) !important;
-    color: white !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 8px 20px rgba(14, 124, 66, 0.2) !important;
-  }
-
-  .fui-Button__icon {
-    margin-left: 8px !important;
-    font-size: 20px !important;
-  }
-`;
-
-// Statistics type imported from ../../types/statistics
 
 interface StatisticsStepProps {
   isActive: boolean;
@@ -486,6 +41,8 @@ interface StatisticsStepProps {
   detectedMarkTypes: DetectedMarkTypes;
   onReset: () => void;
 }
+
+const ALL_MARK_TYPES: MarkType[] = ["fard1", "fard2", "fard3", "fard4", "activities"];
 
 const StatisticsStep: React.FC<StatisticsStepProps> = ({
   isActive,
@@ -509,410 +66,56 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
       mounted = false;
     };
   }, []);
-  const shownTypes: MarkType[] = useMemo(() => {
-    const list: MarkType[] = [];
-    if (detectedMarkTypes.hasFard1) list.push("fard1");
-    if (detectedMarkTypes.hasFard2) list.push("fard2");
-    if (detectedMarkTypes.hasFard3) list.push("fard3");
-    if (detectedMarkTypes.hasFard4) list.push("fard4");
-    if (detectedMarkTypes.hasActivities) list.push("activities");
-    return list.filter((t) => statistics.markTypes[t].count > 0);
+
+  const shownTypes = useMemo<MarkType[]>(() => {
+    const typeMap: Record<MarkType, boolean> = {
+      fard1: detectedMarkTypes.hasFard1,
+      fard2: detectedMarkTypes.hasFard2,
+      fard3: detectedMarkTypes.hasFard3,
+      fard4: detectedMarkTypes.hasFard4,
+      activities: detectedMarkTypes.hasActivities,
+    };
+
+    return ALL_MARK_TYPES.filter((t) => typeMap[t] && statistics.markTypes[t].count > 0);
   }, [detectedMarkTypes, statistics]);
-  // Derived set of shown types already handles detected types
 
-  // Helper to determine which stats to display based on detected types
   const shouldShowStat = (type: MarkType): boolean => {
-    switch (type) {
-      case "fard1":
-        return detectedMarkTypes.hasFard1;
-      case "fard2":
-        return detectedMarkTypes.hasFard2;
-      case "fard3":
-        return detectedMarkTypes.hasFard3;
-      case "fard4":
-        return detectedMarkTypes.hasFard4;
-      case "activities":
-        return detectedMarkTypes.hasActivities;
-      default:
-        return true;
-    }
+    const typeMap: Record<MarkType, boolean> = {
+      fard1: detectedMarkTypes.hasFard1,
+      fard2: detectedMarkTypes.hasFard2,
+      fard3: detectedMarkTypes.hasFard3,
+      fard4: detectedMarkTypes.hasFard4,
+      activities: detectedMarkTypes.hasActivities,
+    };
+    return typeMap[type] || false;
   };
 
-  // Helper to get Arabic name for mark type
-  const getMarkTypeName = (type: string): string => {
-    switch (type) {
-      case "fard1":
-        return "الفرض الأول";
-      case "fard2":
-        return "الفرض الثاني";
-      case "fard3":
-        return "الفرض الثالث";
-      case "fard4":
-        return "الفرض الرابع";
-      case "activities":
-        return "الأنشطة";
-      default:
-        return type;
-    }
-  };
-
-  // Helper to get a color for each mark type
-  const getMarkTypeColor = (type: string): string => {
-    switch (type) {
-      case "fard1":
-        return "#3182ce";
-      case "fard2":
-        return "#38a169";
-      case "fard3":
-        return "#805ad5";
-      case "fard4":
-        return "#d53f8c";
-      case "activities":
-        return "#dd6b20";
-      default:
-        return "#718096";
-    }
-  };
-
-  // Helper to format a number to 2 decimal places
-  const formatNumber = (num: number): string => {
-    return num.toFixed(2);
-  };
-
-  // Helper to calculate maximum value for a distribution category
   const getMaxDistribution = (type: MarkType): number => {
     const dist = statistics.distribution[type];
     return Math.max(dist["0-5"], dist["5-10"], dist["10-15"], dist["15-20"]);
   };
 
-  // PDF export using a dedicated, clean layout (image-only),
-  // to avoid Arabic font issues in jsPDF while producing a professional report
-  const exportPdf = async () => {
+  const handleExportPdf = async () => {
     if (!reportRef.current) return;
 
-    try {
-      const [{ default: jsPDF }, { default: html2canvas }] = await Promise.all([
-        import("jspdf"),
-        import("html2canvas"),
-      ]);
-      // 1) Prepare chart snapshots to embed as images in the PDF layout
-      const chartCanvases = reportRef.current.querySelectorAll("canvas");
-      const barChartSrc = chartCanvases[0] ? (chartCanvases[0] as HTMLCanvasElement).toDataURL("image/png") : "";
-      const donutChartSrc = chartCanvases[1] ? (chartCanvases[1] as HTMLCanvasElement).toDataURL("image/png") : "";
-
-      // 2) Build a dedicated, off-screen report container with fixed A4 width
-      const a4CssWidthPx = 794; // A4 width at ~96dpi
-      const container = document.createElement("div");
-      container.id = "markfiller-pdf-report";
-      container.style.cssText = [
-        "position: fixed",
-        "left: -10000px",
-        "top: 0",
-        `width: ${a4CssWidthPx}px`,
-        "box-sizing: border-box",
-        "background: #ffffff",
-        "color: #0f172a",
-        "direction: rtl",
-        "padding: 24px",
-        "font-family: 'Segoe UI', Tahoma, 'Cairo', 'Noto Naskh Arabic', Arial, sans-serif",
-        "line-height: 1.5",
-      ].join(";");
-
-      // Helper builders for sections
-      const kpi = statistics.overall
-        ? [
-            { label: "المتوسط العام", value: formatNumber(statistics.overall.overallAverage) },
-            { label: "نسبة النجاح", value: `${Math.round((statistics.overall.passRate || 0) * 100)}%` },
-            { label: "نسبة الرسوب", value: `${Math.round((statistics.overall.failRate || 0) * 100)}%` },
-            { label: "إجمالي التلاميذ", value: String(statistics.totalStudents) },
-            { label: "النقاط المحسوبة", value: String(statistics.overall.totalMarksCounted) },
-          ]
-        : [];
-
-      const mastery = statistics.mastery
-        ? [
-            {
-              label: "المتحكمون (≥ 15)",
-              value: `${statistics.mastery.masteredPct}% — ${statistics.mastery.masteredCount}/${statistics.totalStudents}`,
-            },
-            {
-              label: "في طور التحكم (10 - 14.99)",
-              value: `${statistics.mastery.inProgressPct}% — ${statistics.mastery.inProgressCount}/${statistics.totalStudents}`,
-            },
-            {
-              label: "غير متحكمين (< 10)",
-              value: `${statistics.mastery.notMasteredPct}% — ${statistics.mastery.notMasteredCount}/${statistics.totalStudents}`,
-            },
-          ]
-        : [];
-
-      const distributionsHtml = ((): string => {
-        const parts: string[] = [];
-        (shownTypes as MarkType[]).forEach((type) => {
-          const dist = statistics.distribution[type];
-          if (!dist) return;
-          const max = Math.max(dist["15-20"], dist["10-15"], dist["5-10"], dist["0-5"]);
-          const row = (label: string, value: number, color: string) => {
-            const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-            return `
-              <div class="dist-row">
-                <div class="dist-label">${label}</div>
-                <div class="dist-count">${value} تلميذ</div>
-                <div class="dist-bar"><span style="width:${pct}%;background:${color}"></span></div>
-              </div>`;
-          };
-          parts.push(`
-            <div class="card" style="page-break-inside: avoid">
-              <div class="card-title">${getMarkTypeName(type)}</div>
-              ${row("ممتاز (16-20)", dist["15-20"], "#10b981")}
-              ${row("جيد جداً (13-15.9)", dist["10-15"], "#3b82f6")}
-              ${row("مقبول (10-12.9)", dist["5-10"], "#f59e0b")}
-              ${row("ضعيف (0-9.9)", dist["0-5"], "#ef4444")}
-            </div>`);
-        });
-        return parts.join("");
-      })();
-
-      const topHtml = ((): string => {
-        const cards: string[] = [];
-        (shownTypes as MarkType[]).forEach((type) => {
-          const items = (statistics.topStudentsByType?.[type] || []).slice(0, 3);
-          if (items.length === 0) return;
-          const rows = items
-            .map(
-              (s, idx) => `
-              <tr>
-                <td class="rank">${idx + 1}</td>
-                <td>${s.name}</td>
-                <td class="score">${formatNumber(s.value)}</td>
-              </tr>`
-            )
-            .join("");
-          cards.push(`
-            <div class="card">
-              <div class="card-title">${getMarkTypeName(type)} - المتفوقون</div>
-              <table class="table">
-                <thead><tr><th>#</th><th>الاسم</th><th>النقطة</th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
-            </div>`);
-        });
-        return cards.join("");
-      })();
-
-      const difficultyHtml = ((): string => {
-        const cards: string[] = [];
-        (shownTypes as MarkType[]).forEach((type) => {
-          const items = (statistics.bottomStudentsByType?.[type] || []).filter((s) => s.value < 10).slice(0, 10);
-          if (items.length === 0) return;
-          const rows = items
-            .map(
-              (s, idx) => `
-              <tr>
-                <td class="rank">${idx + 1}</td>
-                <td>${s.name}</td>
-                <td class="score low">${formatNumber(s.value)}</td>
-              </tr>`
-            )
-            .join("");
-          cards.push(`
-            <div class="card">
-              <div class="card-title">${getMarkTypeName(type)} - التلاميذ في صعوبة</div>
-              <table class="table danger">
-                <thead><tr><th>#</th><th>الاسم</th><th>النقطة</th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
-            </div>`);
-        });
-        return cards.join("");
-      })();
-
-      const recommendationsHtml = (statistics.recommendations || []).map((rec) => `<li>${rec}</li>`).join("");
-
-      const metaLevel = meta.level || "غير محدد";
-      const metaClass = meta.class || "غير محدد";
-      const createdAt = new Date().toLocaleDateString("ar-MA");
-
-      // 3) Compose HTML for the PDF report
-      container.innerHTML = `
-        <style>
-          .header { text-align:center; margin-bottom:16px; }
-          .title { font-size:26px; font-weight:700; color:#0e7c42; }
-          .subtitle { color:#64748b; margin-top:4px; }
-          .meta { display:flex; gap:12px; justify-content:space-between; background:#f8fafc; border:1px dashed rgba(14,124,66,.35); border-radius:8px; padding:10px 12px; margin:12px 0; }
-          .meta .pair { display:flex; gap:6px; align-items:center; }
-          .section { margin-top:18px; page-break-inside: avoid; }
-          .section h3 { margin:0 0 10px 0; font-size:18px; color:#1e293b; }
-          .grid { display:grid; grid-template-columns: repeat(2, 1fr); gap:12px; }
-          .grid-3 { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
-          .card { border:1px solid rgba(14,124,66,.15); border-radius:12px; padding:14px; background:linear-gradient(135deg,#fff,#f8fafc); }
-          .kpi { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
-          .kpi .label { font-size:13px; color:#64748b; }
-          .kpi .value { font-size:22px; font-weight:700; color:#0e7c42; }
-          .card-title { font-weight:700; margin-bottom:10px; color:#1e293b; }
-          .charts { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
-          .chart { border:1px solid rgba(14,124,66,.12); border-radius:10px; padding:8px; text-align:center; }
-          .chart img { width:100%; height:auto; }
-          .dist-row { display:grid; grid-template-columns: auto 100px 1fr; gap:10px; align-items:center; margin:10px 0; }
-          .dist-label { color:#1e293b; }
-          .dist-count { color:#0e7c42; font-weight:700; text-align:center; }
-          .dist-bar { background:#e2e8f0; height:8px; border-radius:4px; overflow:hidden; }
-          .dist-bar span { display:block; height:100%; border-radius:4px; }
-          .table { width:100%; border-collapse: collapse; }
-          .table th, .table td { border-bottom:1px solid #e5e7eb; padding:8px; }
-          .table th { background:#f1f5f9; text-align:center; color:#0f172a; }
-          .table td { text-align:center; }
-          .table .rank { width:48px; font-weight:700; }
-          .table .score { font-weight:700; color:#0e7c42; }
-          .table.danger .score.low { color:#ef4444; }
-          .recs { list-style: none; padding:0; margin:0; display:grid; gap:8px; }
-          .recs li { background: rgba(14,124,66,.06); border-left:4px solid #0e7c42; padding:10px 12px; border-radius:6px; }
-          .footer { margin-top:18px; font-size:12px; color:#94a3b8; text-align:center; }
-        </style>
-        <div class="header">
-          <div class="title">MarkFiller - تقرير الإحصائيات</div>
-          <div class="subtitle">تحليل شامل لنتائج التلاميذ</div>
-        </div>
-        <div class="meta">
-          <div class="pair"><span>المستوى:</span><strong>${metaLevel}</strong></div>
-          <div class="pair"><span>القسم:</span><strong>${metaClass}</strong></div>
-          <div class="pair"><span>تاريخ الإنشاء:</span><strong>${createdAt}</strong></div>
-        </div>
-        ${
-          kpi.length
-            ? `<div class="section"><h3>ملخص الإحصائيات</h3><div class="grid-3">${kpi
-                .map(
-                  (i) =>
-                    `<div class="card kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`
-                )
-                .join("")}${
-                mastery.length
-                  ? mastery
-                      .map(
-                        (i) =>
-                          `<div class="card kpi"><div class="label">${i.label}</div><div class="value">${i.value}</div></div>`
-                      )
-                      .join("")
-                  : ""
-              }</div></div>`
-            : ""
-        }
-
-        <div class="section">
-          <h3>الرسوم البيانية</h3>
-          <div class="charts">
-            ${barChartSrc ? `<div class="chart"><img src="${barChartSrc}" alt="bar" /></div>` : ""}
-            ${donutChartSrc ? `<div class="chart"><img src="${donutChartSrc}" alt="donut" /></div>` : ""}
-          </div>
-        </div>
-
-        <div class="section">
-          <h3>توزيع الدرجات</h3>
-          <div class="grid">${distributionsHtml}</div>
-        </div>
-
-        <div class="section">
-          <h3>المتفوقون الثلاثة الأوائل</h3>
-          <div class="grid">${topHtml}</div>
-        </div>
-
-        <div class="section">
-          <h3>التلاميذ في صعوبة (متوسط أقل من 10)</h3>
-          <div class="grid">${difficultyHtml}</div>
-        </div>
-
-        ${
-          recommendationsHtml
-            ? `<div class="section"><h3>توصيات تحسين الأداء</h3><ul class="recs">${recommendationsHtml}</ul></div>`
-            : ""
-        }
-
-        <div class="footer">تم إنشاء هذا التقرير بواسطة MarkFiller</div>
-      `;
-
-      document.body.appendChild(container);
-
-      // 4) Render off-screen layout to canvas
-      const canvas = await html2canvas(container as any, {
-        scale: Math.max(2, Math.ceil(window.devicePixelRatio || 2)),
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: "#ffffff",
-        windowWidth: a4CssWidthPx,
-      });
-
-      // Clean up the off-screen container immediately after rendering
-      document.body.removeChild(container);
-
-      // 5) Assemble PDF with exact slicing to avoid overlap/duplication across pages
-      const pdf = new jsPDF("p", "mm", "a4");
-
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 10; // mm
-      const imgWidth = pageWidth - margin * 2; // target image width in mm
-
-      // ratio: mm per pixel at the chosen width
-      const mmPerPixel = imgWidth / canvas.width;
-      const printableHeightMm = pageHeight - margin * 2;
-      const sliceHeightPx = Math.floor(printableHeightMm / mmPerPixel);
-
-      let y = 0;
-      let isFirstPage = true;
-      while (y < canvas.height) {
-        const currentSliceHeightPx = Math.min(sliceHeightPx, canvas.height - y);
-
-        // Create a temporary canvas for this slice
-        const sliceCanvas = document.createElement("canvas");
-        sliceCanvas.width = canvas.width;
-        sliceCanvas.height = currentSliceHeightPx;
-        const ctx = sliceCanvas.getContext("2d");
-        if (ctx) {
-          ctx.drawImage(canvas, 0, y, canvas.width, currentSliceHeightPx, 0, 0, canvas.width, currentSliceHeightPx);
-        }
-
-        const sliceData = sliceCanvas.toDataURL("image/png");
-        const sliceHeightMm = currentSliceHeightPx * mmPerPixel;
-
-        if (!isFirstPage) {
-          pdf.addPage();
-        }
-        pdf.addImage(sliceData, "PNG", margin, margin, imgWidth, sliceHeightMm, "", "FAST");
-
-        isFirstPage = false;
-        y += currentSliceHeightPx;
-      }
-
-      // Build a safe filename: MarkFiller-Statistics-<ClassName>-<YYYY-MM-DD>.pdf
-      const now = new Date();
-      const dd = String(now.getDate()).padStart(2, "0");
-      const mm = String(now.getMonth() + 1).padStart(2, "0");
-      const yyyy = String(now.getFullYear());
-      const dateStr = `${dd}_${mm}_${yyyy}`;
-      const classLabelRaw = meta.class || "غير محدد";
-      const safeClass = classLabelRaw
-        .toString()
-        .replace(/[\\/:*?"<>|]+/g, "-")
-        .replace(/\s+/g, "-")
-        .replace(/-+/g, "-")
-        .replace(/^-+/, "")
-        .replace(/-+$/, "");
-      pdf.save(`MarkFiller-Statistics-${safeClass}_${dateStr}.pdf`);
-    } catch (error) {
-      console.error("Error generating PDF:", error);
-    }
+    await generatePdfReport(reportRef.current, {
+      statistics,
+      shownTypes,
+      metadata: meta,
+      barChartSrc: "",
+      donutChartSrc: "",
+    });
   };
 
-  // Chart datasets
   const averagesBarData = useMemo<ChartData<"bar">>(() => {
     const labels = shownTypes.map((t) => getMarkTypeName(t));
     const data = shownTypes.map((t) => statistics.markTypes[t].avg);
     return {
-      labels: [...labels],
+      labels,
       datasets: [
         {
           label: "متوسط العلامات",
-          data: [...data],
+          data,
           backgroundColor: "rgba(14, 124, 66, 0.7)",
           borderRadius: 6,
         },
@@ -937,146 +140,144 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
     };
   }, [statistics]);
 
+  const iconStyle = {
+    color: isActive || isCompleted ? "#0e7c42" : "#666",
+    fontSize: "24px",
+  };
+
+  const textStyle = {
+    color: isActive || isCompleted ? "#0e7c42" : "#333",
+  };
+
   return (
     <div className={`step ${isActive ? "active" : ""} ${isCompleted ? "completed" : ""}`}>
-      <StepTitle>
-        <ChartMultiple24Regular
-          style={{
-            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#666",
-            fontSize: "24px",
-          }}
-        />
-        <Text
-          size={600}
-          weight="semibold"
-          style={{
-            color: isActive ? "#0e7c42" : isCompleted ? "#0e7c42" : "#333",
-          }}
-        >
+      <S.StepTitle>
+        <ChartMultiple24Regular style={iconStyle} />
+        <Text size={600} weight="semibold" style={textStyle}>
           إحصائيات وتحليل البيانات
         </Text>
-      </StepTitle>
+      </S.StepTitle>
 
-      <StepContent className="step-content">
-        <DashboardContainer ref={reportRef}>
-          {/* Professional Header */}
-          <StatsHeader>
-            <MainTitle>MarkFiller - تقرير الإحصائيات</MainTitle>
-            <Subtitle>تحليل شامل لنتائج التلاميذ</Subtitle>
-            <MetaBar>
-              <MetaItem>
-                <MetaLabel>المستوى</MetaLabel>
+      <S.StepContent className="step-content">
+        <S.DashboardContainer ref={reportRef}>
+          {/* Header */}
+          <S.StatsHeader>
+            <S.MainTitle>MarkFiller - تقرير الإحصائيات</S.MainTitle>
+            <S.Subtitle>تحليل شامل لنتائج التلاميذ</S.Subtitle>
+            <S.MetaBar>
+              <S.MetaItem>
+                <S.MetaLabel>المستوى</S.MetaLabel>
                 <span>:{meta.level || "غير محدد"}</span>
-              </MetaItem>
-              <MetaItem>
-                <MetaLabel>القسم</MetaLabel>
+              </S.MetaItem>
+              <S.MetaItem>
+                <S.MetaLabel>القسم</S.MetaLabel>
                 <span>:{meta.class || "غير محدد"}</span>
-              </MetaItem>
-            </MetaBar>
-            <GeneratedDate>تم إنشاؤه في: {new Date().toLocaleDateString("ar-MA")}</GeneratedDate>
-          </StatsHeader>
+              </S.MetaItem>
+            </S.MetaBar>
+            <S.GeneratedDate>تم إنشاؤه في: {new Date().toLocaleDateString("ar-MA")}</S.GeneratedDate>
+          </S.StatsHeader>
 
-          {/* Enhanced KPI Summary */}
+          {/* KPI Summary */}
           {statistics.overall && (
             <>
-              <SectionHeader>
-                <SectionIcon>
+              <S.SectionHeader>
+                <S.SectionIcon>
                   <DataTrending24Regular />
-                </SectionIcon>
-                <SectionTitle>ملخص الإحصائيات</SectionTitle>
-              </SectionHeader>
+                </S.SectionIcon>
+                <S.SectionTitle>ملخص الإحصائيات</S.SectionTitle>
+              </S.SectionHeader>
 
-              <KPIGrid>
-                <KPICard>
-                  <KPIIcon>
+              <S.KPIGrid>
+                <S.KPICard>
+                  <S.KPIIcon>
                     <DataTrending24Regular />
-                  </KPIIcon>
-                  <KPILabel>المتوسط العام</KPILabel>
-                  <KPIValue>{formatNumber(statistics.overall.overallAverage)}</KPIValue>
-                </KPICard>
+                  </S.KPIIcon>
+                  <S.KPILabel>المتوسط العام</S.KPILabel>
+                  <S.KPIValue>{formatNumber(statistics.overall.overallAverage)}</S.KPIValue>
+                </S.KPICard>
 
-                <KPICard>
-                  <KPIIcon>
+                <S.KPICard>
+                  <S.KPIIcon>
                     <Trophy24Regular />
-                  </KPIIcon>
-                  <KPILabel>نسبة النجاح</KPILabel>
-                  <KPIValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</KPIValue>
-                </KPICard>
+                  </S.KPIIcon>
+                  <S.KPILabel>نسبة النجاح</S.KPILabel>
+                  <S.KPIValue>{Math.round((statistics.overall.passRate || 0) * 100)}%</S.KPIValue>
+                </S.KPICard>
 
-                <KPICard>
-                  <KPIIcon>
+                <S.KPICard>
+                  <S.KPIIcon>
                     <Warning24Regular />
-                  </KPIIcon>
-                  <KPILabel>نسبة الرسوب</KPILabel>
-                  <KPIValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</KPIValue>
-                </KPICard>
+                  </S.KPIIcon>
+                  <S.KPILabel>نسبة الرسوب</S.KPILabel>
+                  <S.KPIValue>{Math.round((statistics.overall.failRate || 0) * 100)}%</S.KPIValue>
+                </S.KPICard>
 
-                <KPICard>
-                  <KPIIcon>
+                <S.KPICard>
+                  <S.KPIIcon>
                     <ChartMultiple24Regular />
-                  </KPIIcon>
-                  <KPILabel>إجمالي النقاط</KPILabel>
-                  <KPIValue>{statistics.totalStudents}</KPIValue>
-                </KPICard>
+                  </S.KPIIcon>
+                  <S.KPILabel>إجمالي النقاط</S.KPILabel>
+                  <S.KPIValue>{statistics.totalStudents}</S.KPIValue>
+                </S.KPICard>
 
-                <KPICard>
-                  <KPIIcon>
+                <S.KPICard>
+                  <S.KPIIcon>
                     <DocumentAdd24Regular />
-                  </KPIIcon>
-                  <KPILabel>النقاط المحسوبة</KPILabel>
-                  <KPIValue>{statistics.overall.totalMarksCounted}</KPIValue>
-                </KPICard>
+                  </S.KPIIcon>
+                  <S.KPILabel>النقاط المحسوبة</S.KPILabel>
+                  <S.KPIValue>{statistics.overall.totalMarksCounted}</S.KPIValue>
+                </S.KPICard>
 
-                {/* Mastery breakdown cards */}
+                {/* Mastery breakdown */}
                 {statistics.mastery && (
                   <>
-                    <KPICard>
-                      <KPIIcon>
+                    <S.KPICard>
+                      <S.KPIIcon>
                         <CheckmarkCircle24Regular />
-                      </KPIIcon>
-                      <KPILabel>المتحكمون (≥ 15)</KPILabel>
-                      <KPIValue>{statistics.mastery.masteredPct}%</KPIValue>
+                      </S.KPIIcon>
+                      <S.KPILabel>المتحكمون (≥ 15)</S.KPILabel>
+                      <S.KPIValue>{statistics.mastery.masteredPct}%</S.KPIValue>
                       <Text size={200} style={{ color: "#64748b" }}>
                         {statistics.mastery.masteredCount} من {statistics.totalStudents}
                       </Text>
-                    </KPICard>
-                    <KPICard>
-                      <KPIIcon>
+                    </S.KPICard>
+                    <S.KPICard>
+                      <S.KPIIcon>
                         <DataTrending24Regular />
-                      </KPIIcon>
-                      <KPILabel>في طور التحكم (10 - 14.99)</KPILabel>
-                      <KPIValue>{statistics.mastery.inProgressPct}%</KPIValue>
+                      </S.KPIIcon>
+                      <S.KPILabel>في طور التحكم (10 - 14.99)</S.KPILabel>
+                      <S.KPIValue>{statistics.mastery.inProgressPct}%</S.KPIValue>
                       <Text size={200} style={{ color: "#64748b" }}>
                         {statistics.mastery.inProgressCount} من {statistics.totalStudents}
                       </Text>
-                    </KPICard>
-                    <KPICard>
-                      <KPIIcon>
+                    </S.KPICard>
+                    <S.KPICard>
+                      <S.KPIIcon>
                         <Warning24Regular />
-                      </KPIIcon>
-                      <KPILabel>غير متحكمين (&lt; 10)</KPILabel>
-                      <KPIValue>{statistics.mastery.notMasteredPct}%</KPIValue>
+                      </S.KPIIcon>
+                      <S.KPILabel>غير متحكمين (&lt; 10)</S.KPILabel>
+                      <S.KPIValue>{statistics.mastery.notMasteredPct}%</S.KPIValue>
                       <Text size={200} style={{ color: "#64748b" }}>
                         {statistics.mastery.notMasteredCount} من {statistics.totalStudents}
                       </Text>
-                    </KPICard>
+                    </S.KPICard>
                   </>
                 )}
-              </KPIGrid>
+              </S.KPIGrid>
             </>
           )}
 
-          {/* Enhanced Charts */}
-          <SectionHeader>
-            <SectionIcon>
+          {/* Charts */}
+          <S.SectionHeader>
+            <S.SectionIcon>
               <ChartMultiple24Regular />
-            </SectionIcon>
-            <SectionTitle>الرسوم البيانية والتوزيعات</SectionTitle>
-          </SectionHeader>
+            </S.SectionIcon>
+            <S.SectionTitle>الرسوم البيانية والتوزيعات</S.SectionTitle>
+          </S.SectionHeader>
 
-          <ChartsGrid>
-            <ChartCard>
-              <ChartTitle>متوسط العلامات حسب النوع</ChartTitle>
+          <S.ChartsGrid>
+            <S.ChartCard>
+              <S.ChartTitle>متوسط العلامات حسب النوع</S.ChartTitle>
               <Bar
                 data={averagesBarData}
                 options={{
@@ -1093,22 +294,18 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                     y: {
                       beginAtZero: true,
                       max: 20,
-                      grid: {
-                        color: "rgba(14, 124, 66, 0.1)",
-                      },
+                      grid: { color: "rgba(14, 124, 66, 0.1)" },
                     },
                     x: {
-                      grid: {
-                        display: false,
-                      },
+                      grid: { display: false },
                     },
                   },
                 }}
               />
-            </ChartCard>
+            </S.ChartCard>
 
-            <ChartCard>
-              <ChartTitle>توزيع النجاح والرسوب</ChartTitle>
+            <S.ChartCard>
+              <S.ChartTitle>توزيع النجاح والرسوب</S.ChartTitle>
               <Doughnut
                 data={passFailDoughnutData}
                 options={{
@@ -1153,19 +350,19 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
                   },
                 }}
               />
-            </ChartCard>
-          </ChartsGrid>
+            </S.ChartCard>
+          </S.ChartsGrid>
 
           {/* Grade Distribution */}
-          <SectionHeader>
-            <SectionIcon>
+          <S.SectionHeader>
+            <S.SectionIcon>
               <Star24Filled />
-            </SectionIcon>
-            <SectionTitle>توزيع الدرجات</SectionTitle>
-          </SectionHeader>
+            </S.SectionIcon>
+            <S.SectionTitle>توزيع الدرجات</S.SectionTitle>
+          </S.SectionHeader>
 
-          <DistributionGrid>
-            {(["fard1", "fard2", "fard3", "fard4", "activities"] as MarkType[]).map((type) => {
+          <S.DistributionGrid>
+            {ALL_MARK_TYPES.map((type) => {
               if (!shouldShowStat(type) || statistics.markTypes[type].count === 0) return null;
 
               const maxValue = getMaxDistribution(type);
@@ -1173,89 +370,89 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               const color = getMarkTypeColor(type);
 
               return (
-                <DistributionCard key={type}>
-                  <DistributionHeader>
-                    <DistributionTitle color={color}>{getMarkTypeName(type)}</DistributionTitle>
-                    <Badge appearance="outline" style={{ color: color }}>
+                <S.DistributionCard key={type}>
+                  <S.DistributionHeader>
+                    <S.DistributionTitle color={color}>{getMarkTypeName(type)}</S.DistributionTitle>
+                    <Badge appearance="outline" style={{ color }}>
                       {statistics.markTypes[type].count} تلميذ
                     </Badge>
-                  </DistributionHeader>
+                  </S.DistributionHeader>
 
-                  <DistributionItem>
-                    <DistributionRange>ممتاز (16-20)</DistributionRange>
-                    <DistributionCount>{dist["15-20"]} تلميذ</DistributionCount>
-                  </DistributionItem>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color="#10b981" />
-                  </DistributionBar>
+                  <S.DistributionItem>
+                    <S.DistributionRange>ممتاز (16-20)</S.DistributionRange>
+                    <S.DistributionCount>{dist["15-20"]} تلميذ</S.DistributionCount>
+                  </S.DistributionItem>
+                  <S.DistributionBar>
+                    <S.DistributionFill width={`${(dist["15-20"] / maxValue) * 100}%`} color="#10b981" />
+                  </S.DistributionBar>
 
-                  <DistributionItem>
-                    <DistributionRange>جيد جداً (13-15.9)</DistributionRange>
-                    <DistributionCount>{dist["10-15"]} تلميذ</DistributionCount>
-                  </DistributionItem>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color="#3b82f6" />
-                  </DistributionBar>
+                  <S.DistributionItem>
+                    <S.DistributionRange>جيد جداً (13-15.9)</S.DistributionRange>
+                    <S.DistributionCount>{dist["10-15"]} تلميذ</S.DistributionCount>
+                  </S.DistributionItem>
+                  <S.DistributionBar>
+                    <S.DistributionFill width={`${(dist["10-15"] / maxValue) * 100}%`} color="#3b82f6" />
+                  </S.DistributionBar>
 
-                  <DistributionItem>
-                    <DistributionRange>مقبول (10-12.9)</DistributionRange>
-                    <DistributionCount>{dist["5-10"]} تلميذ</DistributionCount>
-                  </DistributionItem>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color="#f59e0b" />
-                  </DistributionBar>
+                  <S.DistributionItem>
+                    <S.DistributionRange>مقبول (10-12.9)</S.DistributionRange>
+                    <S.DistributionCount>{dist["5-10"]} تلميذ</S.DistributionCount>
+                  </S.DistributionItem>
+                  <S.DistributionBar>
+                    <S.DistributionFill width={`${(dist["5-10"] / maxValue) * 100}%`} color="#f59e0b" />
+                  </S.DistributionBar>
 
-                  <DistributionItem>
-                    <DistributionRange>ضعيف (0-9.9)</DistributionRange>
-                    <DistributionCount>{dist["0-5"]} تلميذ</DistributionCount>
-                  </DistributionItem>
-                  <DistributionBar>
-                    <DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color="#ef4444" />
-                  </DistributionBar>
-                </DistributionCard>
+                  <S.DistributionItem>
+                    <S.DistributionRange>ضعيف (0-9.9)</S.DistributionRange>
+                    <S.DistributionCount>{dist["0-5"]} تلميذ</S.DistributionCount>
+                  </S.DistributionItem>
+                  <S.DistributionBar>
+                    <S.DistributionFill width={`${(dist["0-5"] / maxValue) * 100}%`} color="#ef4444" />
+                  </S.DistributionBar>
+                </S.DistributionCard>
               );
             })}
-          </DistributionGrid>
+          </S.DistributionGrid>
 
           {/* Top Performers */}
-          <SectionHeader>
-            <SectionIcon>
+          <S.SectionHeader>
+            <S.SectionIcon>
               <Trophy24Regular />
-            </SectionIcon>
-            <SectionTitle>المتفوقون الثلاثة الأوائل</SectionTitle>
-          </SectionHeader>
+            </S.SectionIcon>
+            <S.SectionTitle>المتفوقون الثلاثة الأوائل</S.SectionTitle>
+          </S.SectionHeader>
 
-          <PerformanceGrid>
+          <S.PerformanceGrid>
             {shownTypes.map((type) => (
-              <PerformanceCard key={`top-${type}`}>
-                <PerformanceTable>
-                  <TableHeader>{getMarkTypeName(type)} - المتفوقون</TableHeader>
+              <S.PerformanceCard key={`top-${type}`}>
+                <S.PerformanceTable>
+                  <S.TableHeader>{getMarkTypeName(type)} - المتفوقون</S.TableHeader>
                   {(statistics.topStudentsByType?.[type] || []).slice(0, 3).map((student, idx) => (
-                    <TableRow key={idx}>
-                      <RankBadge rank={idx + 1}>{idx + 1}</RankBadge>
-                      <StudentName>{student.name}</StudentName>
-                      <ScoreBadge score={student.value}>{formatNumber(student.value)}</ScoreBadge>
+                    <S.TableRow key={idx}>
+                      <S.RankBadge rank={idx + 1}>{idx + 1}</S.RankBadge>
+                      <S.StudentName>{student.name}</S.StudentName>
+                      <S.ScoreBadge score={student.value}>{formatNumber(student.value)}</S.ScoreBadge>
                       <div>
                         {idx === 0 && <Star24Filled style={{ color: "#fbbf24" }} />}
                         {idx === 1 && <Star24Filled style={{ color: "#9ca3af" }} />}
                         {idx === 2 && <Star24Filled style={{ color: "#cd7c0f" }} />}
                       </div>
-                    </TableRow>
+                    </S.TableRow>
                   ))}
-                </PerformanceTable>
-              </PerformanceCard>
+                </S.PerformanceTable>
+              </S.PerformanceCard>
             ))}
-          </PerformanceGrid>
+          </S.PerformanceGrid>
 
           {/* Students in Difficulty */}
-          <SectionHeader>
-            <SectionIcon>
+          <S.SectionHeader>
+            <S.SectionIcon>
               <Warning24Regular />
-            </SectionIcon>
-            <SectionTitle>التلاميذ في صعوبة (متوسط أقل من 10)</SectionTitle>
-          </SectionHeader>
+            </S.SectionIcon>
+            <S.SectionTitle>التلاميذ في صعوبة (متوسط أقل من 10)</S.SectionTitle>
+          </S.SectionHeader>
 
-          <PerformanceGrid>
+          <S.PerformanceGrid>
             {shownTypes.map((type) => {
               const studentsInDifficulty = (statistics.bottomStudentsByType?.[type] || [])
                 .filter((s) => s.value < 10)
@@ -1264,64 +461,64 @@ const StatisticsStep: React.FC<StatisticsStepProps> = ({
               if (studentsInDifficulty.length === 0) return null;
 
               return (
-                <PerformanceCard key={`difficulty-${type}`}>
-                  <PerformanceTable>
-                    <TableHeader style={{ background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" }}>
+                <S.PerformanceCard key={`difficulty-${type}`}>
+                  <S.PerformanceTable>
+                    <S.TableHeader style={{ background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)" }}>
                       {getMarkTypeName(type)} - التلاميذ في صعوبة
-                    </TableHeader>
+                    </S.TableHeader>
                     {studentsInDifficulty.map((student, idx) => (
-                      <TableRow key={idx}>
-                        <RankBadge rank={idx + 4}>{idx + 1}</RankBadge>
-                        <StudentName>{student.name}</StudentName>
-                        <ScoreBadge score={student.value}>{formatNumber(student.value)}</ScoreBadge>
+                      <S.TableRow key={idx}>
+                        <S.RankBadge rank={idx + 4}>{idx + 1}</S.RankBadge>
+                        <S.StudentName>{student.name}</S.StudentName>
+                        <S.ScoreBadge score={student.value}>{formatNumber(student.value)}</S.ScoreBadge>
                         <div>
                           <Warning24Regular style={{ color: "#ef4444" }} />
                         </div>
-                      </TableRow>
+                      </S.TableRow>
                     ))}
-                  </PerformanceTable>
-                </PerformanceCard>
+                  </S.PerformanceTable>
+                </S.PerformanceCard>
               );
             })}
-          </PerformanceGrid>
+          </S.PerformanceGrid>
 
           {/* Recommendations */}
           {statistics.recommendations && statistics.recommendations.length > 0 && (
             <>
-              <SectionHeader>
-                <SectionIcon>
+              <S.SectionHeader>
+                <S.SectionIcon>
                   <CheckmarkCircle24Regular />
-                </SectionIcon>
-                <SectionTitle>توصيات تحسين الأداء</SectionTitle>
-              </SectionHeader>
+                </S.SectionIcon>
+                <S.SectionTitle>توصيات تحسين الأداء</S.SectionTitle>
+              </S.SectionHeader>
 
-              <RecommendationsCard>
-                <RecommendationsList>
+              <S.RecommendationsCard>
+                <S.RecommendationsList>
                   {statistics.recommendations.map((rec, idx) => (
-                    <RecommendationItem key={idx}>
-                      <RecommendationIcon>
+                    <S.RecommendationItem key={idx}>
+                      <S.RecommendationIcon>
                         <CheckmarkCircle24Regular />
-                      </RecommendationIcon>
-                      <RecommendationText size={300}>{rec}</RecommendationText>
-                    </RecommendationItem>
+                      </S.RecommendationIcon>
+                      <S.RecommendationText size={300}>{rec}</S.RecommendationText>
+                    </S.RecommendationItem>
                   ))}
-                </RecommendationsList>
-              </RecommendationsCard>
+                </S.RecommendationsList>
+              </S.RecommendationsCard>
             </>
           )}
-        </DashboardContainer>
+        </S.DashboardContainer>
 
-        {/* Enhanced Action Buttons */}
-        <ActionButtonsContainer>
-          <PrimaryActionButton appearance="primary" icon={<DocumentAdd24Regular />} onClick={onReset}>
+        {/* Action Buttons */}
+        <S.ActionButtonsContainer>
+          <S.PrimaryActionButton appearance="primary" icon={<DocumentAdd24Regular />} onClick={onReset}>
             عملية استخراج جديدة
-          </PrimaryActionButton>
+          </S.PrimaryActionButton>
 
-          <SecondaryActionButton appearance="secondary" icon={<DocumentPdf24Regular />} onClick={exportPdf}>
+          <S.SecondaryActionButton appearance="secondary" icon={<DocumentPdf24Regular />} onClick={handleExportPdf}>
             تصدير PDF
-          </SecondaryActionButton>
-        </ActionButtonsContainer>
-      </StepContent>
+          </S.SecondaryActionButton>
+        </S.ActionButtonsContainer>
+      </S.StepContent>
     </div>
   );
 };
