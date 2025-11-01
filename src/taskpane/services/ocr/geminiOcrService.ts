@@ -8,22 +8,82 @@ import { geminiApiClient } from "./apiClient";
 import { dataExtractor } from "./dataExtractor";
 
 /**
- * Gemini OCR Service - Main Orchestrator
+ * Gemini OCR Service - Main Orchestrator (Optimized)
  * Coordinates all OCR operations using specialized modules
+ * 
+ * Optimizations:
+ * - AbortController support for request cancellation
+ * - Progress callbacks for long operations
+ * - Better error boundaries to avoid full retries
+ * - Optimized parallel processing with early returns
  */
 
+export interface ProgressCallback {
+  (step: string, progress: number): void;
+}
+
+export interface ProcessingOptions {
+  signal?: AbortSignal;
+  onProgress?: ProgressCallback;
+}
+
 class GeminiOCRService {
+  // Active abort controllers for ongoing requests
+  private activeControllers: Map<string, AbortController> = new Map();
+
   /**
-   * Main method to process an image and extract student marks
+   * Cancel an ongoing processing request
    */
-  async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+  cancelProcessing(requestId: string): void {
+    const controller = this.activeControllers.get(requestId);
+    if (controller) {
+      logger.info(`🛑 Cancelling request: ${requestId}`);
+      controller.abort();
+      this.activeControllers.delete(requestId);
+    }
+  }
+
+  /**
+   * Cancel all ongoing processing requests
+   */
+  cancelAllProcessing(): void {
+    logger.info(`🛑 Cancelling all ${this.activeControllers.size} active requests`);
+    this.activeControllers.forEach((controller) => controller.abort());
+    this.activeControllers.clear();
+  }
+
+  /**
+   * Main method to process an image and extract student marks (Optimized)
+   */
+  async processImage(
+    imageFile: File,
+    options: ProcessingOptions = {}
+  ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     const startTime = Date.now();
+    const requestId = `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const { signal, onProgress } = options;
+
+    // Create internal abort controller
+    const controller = new AbortController();
+    this.activeControllers.set(requestId, controller);
+
+    // Link external signal if provided
+    if (signal) {
+      signal.addEventListener("abort", () => controller.abort());
+    }
 
     try {
+      // Check if already cancelled
+      if (controller.signal.aborted) {
+        throw new ExtractionError("تم إلغاء العملية");
+      }
+
       // Validate image file
       if (!imageProcessor.isValidImageFile(imageFile)) {
         throw new ExtractionError("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
       }
+
+      onProgress?.("جاري التحقق من الصورة", 5);
 
       logger.info("🚀 STARTING ENHANCED GEMINI PRO OCR PROCESSING");
       logger.info("📸 Image file details:", {
@@ -34,15 +94,29 @@ class GeminiOCRService {
       });
 
       // Convert image to base64 with optimization
+      onProgress?.("جاري معالجة الصورة", 15);
       const base64Image = await imageProcessor.fileToOptimizedBase64(imageFile);
+
+      if (controller.signal.aborted) {
+        throw new ExtractionError("تم إلغاء العملية");
+      }
+
       const base64Content = base64Image.split(",")[1];
 
       // Run structured and text extraction in parallel
+      onProgress?.("جاري استخراج البيانات", 30);
       logger.info("🚀 Launching parallel OCR extractions (structured + text)…");
+
       const structuredPromise = geminiApiClient.callStructuredAPI(base64Content, imageFile.type || "image/jpeg");
       const textPromise = geminiApiClient.callTextExtractionAPI(base64Content);
 
-      const [structuredOutcome, textOutcome] = await Promise.allSettled([structuredPromise, textPromise]);
+      // Wait for both with cancellation support
+      const [structuredOutcome, textOutcome] = await Promise.race([
+        Promise.allSettled([structuredPromise, textPromise]),
+        new Promise<never>((_, reject) => {
+          controller.signal.addEventListener("abort", () => reject(new ExtractionError("تم إلغاء العملية")));
+        }),
+      ]);
 
       let structuredStudents: Student[] = [];
       let structuredDetected: DetectedMarkTypes = {
@@ -131,11 +205,16 @@ class GeminiOCRService {
         logger.success(`Merged results: ${students.length} students`);
       }
 
+      onProgress?.("جاري دمج النتائج", 80);
+
       if (students.length === 0) {
         throw new ExtractionError("لم يتم العثور على أي بيانات طلاب في الصورة");
       }
 
+      onProgress?.("جاري المعالجة النهائية", 90);
       const postProcessed = dataExtractor.postProcessStudents(students, detectedMarkTypes);
+      
+      onProgress?.("تم الانتهاء", 100);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.success(`✨ Processing complete in ${elapsed}s: ${postProcessed.length} students extracted`);
 
@@ -145,6 +224,9 @@ class GeminiOCRService {
       logger.error(`Processing failed after ${elapsed}s:`, error);
 
       // Convert specific errors to user-friendly messages
+      if (error instanceof ExtractionError && error.message.includes("تم إلغاء")) {
+        throw error; // Preserve cancellation errors
+      }
       if (error instanceof GeminiAPIError) {
         throw new Error(error.message);
       }
@@ -158,39 +240,92 @@ class GeminiOCRService {
       throw new Error(
         error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة والمحاولة مرة أخرى."
       );
+    } finally {
+      // Clean up controller
+      this.activeControllers.delete(requestId);
     }
   }
 
   /**
-   * Fast path: single structured Gemini Pro call with text fallback for merging
+   * Fast path: single structured Gemini Pro call with text fallback for merging (Optimized)
    */
-  async processImageFast(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+  async processImageFast(
+    imageFile: File,
+    options: ProcessingOptions = {}
+  ): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
     const startTime = Date.now();
+    const requestId = `fast_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const { signal, onProgress } = options;
+
+    // Create internal abort controller
+    const controller = new AbortController();
+    this.activeControllers.set(requestId, controller);
+
+    // Link external signal if provided
+    if (signal) {
+      signal.addEventListener("abort", () => controller.abort());
+    }
 
     try {
+      if (controller.signal.aborted) {
+        throw new ExtractionError("تم إلغاء العملية");
+      }
+
       if (!imageProcessor.isValidImageFile(imageFile)) {
         throw new ExtractionError("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
       }
 
+      onProgress?.("جاري معالجة الصورة (سريع)", 10);
       logger.info("🚀 STARTING FAST OCR PROCESSING");
 
       // Use optimized base64
       const base64Image = await imageProcessor.fileToOptimizedBase64(imageFile);
+
+      if (controller.signal.aborted) {
+        throw new ExtractionError("تم إلغاء العملية");
+      }
+
       const base64Content = base64Image.split(",")[1];
+
+      onProgress?.("جاري استخراج البيانات", 30);
 
       let structuredResult: { students: any[]; markTypes: any };
       const textPromise = geminiApiClient.callTextExtractionAPI(base64Content);
 
       try {
-        structuredResult = await geminiApiClient.callStructuredAPI(base64Content, imageFile.type || "image/jpeg");
+        // Race between structured API call and cancellation
+        structuredResult = await Promise.race([
+          geminiApiClient.callStructuredAPI(base64Content, imageFile.type || "image/jpeg"),
+          new Promise<never>((_, reject) => {
+            controller.signal.addEventListener("abort", () => reject(new ExtractionError("تم إلغاء العملية")));
+          }),
+        ]);
       } catch (e) {
+        if (e instanceof ExtractionError && e.message.includes("تم إلغاء")) {
+          throw e; // Preserve cancellation
+        }
+
         logger.warn("Structured parse failed, falling back to text extraction once.", e);
-        const response = await textPromise.catch(() => null as any);
+        onProgress?.("جاري المحاولة مع طريقة بديلة", 50);
+
+        const response = await Promise.race([
+          textPromise.catch(() => null as any),
+          new Promise<any>((_, reject) => {
+            controller.signal.addEventListener("abort", () => reject(new ExtractionError("تم إلغاء العملية")));
+          }),
+        ]);
+
         if (!response || !response.text) {
           throw new ExtractionError("لم يتم التعرف على أي نص في الصورة");
         }
+
+        onProgress?.("جاري تحليل البيانات", 70);
         const fallback = dataExtractor.extractStudentData(response.text);
+        
+        onProgress?.("جاري المعالجة النهائية", 90);
         const postProcessed = dataExtractor.postProcessStudents(fallback.students, fallback.detectedMarkTypes);
+        
+        onProgress?.("تم الانتهاء", 100);
         const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
         logger.success(`✨ Fast processing complete (fallback) in ${elapsed}s: ${postProcessed.length} students`);
         return { students: postProcessed, detectedMarkTypes: fallback.detectedMarkTypes };
@@ -220,13 +355,23 @@ class GeminiOCRService {
         hasActivities: !!structuredResult.markTypes?.hasActivities,
       };
 
+      onProgress?.("جاري معالجة البيانات", 60);
+
       if (!students.length) {
         throw new ExtractionError("لم يتم العثور على أي بيانات طلاب في الصورة");
       }
 
-      // Try to merge with text extraction
+      // Try to merge with text extraction (non-blocking)
       try {
-        const response = await textPromise;
+        onProgress?.("جاري دمج النتائج", 75);
+
+        const response = await Promise.race([
+          textPromise,
+          new Promise<any>((_, reject) => {
+            controller.signal.addEventListener("abort", () => reject(new ExtractionError("تم إلغاء العملية")));
+          }),
+        ]);
+
         if (response && response.text) {
           const fallback = dataExtractor.extractStudentData(response.text);
 
@@ -245,16 +390,25 @@ class GeminiOCRService {
             mergedCount: mergedStudents.length,
           });
 
+          onProgress?.("جاري المعالجة النهائية", 90);
           const postProcessed = dataExtractor.postProcessStudents(mergedStudents, mergedDetected);
+          
+          onProgress?.("تم الانتهاء", 100);
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
           logger.success(`✨ Fast processing complete (merged) in ${elapsed}s: ${postProcessed.length} students`);
           return { students: postProcessed, detectedMarkTypes: mergedDetected };
         }
       } catch (mergeError) {
+        if (mergeError instanceof ExtractionError && mergeError.message.includes("تم إلغاء")) {
+          throw mergeError; // Preserve cancellation
+        }
         logger.warn("Hybrid merge step failed; returning structured results only.", mergeError);
       }
 
+      onProgress?.("جاري المعالجة النهائية", 90);
       const postProcessed = dataExtractor.postProcessStudents(students, detectedMarkTypes);
+      
+      onProgress?.("تم الانتهاء", 100);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.success(`✨ Fast processing complete in ${elapsed}s: ${postProcessed.length} students`);
       return { students: postProcessed, detectedMarkTypes };
@@ -262,6 +416,9 @@ class GeminiOCRService {
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
       logger.error(`Fast processing failed after ${elapsed}s:`, error);
 
+      if (error instanceof ExtractionError && error.message.includes("تم إلغاء")) {
+        throw error; // Preserve cancellation errors
+      }
       if (error instanceof GeminiAPIError) {
         throw new Error(error.message);
       }
@@ -275,6 +432,9 @@ class GeminiOCRService {
       throw new Error(
         error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة والمحاولة مرة أخرى."
       );
+    } finally {
+      // Clean up controller
+      this.activeControllers.delete(requestId);
     }
   }
 }
