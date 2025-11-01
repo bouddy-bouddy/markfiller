@@ -1,7 +1,239 @@
-/* global fetch, File, FileReader, console, process, Image, document */
+/* global fetch, File, FileReader, console, process, Image, document, setTimeout, createImageBitmap, OffscreenCanvas */
 import { Student, DetectedMarkTypes, StudentUncertainty } from "../types";
 import { normalizeArabicText, normalizeArabicNumber, isValidStudentName } from "../utils/arabicTextUtils";
 import { MARK_TYPE_REGEX } from "../constants/markTypes";
+
+// ============================================================================
+// CONFIGURATION & CONSTANTS
+// ============================================================================
+
+/** Retry configuration for API calls */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  initialDelayMs: 1000,
+  maxDelayMs: 10000,
+  backoffMultiplier: 2,
+  retryableStatusCodes: [429, 500, 502, 503, 504],
+} as const;
+
+// ============================================================================
+// CUSTOM ERROR TYPES
+// ============================================================================
+
+class GeminiAPIError extends Error {
+  constructor(
+    message: string,
+    public statusCode?: number,
+    public retryable: boolean = false,
+    public originalError?: any
+  ) {
+    super(message);
+    this.name = "GeminiAPIError";
+  }
+}
+
+class JSONParseError extends Error {
+  constructor(
+    message: string,
+    public rawContent?: string
+  ) {
+    super(message);
+    this.name = "JSONParseError";
+  }
+}
+
+class ExtractionError extends Error {
+  constructor(
+    message: string,
+    public context?: any
+  ) {
+    super(message);
+    this.name = "ExtractionError";
+  }
+}
+
+// ============================================================================
+// UTILITY FUNCTIONS
+// ============================================================================
+
+/** Exponential backoff utility */
+async function exponentialBackoff(attempt: number, config = RETRY_CONFIG): Promise<void> {
+  const delay = Math.min(config.initialDelayMs * Math.pow(config.backoffMultiplier, attempt), config.maxDelayMs);
+  const jitter = Math.random() * 0.3 * delay; // Add 0-30% jitter
+  await new Promise((resolve) => setTimeout(resolve, delay + jitter));
+}
+
+/** Check if an error is retryable */
+function isRetryableError(error: any, statusCode?: number): boolean {
+  if (statusCode) {
+    const retryableStatuses: readonly number[] = RETRY_CONFIG.retryableStatusCodes;
+    if (retryableStatuses.includes(statusCode)) {
+      return true;
+    }
+  }
+  if (error instanceof GeminiAPIError && error.retryable) {
+    return true;
+  }
+  // Network errors are typically retryable
+  if (error.name === "NetworkError" || error.message?.includes("network")) {
+    return true;
+  }
+  return false;
+}
+
+/** Enhanced logging utility */
+class Logger {
+  private static prefix = "🔍 [GeminiOCR]";
+
+  static info(message: string, data?: any): void {
+    console.log(`${this.prefix} ${message}`, data !== undefined ? data : "");
+  }
+
+  static warn(message: string, data?: any): void {
+    console.warn(`${this.prefix} ⚠️ ${message}`, data !== undefined ? data : "");
+  }
+
+  static error(message: string, error?: any): void {
+    console.error(`${this.prefix} ❌ ${message}`, error !== undefined ? error : "");
+  }
+
+  static success(message: string, data?: any): void {
+    console.log(`${this.prefix} ✅ ${message}`, data !== undefined ? data : "");
+  }
+
+  static debug(message: string, data?: any): void {
+    if (process.env.NODE_ENV === "development") {
+      console.log(`${this.prefix} 🐛 ${message}`, data !== undefined ? data : "");
+    }
+  }
+}
+
+// ============================================================================
+// JSON PARSING UTILITIES
+// ============================================================================
+
+class JSONParser {
+  /**
+   * Parse JSON with multiple fallback strategies
+   */
+  static parseRobust(text: string): any | null {
+    if (!text || text.trim().length === 0) {
+      return null;
+    }
+
+    // Strategy 1: Direct parse
+    const direct = this.tryDirectParse(text);
+    if (direct) return direct;
+
+    // Strategy 2: Strip markdown code fences
+    const withoutFences = this.tryParseWithoutCodeFences(text);
+    if (withoutFences) return withoutFences;
+
+    // Strategy 3: Extract JSON block from mixed content
+    const extracted = this.tryExtractJSONBlock(text);
+    if (extracted) return extracted;
+
+    // Strategy 4: Fix common JSON errors
+    const fixed = this.tryParseWithCommonFixes(text);
+    if (fixed) return fixed;
+
+    return null;
+  }
+
+  private static tryDirectParse(text: string): any | null {
+    try {
+      return JSON.parse(text.trim());
+    } catch {
+      return null;
+    }
+  }
+
+  private static tryParseWithoutCodeFences(text: string): any | null {
+    try {
+      let cleaned = text.trim();
+      // Remove ```json ... ``` or ``` ... ```
+      cleaned = cleaned.replace(/^```(?:json)?\s*\n?/i, "");
+      cleaned = cleaned.replace(/\n?```\s*$/, "");
+      return JSON.parse(cleaned);
+    } catch {
+      return null;
+    }
+  }
+
+  private static tryExtractJSONBlock(text: string): any | null {
+    try {
+      const firstBrace = text.indexOf("{");
+      const lastBrace = text.lastIndexOf("}");
+
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+        return null;
+      }
+
+      const candidate = text.substring(firstBrace, lastBrace + 1);
+      return JSON.parse(candidate);
+    } catch {
+      return null;
+    }
+  }
+
+  private static tryParseWithCommonFixes(text: string): any | null {
+    try {
+      let fixed = text.trim();
+
+      // Remove trailing commas before } or ]
+      fixed = fixed.replace(/,(\s*[}\]])/g, "$1");
+
+      // Fix single quotes to double quotes (risky but sometimes necessary)
+      if (!fixed.includes('"') && fixed.includes("'")) {
+        fixed = fixed.replace(/'/g, '"');
+      }
+
+      // Try parsing after fixes
+      return JSON.parse(fixed);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Validate parsed JSON structure for student data
+   */
+  static validateStructuredResponse(data: any): { valid: boolean; error?: string } {
+    if (!data || typeof data !== "object") {
+      return { valid: false, error: "Response is not an object" };
+    }
+
+    if (!data.students || !Array.isArray(data.students)) {
+      return { valid: false, error: "Missing or invalid 'students' array" };
+    }
+
+    if (!data.markTypes || typeof data.markTypes !== "object") {
+      return { valid: false, error: "Missing or invalid 'markTypes' object" };
+    }
+
+    // Validate at least one student
+    if (data.students.length === 0) {
+      return { valid: false, error: "No students found in response" };
+    }
+
+    // Validate student structure
+    for (let i = 0; i < Math.min(data.students.length, 3); i++) {
+      const student = data.students[i];
+      if (!student.name || typeof student.name !== "string") {
+        return { valid: false, error: `Student at index ${i} missing valid name` };
+      }
+      if (!student.marks || typeof student.marks !== "object") {
+        return { valid: false, error: `Student at index ${i} missing marks object` };
+      }
+    }
+
+    return { valid: true };
+  }
+}
+
+// ============================================================================
+// MAIN SERVICE CLASS
+// ============================================================================
 
 class GeminiOCRService {
   private geminiApiKey: string;
@@ -127,14 +359,16 @@ class GeminiOCRService {
    * Main method to process an image and extract student marks
    */
   async processImage(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
+    const startTime = Date.now();
+
     try {
       // Validate image file
       if (!this.isValidImageFile(imageFile)) {
-        throw new Error("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
+        throw new ExtractionError("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
       }
 
-      console.log("🚀 STARTING ENHANCED GEMINI PRO OCR PROCESSING");
-      console.log("📸 Image file details:", {
+      Logger.info("🚀 STARTING ENHANCED GEMINI PRO OCR PROCESSING");
+      Logger.info("📸 Image file details:", {
         name: imageFile.name,
         size: `${(imageFile.size / 1024 / 1024).toFixed(2)} MB`,
         type: imageFile.type,
@@ -146,11 +380,11 @@ class GeminiOCRService {
       const base64Content = base64Image.split(",")[1];
 
       if (!this.geminiApiKey) {
-        throw new Error("Gemini API key not found. Please check your environment configuration.");
+        throw new GeminiAPIError("Gemini API key not found. Please check your environment configuration.");
       }
 
       // Run structured and text extraction in parallel, then merge
-      console.log("🚀 Launching parallel OCR extractions (structured + text)…");
+      Logger.info("🚀 Launching parallel OCR extractions (structured + text)…");
       const structuredPromise = this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
       const textPromise = this.callGeminiAPI(base64Content);
 
@@ -166,7 +400,7 @@ class GeminiOCRService {
       };
 
       if (structuredOutcome.status === "fulfilled") {
-        console.log("✅ Structured extraction returned a result");
+        Logger.success("Structured extraction completed successfully");
         const structuredResult = structuredOutcome.value;
         structuredStudents = (structuredResult.students || []).map((student: any, index: number) => ({
           number: index + 1,
@@ -190,8 +424,12 @@ class GeminiOCRService {
           hasFard4: !!structuredResult.markTypes?.hasFard4,
           hasActivities: !!structuredResult.markTypes?.hasActivities,
         };
+        Logger.debug("Structured extraction found:", {
+          students: structuredStudents.length,
+          markTypes: structuredDetected,
+        });
       } else {
-        console.warn("⚠️ Structured extraction failed:", structuredOutcome.reason);
+        Logger.warn("Structured extraction failed:", structuredOutcome.reason);
       }
 
       let textStudents: Student[] = [];
@@ -202,14 +440,23 @@ class GeminiOCRService {
         hasFard4: false,
         hasActivities: false,
       };
+
       if (textOutcome.status === "fulfilled" && textOutcome.value && textOutcome.value.text) {
-        console.log("✅ Text extraction returned a result");
-        const extracted = this.extractStudentData(textOutcome.value.text);
-        textStudents = extracted.students;
-        textDetected = extracted.detectedMarkTypes;
+        Logger.success("Text extraction completed successfully");
+        try {
+          const extracted = this.extractStudentData(textOutcome.value.text);
+          textStudents = extracted.students;
+          textDetected = extracted.detectedMarkTypes;
+          Logger.debug("Text extraction found:", {
+            students: textStudents.length,
+            markTypes: textDetected,
+          });
+        } catch (extractError) {
+          Logger.warn("Text extraction parsing failed:", extractError);
+        }
       } else {
-        console.warn(
-          "⚠️ Text extraction failed or empty:",
+        Logger.warn(
+          "Text extraction failed or empty:",
           textOutcome.status === "rejected" ? textOutcome.reason : "no text"
         );
       }
@@ -225,17 +472,35 @@ class GeminiOCRService {
       };
 
       if (structuredStudents.length && textStudents.length) {
+        Logger.info("Merging structured and text extraction results…");
         students = this.mergeStudentsByName(structuredStudents, textStudents);
+        Logger.success(`Merged results: ${students.length} students`);
       }
 
       if (students.length === 0) {
-        throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
+        throw new ExtractionError("لم يتم العثور على أي بيانات طلاب في الصورة");
       }
 
       const postProcessed = this.postProcessStudents(students, detectedMarkTypes);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      Logger.success(`✨ Processing complete in ${elapsed}s: ${postProcessed.length} students extracted`);
+
       return { students: postProcessed, detectedMarkTypes };
     } catch (error) {
-      console.error("Gemini processing error:", error);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      Logger.error(`Processing failed after ${elapsed}s:`, error);
+
+      // Convert specific errors to user-friendly messages
+      if (error instanceof GeminiAPIError) {
+        throw new Error(error.message);
+      }
+      if (error instanceof ExtractionError) {
+        throw new Error(error.message);
+      }
+      if (error instanceof JSONParseError) {
+        throw new Error("فشل تحليل نتيجة المعالجة. يرجى المحاولة مرة أخرى.");
+      }
+
       throw new Error(
         error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة والمحاولة مرة أخرى."
       );
@@ -246,80 +511,119 @@ class GeminiOCRService {
    * Fast path: single structured Gemini Pro call only (no text fallback)
    */
   async processImageFast(imageFile: File): Promise<{ students: Student[]; detectedMarkTypes: DetectedMarkTypes }> {
-    if (!this.isValidImageFile(imageFile)) {
-      throw new Error("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
-    }
-    // Use optimized base64 to reduce payload where possible
-    const base64Image = await this.fileToOptimizedBase64(imageFile);
-    const base64Content = base64Image.split(",")[1];
-    let structuredResult: { students: any[]; markTypes: any };
-    // Kick off a text extraction concurrently; merge behavior remains unchanged
-    const textPromise = this.callGeminiAPI(base64Content);
-    try {
-      structuredResult = await this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
-    } catch (e) {
-      console.warn("Structured parse failed, falling back to text extraction once.", e);
-      const response = await textPromise.catch(() => null as any);
-      if (!response || !response.text) {
-        throw new Error("لم يتم التعرف على أي نص في الصورة");
-      }
-      const fallback = this.extractStudentData(response.text);
-      const postProcessed = this.postProcessStudents(fallback.students, fallback.detectedMarkTypes);
-      return { students: postProcessed, detectedMarkTypes: fallback.detectedMarkTypes };
-    }
-    const students: Student[] = (structuredResult.students || []).map((student: any, index: number) => ({
-      number: index + 1,
-      name: student.name,
-      marks: {
-        fard1: student.marks?.fard1 ?? null,
-        fard2: student.marks?.fard2 ?? null,
-        fard3: student.marks?.fard3 ?? null,
-        fard4: student.marks?.fard4 ?? null,
-        activities: student.marks?.activities ?? null,
-      },
-      uncertain: {
-        name: false,
-        marks: { fard1: false, fard2: false, fard3: false, fard4: false, activities: false },
-      },
-    }));
-    const detectedMarkTypes: DetectedMarkTypes = {
-      hasFard1: !!structuredResult.markTypes?.hasFard1,
-      hasFard2: !!structuredResult.markTypes?.hasFard2,
-      hasFard3: !!structuredResult.markTypes?.hasFard3,
-      hasFard4: !!structuredResult.markTypes?.hasFard4,
-      hasActivities: !!structuredResult.markTypes?.hasActivities,
-    };
-    if (!students.length) throw new Error("لم يتم العثور على أي بيانات طلاب في الصورة");
+    const startTime = Date.now();
 
-    // Always run a secondary text extraction and merge to avoid partial results
     try {
-      const response = await textPromise;
-      if (response && response.text) {
+      if (!this.isValidImageFile(imageFile)) {
+        throw new ExtractionError("نوع الملف غير مدعوم. يرجى استخدام صور بصيغة JPG, PNG, أو WebP");
+      }
+
+      Logger.info("🚀 STARTING FAST OCR PROCESSING");
+
+      // Use optimized base64 to reduce payload where possible
+      const base64Image = await this.fileToOptimizedBase64(imageFile);
+      const base64Content = base64Image.split(",")[1];
+
+      let structuredResult: { students: any[]; markTypes: any };
+      // Kick off a text extraction concurrently; merge behavior remains unchanged
+      const textPromise = this.callGeminiAPI(base64Content);
+
+      try {
+        structuredResult = await this.callGeminiAPIStructured(base64Content, imageFile.type || "image/jpeg");
+      } catch (e) {
+        Logger.warn("Structured parse failed, falling back to text extraction once.", e);
+        const response = await textPromise.catch(() => null as any);
+        if (!response || !response.text) {
+          throw new ExtractionError("لم يتم التعرف على أي نص في الصورة");
+        }
         const fallback = this.extractStudentData(response.text);
-
-        const mergedStudents = this.mergeStudentsByName(students, fallback.students);
-        const mergedDetected: DetectedMarkTypes = {
-          hasFard1: detectedMarkTypes.hasFard1 || fallback.detectedMarkTypes.hasFard1,
-          hasFard2: detectedMarkTypes.hasFard2 || fallback.detectedMarkTypes.hasFard2,
-          hasFard3: detectedMarkTypes.hasFard3 || fallback.detectedMarkTypes.hasFard3,
-          hasFard4: detectedMarkTypes.hasFard4 || fallback.detectedMarkTypes.hasFard4,
-          hasActivities: detectedMarkTypes.hasActivities || fallback.detectedMarkTypes.hasActivities,
-        };
-
-        console.log("🤝 Hybrid OCR merge complete:", {
-          structuredCount: students.length,
-          fallbackCount: fallback.students.length,
-          mergedCount: mergedStudents.length,
-        });
-
-        const postProcessed = this.postProcessStudents(mergedStudents, mergedDetected);
-        return { students: postProcessed, detectedMarkTypes: mergedDetected };
+        const postProcessed = this.postProcessStudents(fallback.students, fallback.detectedMarkTypes);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        Logger.success(`✨ Fast processing complete (fallback) in ${elapsed}s: ${postProcessed.length} students`);
+        return { students: postProcessed, detectedMarkTypes: fallback.detectedMarkTypes };
       }
-    } catch (mergeError) {
-      console.warn("Hybrid merge step failed; returning structured results only.", mergeError);
+
+      const students: Student[] = (structuredResult.students || []).map((student: any, index: number) => ({
+        number: index + 1,
+        name: student.name,
+        marks: {
+          fard1: student.marks?.fard1 ?? null,
+          fard2: student.marks?.fard2 ?? null,
+          fard3: student.marks?.fard3 ?? null,
+          fard4: student.marks?.fard4 ?? null,
+          activities: student.marks?.activities ?? null,
+        },
+        uncertain: {
+          name: false,
+          marks: { fard1: false, fard2: false, fard3: false, fard4: false, activities: false },
+        },
+      }));
+
+      const detectedMarkTypes: DetectedMarkTypes = {
+        hasFard1: !!structuredResult.markTypes?.hasFard1,
+        hasFard2: !!structuredResult.markTypes?.hasFard2,
+        hasFard3: !!structuredResult.markTypes?.hasFard3,
+        hasFard4: !!structuredResult.markTypes?.hasFard4,
+        hasActivities: !!structuredResult.markTypes?.hasActivities,
+      };
+
+      if (!students.length) {
+        throw new ExtractionError("لم يتم العثور على أي بيانات طلاب في الصورة");
+      }
+
+      // Always run a secondary text extraction and merge to avoid partial results
+      try {
+        const response = await textPromise;
+        if (response && response.text) {
+          const fallback = this.extractStudentData(response.text);
+
+          const mergedStudents = this.mergeStudentsByName(students, fallback.students);
+          const mergedDetected: DetectedMarkTypes = {
+            hasFard1: detectedMarkTypes.hasFard1 || fallback.detectedMarkTypes.hasFard1,
+            hasFard2: detectedMarkTypes.hasFard2 || fallback.detectedMarkTypes.hasFard2,
+            hasFard3: detectedMarkTypes.hasFard3 || fallback.detectedMarkTypes.hasFard3,
+            hasFard4: detectedMarkTypes.hasFard4 || fallback.detectedMarkTypes.hasFard4,
+            hasActivities: detectedMarkTypes.hasActivities || fallback.detectedMarkTypes.hasActivities,
+          };
+
+          Logger.info("🤝 Hybrid OCR merge complete:", {
+            structuredCount: students.length,
+            fallbackCount: fallback.students.length,
+            mergedCount: mergedStudents.length,
+          });
+
+          const postProcessed = this.postProcessStudents(mergedStudents, mergedDetected);
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+          Logger.success(`✨ Fast processing complete (merged) in ${elapsed}s: ${postProcessed.length} students`);
+          return { students: postProcessed, detectedMarkTypes: mergedDetected };
+        }
+      } catch (mergeError) {
+        Logger.warn("Hybrid merge step failed; returning structured results only.", mergeError);
+      }
+
+      const postProcessed = this.postProcessStudents(students, detectedMarkTypes);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      Logger.success(`✨ Fast processing complete in ${elapsed}s: ${postProcessed.length} students`);
+      return { students: postProcessed, detectedMarkTypes };
+    } catch (error) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+      Logger.error(`Fast processing failed after ${elapsed}s:`, error);
+
+      // Convert specific errors to user-friendly messages
+      if (error instanceof GeminiAPIError) {
+        throw new Error(error.message);
+      }
+      if (error instanceof ExtractionError) {
+        throw new Error(error.message);
+      }
+      if (error instanceof JSONParseError) {
+        throw new Error("فشل تحليل نتيجة المعالجة. يرجى المحاولة مرة أخرى.");
+      }
+
+      throw new Error(
+        error instanceof Error ? error.message : "فشلت معالجة الصورة. يرجى التأكد من جودة الصورة والمحاولة مرة أخرى."
+      );
     }
-    const postProcessed = this.postProcessStudents(students, detectedMarkTypes);
-    return { students: postProcessed, detectedMarkTypes };
   }
 
   /**
@@ -409,56 +713,60 @@ Return ONLY the JSON, no other text.`;
         },
       ],
     };
-    const { data, model, base } = await this.generateContentWithFallback(requestBody);
-    console.log(`Using Gemini model: ${model} via ${base}`);
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error("Invalid response from Gemini API");
-    }
-
-    // Collect all text parts
-    const parts = data.candidates[0].content.parts || [];
-    const texts: string[] = parts
-      .map((p: any) => (typeof p.text === "string" ? p.text : ""))
-      .filter((t: string) => t && t.length > 0);
-    const combinedText = texts.join("\n\n");
-
-    // Try robust JSON parsing
-    const parsed = this.tryParseStructuredJson(combinedText);
-    if (parsed) return parsed;
-
-    // As a last attempt, if there is a single part and it has text, try that directly
-    if (texts.length === 1) {
-      const direct = this.tryParseStructuredJson(texts[0]);
-      if (direct) return direct;
-    }
-
-    throw new Error("Failed to parse structured response");
-  }
-
-  // Try to parse JSON even if wrapped in code fences or with pre/post text
-  private tryParseStructuredJson(text: string): any | null {
-    if (!text) return null;
-    let cleaned = text.trim();
-    // Strip code fences like ```json ... ```
-    cleaned = cleaned.replace(/```json[\s\S]*?```/gi, (m) => m.replace(/```json|```/gi, "").trim());
-    cleaned = cleaned.replace(/```[\s\S]*?```/g, (m) => m.replace(/```/g, "").trim());
-    // If still contains extra prose, try extracting the largest {...} block
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-      const candidate = cleaned.substring(firstBrace, lastBrace + 1);
-      try {
-        return JSON.parse(candidate);
-      } catch (e) {
-        // Try to balance braces quickly
-      }
-    }
-    // Direct parse attempt
     try {
-      return JSON.parse(cleaned);
-    } catch (e) {
-      return null;
+      const { data, model, base } = await this.generateContentWithFallback(requestBody);
+      Logger.info(`Using Gemini model: ${model} via ${base}`);
+
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new GeminiAPIError("Invalid response from Gemini API - missing candidates or content");
+      }
+
+      // Collect all text parts
+      const parts = data.candidates[0].content.parts || [];
+      const texts: string[] = parts
+        .map((p: any) => (typeof p.text === "string" ? p.text : ""))
+        .filter((t: string) => t && t.length > 0);
+
+      if (texts.length === 0) {
+        throw new GeminiAPIError("No text content in API response");
+      }
+
+      const combinedText = texts.join("\n\n");
+      Logger.debug("Raw API response text:", combinedText.substring(0, 500));
+
+      // Try robust JSON parsing with the new parser
+      const parsed = JSONParser.parseRobust(combinedText);
+      if (parsed) {
+        // Validate the parsed structure
+        const validation = JSONParser.validateStructuredResponse(parsed);
+        if (validation.valid) {
+          Logger.success(`Successfully parsed structured response with ${parsed.students.length} students`);
+          return parsed;
+        } else {
+          Logger.warn(`Parsed JSON but validation failed: ${validation.error}`);
+        }
+      }
+
+      // If combined text failed, try individual parts
+      for (let i = 0; i < texts.length; i++) {
+        const partParsed = JSONParser.parseRobust(texts[i]);
+        if (partParsed) {
+          const validation = JSONParser.validateStructuredResponse(partParsed);
+          if (validation.valid) {
+            Logger.success(`Successfully parsed from part ${i + 1}/${texts.length}`);
+            return partParsed;
+          }
+        }
+      }
+
+      throw new JSONParseError("Failed to parse structured response after all attempts", combinedText);
+    } catch (error) {
+      if (error instanceof GeminiAPIError || error instanceof JSONParseError) {
+        throw error;
+      }
+      Logger.error("Unexpected error in callGeminiAPIStructured:", error);
+      throw new GeminiAPIError("Failed to process structured API request", undefined, false, error);
     }
   }
 
@@ -532,83 +840,193 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
         },
       ],
     } as const;
-    const { data, model, base } = await this.generateContentWithFallback(requestBody);
-    console.log(`Using Gemini model: ${model} via ${base}`);
-    console.log("🔍 GEMINI API - COMPLETE RAW RESPONSE:");
-    console.log("Full API Response:", JSON.stringify(data, null, 2));
 
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error("استجابة غير صحيحة من خدمة Gemini");
+    try {
+      const { data, model, base } = await this.generateContentWithFallback(requestBody);
+      Logger.info(`Using Gemini model: ${model} via ${base}`);
+      Logger.debug("GEMINI API - COMPLETE RAW RESPONSE:", JSON.stringify(data, null, 2));
+
+      if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+        throw new GeminiAPIError("استجابة غير صحيحة من خدمة Gemini - missing candidates or content");
+      }
+
+      const parts = data.candidates[0].content.parts;
+      if (!parts || parts.length === 0 || !parts[0].text) {
+        throw new GeminiAPIError("No text content in API response");
+      }
+
+      const text = parts[0].text;
+      Logger.success(`Received text response: ${text.length} characters`);
+      return { text };
+    } catch (error) {
+      if (error instanceof GeminiAPIError) {
+        throw error;
+      }
+      Logger.error("Unexpected error in callGeminiAPI:", error);
+      throw new GeminiAPIError("Failed to process text API request", undefined, false, error);
     }
-
-    const text = data.candidates[0].content.parts[0].text;
-    return { text };
   }
 
-  // Generic sender with model and endpoint fallbacks
+  /**
+   * Generic sender with model and endpoint fallbacks + retry mechanism
+   */
   private async generateContentWithFallback(requestBody: any): Promise<{ data: any; model: string; base: string }> {
-    const tried: Array<{ model: string; base: string; status?: number; error?: any }> = [];
+    const tried: Array<{ model: string; base: string; status?: number; error?: any; attempt: number }> = [];
+
     for (const base of this.getApiBases()) {
       for (const model of this.getModelCandidates()) {
         const apiUrl = `${base}/models/${model}:generateContent`;
-        try {
-          const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          });
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            console.error("Gemini API error:", errorData);
-            tried.push({ model, base, status: response.status, error: errorData });
-            // On 404/403, try next model/base
-            if (response.status === 404 || response.status === 403) {
-              continue;
+
+        // Try with retry mechanism
+        let lastError: any = null;
+        for (let attempt = 0; attempt <= RETRY_CONFIG.maxRetries; attempt++) {
+          try {
+            if (attempt > 0) {
+              Logger.info(`Retry attempt ${attempt}/${RETRY_CONFIG.maxRetries} for ${model}`);
+              await exponentialBackoff(attempt - 1);
             }
-            if (response.status === 400) {
-              throw new Error("فشل الاتصال بخدمة Gemini: خطأ في طلب API. يرجى التحقق من الصورة.");
+
+            const response = await fetch(`${apiUrl}?key=${this.geminiApiKey}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(requestBody),
+            });
+
+            if (!response.ok) {
+              const errorData = await response.json().catch(() => ({}));
+              Logger.warn(`API error (${response.status}):`, errorData);
+
+              tried.push({ model, base, status: response.status, error: errorData, attempt });
+
+              // Handle specific error codes
+              if (response.status === 404 || response.status === 403) {
+                // Model not available - try next model immediately
+                Logger.warn(`Model ${model} not available (${response.status}), trying next model`);
+                break; // Break retry loop, try next model
+              }
+
+              if (response.status === 400) {
+                throw new GeminiAPIError(
+                  "فشل الاتصال بخدمة Gemini: خطأ في طلب API. يرجى التحقق من الصورة.",
+                  400,
+                  false
+                );
+              }
+
+              // Retryable errors (429, 500, 502, 503, 504)
+              if (isRetryableError(null, response.status)) {
+                if (attempt < RETRY_CONFIG.maxRetries) {
+                  Logger.warn(`Retryable error ${response.status}, will retry...`);
+                  lastError = new GeminiAPIError(`API returned ${response.status}`, response.status, true, errorData);
+                  continue; // Retry this model
+                } else {
+                  // Max retries reached for this model
+                  Logger.warn(`Max retries reached for ${model}, trying next model`);
+                  break; // Try next model
+                }
+              }
+
+              // Non-retryable error
+              throw new GeminiAPIError(
+                "فشل الاتصال بخدمة Gemini. يرجى المحاولة مرة أخرى.",
+                response.status,
+                false,
+                errorData
+              );
             }
-            if (response.status === 429) {
-              throw new Error("خدمة Gemini مشغولة. حاول بعد قليل.");
+
+            // Success!
+            const data = await response.json();
+            if (attempt > 0) {
+              Logger.success(`Successfully connected after ${attempt} retry attempts`);
             }
-            throw new Error("فشل الاتصال بخدمة Gemini. يرجى المحاولة مرة أخرى.");
+            return { data, model, base };
+          } catch (err) {
+            lastError = err;
+
+            // If it's a non-retryable GeminiAPIError, throw immediately
+            if (err instanceof GeminiAPIError && !err.retryable) {
+              throw err;
+            }
+
+            // Network or other retryable errors
+            if (attempt < RETRY_CONFIG.maxRetries && isRetryableError(err)) {
+              Logger.warn(`Network error on attempt ${attempt + 1}, will retry...`, err);
+              tried.push({ model, base, error: err, attempt });
+              continue; // Retry
+            }
+
+            // Max retries reached or non-retryable error
+            Logger.warn(`Request failed for ${model} via ${base}:`, err);
+            tried.push({ model, base, error: err, attempt });
+            break; // Try next model
           }
-          const data = await response.json();
-          return { data, model, base };
-        } catch (err) {
-          console.warn(`Gemini request failed for ${model} via ${base}`, err);
-          tried.push({ model, base, error: err });
-          continue;
+        }
+
+        // If we got here, all retries failed for this model - continue to next model
+        if (lastError) {
+          Logger.warn(`All retry attempts failed for ${model}, trying next model`);
         }
       }
     }
-    const attempted = tried.map((t) => `${t.base?.includes("/v1") ? "v1" : "v1beta"}/${t.model}`).join(", ");
-    throw new Error(
-      `فشل الاتصال بخدمة Gemini: لم يتم العثور على نموذج متاح لهذا المشروع أو لا يوجد وصول. تأكد من صحة مفتاح API وتمكين خدمة Generative Language API. (تمت المحاولة: ${attempted})`
+
+    // All models and bases failed
+    const attempted = tried
+      .map((t) => `${t.base?.includes("/v1") ? "v1" : "v1beta"}/${t.model} (${t.attempt + 1} attempts)`)
+      .join(", ");
+
+    Logger.error("All API attempts exhausted", { attemptCount: tried.length, attempted });
+
+    throw new GeminiAPIError(
+      `فشل الاتصال بخدمة Gemini: لم يتم العثور على نموذج متاح لهذا المشروع أو لا يوجد وصول. تأكد من صحة مفتاح API وتمكين خدمة Generative Language API. (تمت المحاولة: ${attempted})`,
+      undefined,
+      false
     );
   }
 
   /**
-   * Extract student data from the OCR text
+   * Extract student data from the OCR text with enhanced error handling
    */
   private extractStudentData(text: string): { students: Student[]; detectedMarkTypes: DetectedMarkTypes } {
-    console.log("🔄 Extracting student data from Gemini OCR text...");
+    try {
+      Logger.info("🔄 Extracting student data from Gemini OCR text...");
 
-    const lines = text
-      .split("\n")
-      .map((line) => normalizeArabicNumber(line.trim()))
-      .filter((line) => line.length > 0);
+      if (!text || text.trim().length === 0) {
+        throw new ExtractionError("Empty OCR text received");
+      }
 
-    // Detect mark types from headers
-    const detectedMarkTypes = this.detectMarkTypes(text);
+      const lines = text
+        .split("\n")
+        .map((line) => normalizeArabicNumber(line.trim()))
+        .filter((line) => line.length > 0);
 
-    // Extract students and marks
-    const students = this.extractStudentsFromLines(lines, detectedMarkTypes);
+      if (lines.length === 0) {
+        throw new ExtractionError("No valid lines found in OCR text");
+      }
 
-    console.log(`✅ Total students extracted: ${students.length}`);
-    console.log(`📊 Detected mark types:`, detectedMarkTypes);
+      Logger.debug(`Processing ${lines.length} lines of OCR text`);
 
-    return { students, detectedMarkTypes };
+      // Detect mark types from headers
+      const detectedMarkTypes = this.detectMarkTypes(text);
+      Logger.debug("Detected mark types:", detectedMarkTypes);
+
+      // Extract students and marks
+      const students = this.extractStudentsFromLines(lines, detectedMarkTypes);
+
+      if (students.length === 0) {
+        Logger.warn("No students extracted from text");
+      } else {
+        Logger.success(`✅ Total students extracted: ${students.length}`);
+      }
+
+      return { students, detectedMarkTypes };
+    } catch (error) {
+      if (error instanceof ExtractionError) {
+        throw error;
+      }
+      Logger.error("Error in extractStudentData:", error);
+      throw new ExtractionError("Failed to extract student data from OCR text", { originalError: error });
+    }
   }
 
   /**
@@ -779,27 +1197,27 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
       // Skip summary rows (but be more specific)
       if (this.isSummaryRow(row)) {
-        console.log(`🚫 Skipping summary row: "${row}"`);
+        Logger.debug(`🚫 Skipping summary row: "${row}"`);
         return false;
       }
 
       // Skip header-like rows that might appear after the main header
       if (this.isAdvancedHeaderRow(row)) {
-        console.log(`🚫 Skipping header row: "${row}"`);
+        Logger.debug(`🚫 Skipping header row: "${row}"`);
         return false;
       }
 
       // Must contain at least some Arabic text OR numbers (for student data)
       const hasArabicOrNumbers = /[\u0600-\u06FF]/.test(row) || /\d/.test(row);
       if (!hasArabicOrNumbers) {
-        console.log(`🚫 Skipping row without Arabic/numbers: "${row}"`);
+        Logger.debug(`🚫 Skipping row without Arabic/numbers: "${row}"`);
         return false;
       }
 
       return true;
     });
 
-    console.log(`📊 Filtered ${filteredRows.length} data rows from ${dataRows.length} total rows`);
+    Logger.debug(`📊 Filtered ${filteredRows.length} data rows from ${dataRows.length} total rows`);
     return filteredRows;
   }
 
@@ -841,20 +1259,20 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     // Find student name using multiple strategies
-      let studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
+    let studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
 
     // IMPROVED: If name extraction fails, try emergency fallback extraction
     if (!studentName) {
       studentName = this.emergencyNameExtraction(row, cells);
       if (studentName) {
-        console.log(`🚨 Emergency name extraction successful: "${studentName}" from row: "${row}"`);
+        Logger.debug(`🚨 Emergency name extraction successful: "${studentName}" from row: "${row}"`);
       }
     }
 
     // IMPROVED: Only return null if we absolutely cannot find any name
     if (!studentName) {
-      console.warn(`⚠️ Could not extract any student name from row: "${row}"`);
-      console.warn(`⚠️ Parsed cells were:`, cells);
+      Logger.debug(`⚠️ Could not extract any student name from row: "${row}"`);
+      Logger.debug(`⚠️ Parsed cells were:`, cells);
       return null;
     }
 
@@ -1005,7 +1423,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       const cleaned = cell.replace(/[^\u0600-\u06FF\s]/g, "").trim();
       if (cleaned.length >= 2 && !this.isStrictHeaderLike(cell)) {
         // IMPROVED: Reduced from 3 to 2 characters
-        console.log(`📝 Fallback name extraction: "${cell}" → "${cleaned}"`);
+        Logger.debug(`📝 Fallback name extraction: "${cell}" → "${cleaned}"`);
         return this.cleanStudentName(cell);
       }
     }
@@ -1015,7 +1433,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       if (/[\u0600-\u06FF]/.test(cell) && !this.isStrictHeaderLike(cell)) {
         const cleaned = this.cleanStudentName(cell);
         if (cleaned.length > 0) {
-          console.log(`📝 Ultra-lenient name extraction: "${cell}" → "${cleaned}"`);
+          Logger.debug(`📝 Ultra-lenient name extraction: "${cell}" → "${cleaned}"`);
           return cleaned;
         }
       }
@@ -1028,7 +1446,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Emergency name extraction when all other strategies fail - NEW METHOD
    */
   private emergencyNameExtraction(originalRow: string, cells: string[]): string | null {
-    console.log(`🚨 Emergency name extraction for row: "${originalRow}"`);
+    Logger.debug(`🚨 Emergency name extraction for row: "${originalRow}"`);
 
     // Emergency Strategy 1: Look for any text that's not purely numeric
     for (const cell of cells) {
@@ -1038,7 +1456,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
           .replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "")
           .trim();
         if (cleaned.length >= 2) {
-          console.log(`🚨 Emergency extraction found: "${cleaned}" from cell: "${cell}"`);
+          Logger.debug(`🚨 Emergency extraction found: "${cleaned}" from cell: "${cell}"`);
           return cleaned;
         }
       }
@@ -1058,7 +1476,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
         .replace(/[^\u0600-\u06FF\s]/g, "")
         .trim();
       if (extracted.length >= 2) {
-        console.log(`🚨 Emergency Arabic extraction: "${extracted}" from: "${workingText}"`);
+        Logger.debug(`🚨 Emergency Arabic extraction: "${extracted}" from: "${workingText}"`);
         return extracted;
       }
     }
@@ -1068,7 +1486,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     if (letterMatch) {
       const extracted = letterMatch[0].trim();
       if (extracted.length >= 2 && !/^[.,|]+$/.test(extracted)) {
-        console.log(`🚨 Emergency letter extraction: "${extracted}" from: "${workingText}"`);
+        Logger.debug(`🚨 Emergency letter extraction: "${extracted}" from: "${workingText}"`);
         return extracted;
       }
     }
@@ -1078,15 +1496,14 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     if (parts.length > 0) {
       const extracted = parts[0].replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "").trim();
       if (extracted.length >= 1) {
-        console.log(`🚨 Emergency part extraction: "${extracted}" from parts:`, parts);
+        Logger.debug(`🚨 Emergency part extraction: "${extracted}" from parts:`, parts);
         return extracted;
       }
     }
 
-    console.log(`🚨 Emergency extraction failed completely for: "${originalRow}"`);
+    Logger.debug(`🚨 Emergency extraction failed completely for: "${originalRow}"`);
     return null;
   }
-
 
   /**
    * Check if a string looks like a header
@@ -1183,7 +1600,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
         const markValue = this.parseMarkValue(cells[columnIndex]);
         if (markValue !== null) {
           marks[markType] = markValue;
-          console.log(`📊 Found ${markType} mark: ${cells[columnIndex]} -> ${markValue}`);
+          Logger.debug(`📊 Found ${markType} mark: ${cells[columnIndex]} -> ${markValue}`);
           (flags as any)[markType] = false;
         }
       }
@@ -1335,7 +1752,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Emergency fallback when no students are extracted
    */
   private emergencyFallbackExtraction(dataRows: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
-    console.log("🆘 Using emergency fallback extraction");
+    Logger.warn("🆘 Using emergency fallback extraction");
     const students: Student[] = [];
 
     for (let i = 0; i < dataRows.length; i++) {
@@ -1396,7 +1813,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
           uncertain: { name: true, marks: flags },
         });
 
-        console.log(`🆘 Emergency extracted: ${studentName} with ${numbers.length} marks`);
+        Logger.debug(`🆘 Emergency extracted: ${studentName} with ${numbers.length} marks`);
       }
     }
 
@@ -1407,7 +1824,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Advanced fallback extraction when structured extraction fails
    */
   private advancedFallbackExtraction(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
-    console.log("🔄 Using advanced fallback extraction method");
+    Logger.info("🔄 Using advanced fallback extraction method");
 
     const students: Student[] = [];
     const allNames: string[] = [];
@@ -1470,45 +1887,65 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Extract students from text lines with advanced table structure detection
    */
   private extractStudentsFromLines(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
-    let students: Student[] = [];
+    try {
+      let students: Student[] = [];
 
-    // Find all header sections and parse each one
-    const headerAnalyses = this.analyzeAllHeaderSections(lines);
-    if (headerAnalyses.length === 0) {
-      console.warn("⚠️ No valid header structure found across the document, using advanced fallback");
-      return this.advancedFallbackExtraction(lines, detectedMarkTypes);
-    }
+      // Find all header sections and parse each one
+      const headerAnalyses = this.analyzeAllHeaderSections(lines);
+      if (headerAnalyses.length === 0) {
+        Logger.warn("⚠️ No valid header structure found across the document, using advanced fallback");
+        return this.advancedFallbackExtraction(lines, detectedMarkTypes);
+      }
 
-    console.log(`📋 Found ${headerAnalyses.length} header sections`);
+      Logger.info(`📋 Found ${headerAnalyses.length} header sections`);
 
-    for (let s = 0; s < headerAnalyses.length; s++) {
-      const headerAnalysis = headerAnalyses[s];
-      const nextHeader = headerAnalyses[s + 1]?.headerRowIndex ?? lines.length;
-      const dataRows = this.extractDataRowsInRange(lines, headerAnalysis.headerRowIndex, nextHeader);
+      for (let s = 0; s < headerAnalyses.length; s++) {
+        const headerAnalysis = headerAnalyses[s];
+        const nextHeader = headerAnalyses[s + 1]?.headerRowIndex ?? lines.length;
+        const dataRows = this.extractDataRowsInRange(lines, headerAnalysis.headerRowIndex, nextHeader);
 
-      console.log(`📊 Section ${s + 1}/${headerAnalyses.length} — rows: ${dataRows.length}`);
+        Logger.debug(`📊 Section ${s + 1}/${headerAnalyses.length} — rows: ${dataRows.length}`);
 
-      for (let i = 0; i < dataRows.length; i++) {
-        const row = dataRows[i];
-        if (!row || row.trim().length === 0) continue;
-        if (this.isSummaryRow(row)) continue;
+        for (let i = 0; i < dataRows.length; i++) {
+          const row = dataRows[i];
+          if (!row || row.trim().length === 0) continue;
+          if (this.isSummaryRow(row)) continue;
 
-        const student = this.extractStudentFromRowAdvanced(row, headerAnalysis, detectedMarkTypes, students.length + 1);
-        if (student) {
-          students.push(student);
-        } else {
-          const cells = this.parseRowIntoCells(row);
-          console.warn(`⚠️ Section ${s + 1} row ${i + 1} failed; cells:`, cells);
-          const emergencyStudent = this.lastResortStudentExtraction(row, students.length + 1);
-          if (emergencyStudent) students.push(emergencyStudent);
+          try {
+            const student = this.extractStudentFromRowAdvanced(
+              row,
+              headerAnalysis,
+              detectedMarkTypes,
+              students.length + 1
+            );
+            if (student) {
+              students.push(student);
+            } else {
+              const cells = this.parseRowIntoCells(row);
+              Logger.debug(`⚠️ Section ${s + 1} row ${i + 1} failed; cells:`, cells);
+              const emergencyStudent = this.lastResortStudentExtraction(row, students.length + 1);
+              if (emergencyStudent) students.push(emergencyStudent);
+            }
+          } catch (rowError) {
+            Logger.warn(`Error processing row ${i + 1} in section ${s + 1}:`, rowError);
+            // Continue to next row
+          }
         }
       }
-    }
 
-    console.log(`📊 Extracted ${students.length} students before validation`);
-    const validatedStudents = this.validateAndFixAlignment(students, detectedMarkTypes);
-    console.log(`📊 Final validated students: ${validatedStudents.length}`);
-    return validatedStudents.length ? validatedStudents : students;
+      Logger.info(`📊 Extracted ${students.length} students before validation`);
+
+      if (students.length > 0) {
+        const validatedStudents = this.validateAndFixAlignment(students, detectedMarkTypes);
+        Logger.info(`📊 Final validated students: ${validatedStudents.length}`);
+        return validatedStudents.length ? validatedStudents : students;
+      }
+
+      return students;
+    } catch (error) {
+      Logger.error("Error in extractStudentsFromLines:", error);
+      throw new ExtractionError("Failed to extract students from lines", { originalError: error });
+    }
   }
 
   /**
@@ -1750,14 +2187,14 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Last resort student extraction when all other methods fail - NEW METHOD
    */
   private lastResortStudentExtraction(row: string, studentNumber: number): Student | null {
-    console.log(`🆘 Last resort extraction for row ${studentNumber}: "${row}"`);
+    Logger.debug(`🆘 Last resort extraction for row ${studentNumber}: "${row}"`);
 
     // Remove any leading student number
     let workingRow = row.replace(/^\s*\d+\s*/, "").trim();
 
     // If the row is too short, skip it
     if (workingRow.length < 2) {
-      console.log(`🆘 Row too short after cleaning: "${workingRow}"`);
+      Logger.debug(`🆘 Row too short after cleaning: "${workingRow}"`);
       return null;
     }
 
@@ -1798,7 +2235,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       } else {
         extractedName = `Student_${studentNumber}`;
       }
-      console.log(`🆘 Using placeholder name: "${extractedName}" for row: "${row}"`);
+      Logger.debug(`🆘 Using placeholder name: "${extractedName}" for row: "${row}"`);
     }
 
     // Extract any numeric values that could be marks
@@ -1836,7 +2273,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       uncertain: { name: true, marks: flags },
     };
 
-    console.log(`🆘 Last resort extraction created:`, student);
+    Logger.debug(`🆘 Last resort extraction created:`, student);
     return student;
   }
 
@@ -1844,7 +2281,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    * Fallback extraction method when structured extraction fails
    */
   private fallbackExtraction(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
-    console.log("🔄 Using fallback extraction method");
+    Logger.info("🔄 Using fallback extraction method");
 
     const students: Student[] = [];
     const allNames: string[] = [];
@@ -1913,12 +2350,12 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // Handle formats like "07100" which should be "07,00"
     if (/^\d{2}100$/.test(cleaned)) {
       cleaned = cleaned.substring(0, 2) + ",00";
-      console.log(`  Converted ${mark} to ${cleaned}`);
+      Logger.debug(`  Converted ${mark} to ${cleaned}`);
     }
     // Handle formats like "03100" -> "03,00"
     else if (/^\d{1}100$/.test(cleaned)) {
       cleaned = "0" + cleaned.substring(0, 1) + ",00";
-      console.log(`  Converted ${mark} to ${cleaned}`);
+      Logger.debug(`  Converted ${mark} to ${cleaned}`);
     }
     // Handle formats like "10100" -> "10,00"
     else if (/^\d{3}00$/.test(cleaned) && cleaned !== "10000") {
@@ -1926,13 +2363,13 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
       const num = parseInt(firstTwo);
       if (num <= 20) {
         cleaned = firstTwo + ",00";
-        console.log(`  Converted ${mark} to ${cleaned}`);
+        Logger.debug(`  Converted ${mark} to ${cleaned}`);
       }
     }
     // Handle "108,00" which is likely "10,00" or "08,00"
     else if (cleaned === "108,00") {
       cleaned = "10,00"; // Most likely 10,00
-      console.log(`  Converted ${mark} to ${cleaned}`);
+      Logger.debug(`  Converted ${mark} to ${cleaned}`);
     }
 
     this.cachePreprocessMark.set(mark, cleaned);
