@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import excelService from "../services/excel/excelService";
 import { ExcelStatus, AppStep } from "../types";
+import { logger } from "../utils/logger";
 
 interface UseExcelValidationProps {
   isOfficeInitialized: boolean;
@@ -39,7 +40,7 @@ export const useExcelValidation = ({
         advanceToStep(AppStep.ImageProcessing);
       }
     } catch (error) {
-      console.error("Excel validation error:", error);
+      logger.error("Excel validation error:", error);
       setExcelStatus({
         isValid: false,
         checked: true,

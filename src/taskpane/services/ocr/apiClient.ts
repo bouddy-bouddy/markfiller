@@ -16,7 +16,7 @@ export class GeminiAPIClient {
   constructor() {
     this.geminiApiKey = getApiKey();
     if (!this.geminiApiKey) {
-      console.warn("GEMINI_API_KEY not found in environment variables");
+      logger.warn("GEMINI_API_KEY not found in environment variables");
     }
   }
 

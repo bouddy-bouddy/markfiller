@@ -26,6 +26,7 @@ import {
 import styled from "styled-components";
 import excelService from "../../services/excel/excelService";
 import { Student, DetectedMarkTypes, MarkType, markTypeNames } from "../../types";
+import { logger } from "../../utils/logger";
 
 const MappingContainer = styled.div`
   display: flex;
@@ -233,13 +234,13 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
       setIsLoading(true);
       setError(null);
 
-      console.log("🔍 Loading mapping preview...");
+      logger.debug("🔍 Loading mapping preview...");
       const preview = await excelService.previewMapping(extractedData, detectedMarkTypes);
 
-      console.log("📊 Mapping preview loaded:", preview);
+      logger.debug("📊 Mapping preview loaded:", preview);
       setMappingData(preview);
     } catch (err) {
-      console.error("Mapping preview error:", err);
+      logger.error("Mapping preview error:", err);
       setError(err instanceof Error ? err.message : "حدث خطأ أثناء معاينة التطابق");
     } finally {
       setIsLoading(false);
@@ -270,7 +271,7 @@ const MappingPreview: React.FC<MappingPreviewProps> = ({
       setIsQuickFilling(true);
       await excelService.insertMarksFromSelection(extractedData, quickFillType);
     } catch (err) {
-      console.error("Quick fill error:", err);
+      logger.error("Quick fill error:", err);
       setError("تعذر الإدخال انطلاقًا من الخلية المحددة. تأكد من تحديد الخلية الأولى في Excel.");
     } finally {
       setIsQuickFilling(false);

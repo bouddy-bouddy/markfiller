@@ -12,6 +12,7 @@ import {
 } from "../../types";
 import { formatMarkForMassar, mapDetectedTypeToMarkType, getInternalMarkType } from "./excelHelpers";
 import { ExcelNameMatcher } from "./excelNameMatcher";
+import { logger } from "../../utils/logger";
 
 /* global Excel */
 
@@ -93,7 +94,7 @@ export class ExcelMarkInserter {
         return results;
       });
     } catch (error) {
-      console.error("Excel interaction error:", error);
+      logger.error("Excel interaction error:", error);
       throw error;
     }
   }
@@ -120,17 +121,17 @@ export class ExcelMarkInserter {
           notFoundStudents: [],
         };
 
-        console.log("🎯 Starting intelligent mark mapping for all students...");
-        console.log("📊 Worksheet structure:", structure);
-        console.log("📋 Detected mark types:", detectedMarkTypes);
+        logger.info("🎯 Starting intelligent mark mapping for all students...");
+        logger.debug("📊 Worksheet structure:", structure);
+        logger.debug("📋 Detected mark types:", detectedMarkTypes);
         const workbookMarkTypes = this.detectAvailableMarkTypesInWorkbook(range.values as any[][], structure);
-        console.log("🧭 Mark types available in workbook:", workbookMarkTypes);
+        logger.debug("🧭 Mark types available in workbook:", workbookMarkTypes);
 
         const baseRow = range.rowIndex;
         const baseCol = range.columnIndex;
 
         for (const student of extractedData) {
-          console.log(`\n🔍 Processing student: ${student.name}`);
+          logger.debug(`\n🔍 Processing student: ${student.name}`);
 
           const rowIndexRel = this.nameMatcher.findStudentRow(
             student.name,
@@ -140,7 +141,7 @@ export class ExcelMarkInserter {
 
           if (rowIndexRel !== -1) {
             const absRow = baseRow + rowIndexRel;
-            console.log(`✅ Found student at row ${absRow}`);
+            logger.debug(`✅ Found student at row ${absRow}`);
 
             const detectedKeys: (keyof DetectedMarkTypes)[] = [
               "hasFard1",
@@ -159,7 +160,7 @@ export class ExcelMarkInserter {
 
               const columnIndex = structure.markColumns[markType];
               if (columnIndex === -1) {
-                console.log(`⚠️ No column found for ${markType}`);
+                logger.debug(`⚠️ No column found for ${markType}`);
                 continue;
               }
 
@@ -168,24 +169,24 @@ export class ExcelMarkInserter {
                 const cell = sheet.getCell(absRow, baseCol + columnIndex);
                 cell.values = [[formatMarkForMassar(markValue)]];
                 results.success++;
-                console.log(`✅ Inserted ${markType}: ${markValue} at row ${absRow}, col ${baseCol + columnIndex}`);
+                logger.debug(`✅ Inserted ${markType}: ${markValue} at row ${absRow}, col ${baseCol + columnIndex}`);
               } else {
-                console.log(`⚠️ No mark value for ${markType}`);
+                logger.debug(`⚠️ No mark value for ${markType}`);
               }
             }
           } else {
             results.notFound++;
             results.notFoundStudents.push(student.name);
-            console.log(`❌ Student not found: ${student.name}`);
+            logger.debug(`❌ Student not found: ${student.name}`);
           }
         }
 
         await context.sync();
-        console.log(`\n📊 Mapping completed - Success: ${results.success}, Not found: ${results.notFound}`);
+        logger.info(`\n📊 Mapping completed - Success: ${results.success}, Not found: ${results.notFound}`);
         return results;
       });
     } catch (error) {
-      console.error("Excel mapping error:", error);
+      logger.error("Excel mapping error:", error);
       throw error;
     }
   }
@@ -218,7 +219,7 @@ export class ExcelMarkInserter {
         return { success: inserted, notFound: 0, notFoundStudents: [] };
       });
     } catch (error) {
-      console.error("Excel quick-fill insertion error:", error);
+      logger.error("Excel quick-fill insertion error:", error);
       throw error;
     }
   }
@@ -335,7 +336,7 @@ export class ExcelMarkInserter {
         };
       });
     } catch (error) {
-      console.error("Mapping preview error:", error);
+      logger.error("Mapping preview error:", error);
       throw error;
     }
   }
@@ -420,7 +421,7 @@ export class ExcelMarkInserter {
 
       return detected;
     } catch (error) {
-      console.warn("Workbook mark type detection failed, falling back to structure:", error);
+      logger.warn("Workbook mark type detection failed, falling back to structure:", error);
       if (!structure) {
         throw new Error("Worksheet structure not initialized");
       }

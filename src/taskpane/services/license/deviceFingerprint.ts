@@ -1,6 +1,7 @@
 /* global document, navigator, screen, localStorage, btoa */
 
 import { STORAGE_KEYS } from "./config";
+import { logger } from "../../utils/logger";
 
 /**
  * Device Information Interface
@@ -75,7 +76,7 @@ export class DeviceFingerprint {
       const data = await response.json();
       return data.ip;
     } catch (error) {
-      console.warn("Could not fetch client IP:", error);
+      logger.warn("Could not fetch client IP:", error);
       return undefined;
     }
   }

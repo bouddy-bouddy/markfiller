@@ -1,9 +1,9 @@
-/* global File, HTMLInputElement, FileReader, console */
-/* eslint-disable no-console */
+/* global File, HTMLInputElement, FileReader */
 import { useState, useRef } from "react";
 import { licenseService } from "../services/license/licenseService";
 import { uploadWithTracking } from "../services/usageTracker";
 import { Student, DetectedMarkTypes, AppStep } from "../types";
+import { logger } from "../utils/logger";
 
 interface UseImageProcessingProps {
   completeStep: (step: AppStep) => void;
@@ -96,13 +96,13 @@ export const useImageProcessing = ({
         return;
       }
 
-      console.log("🚀 Starting OCR processing with usage tracking...");
+      logger.info("🚀 Starting OCR processing with usage tracking...");
 
       // Wrap OCR with usage tracking
       const trackResult = await uploadWithTracking(
         licenseKey,
         async () => {
-          console.log("📸 Processing image with Gemini OCR...");
+          logger.info("📸 Processing image with Gemini OCR...");
 
           // Track OCR start (for internal analytics)
           await licenseService.trackUsage("ocr_started", {
@@ -111,8 +111,8 @@ export const useImageProcessing = ({
           });
 
           // Process the image using enhanced OCR service (lazy-loaded)
-          console.log("🚀 STARTING OCR PROCESSING - About to call Gemini OCR");
-          console.log("📸 Image file details:", {
+          logger.info("🚀 STARTING OCR PROCESSING - About to call Gemini OCR");
+          logger.info("📸 Image file details:", {
             name: selectedImage.name,
             size: selectedImage.size,
             type: selectedImage.type,
@@ -122,9 +122,9 @@ export const useImageProcessing = ({
           const { default: geminiOcrService } = await import("../services/ocr/geminiOcrService");
           const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
-          console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
-          console.log("👥 Extracted students:", students.length);
-          console.log("📊 Detected mark types:", detectedMarkTypes);
+          logger.info("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
+          logger.info("👥 Extracted students:", students.length);
+          logger.info("📊 Detected mark types:", detectedMarkTypes);
 
           // Notify parent of extracted data
           onDataExtracted(students, detectedMarkTypes);
@@ -146,15 +146,15 @@ export const useImageProcessing = ({
       );
 
       // Success - Show usage info
-      console.log(`✅ OCR tracked! Remaining uploads: ${trackResult.remainingUploads}`);
+      logger.info(`✅ OCR tracked! Remaining uploads: ${trackResult.remainingUploads}`);
 
       // Warn if low
       if (trackResult.remainingUploads <= 5) {
-        console.warn(`⚠️ Warning: Only ${trackResult.remainingUploads} uploads remaining!`);
-        console.log(`📢 User has ${trackResult.remainingUploads} uploads left`);
+        logger.warn(`⚠️ Warning: Only ${trackResult.remainingUploads} uploads remaining!`);
+        logger.info(`📢 User has ${trackResult.remainingUploads} uploads left`);
       }
     } catch (error: any) {
-      console.error("❌ OCR processing failed:", error);
+      logger.error("❌ OCR processing failed:", error);
 
       // Check if usage limit error
       if (

@@ -1,6 +1,7 @@
-/* global File, FileReader, console, Image, document, createImageBitmap, OffscreenCanvas */
+/* global File, FileReader, Image, document, createImageBitmap, OffscreenCanvas */
 
 import { IMAGE_CONFIG } from "./config";
+import { logger } from "../../utils/logger";
 
 /**
  * Image Processing Utilities
@@ -16,12 +17,12 @@ export class ImageProcessor {
     const validTypes = IMAGE_CONFIG.validTypes as readonly string[];
     
     if (!validTypes.includes(fileType)) {
-      console.error(`Invalid file type: ${file.type}`);
+      logger.error(`Invalid file type: ${file.type}`);
       return false;
     }
 
     if (file.size > IMAGE_CONFIG.maxSize) {
-      console.error(`File too large: ${file.size} bytes (max: ${IMAGE_CONFIG.maxSize})`);
+      logger.error(`File too large: ${file.size} bytes (max: ${IMAGE_CONFIG.maxSize})`);
       return false;
     }
 
@@ -37,12 +38,12 @@ export class ImageProcessor {
 
       reader.onload = () => {
         const result = reader.result as string;
-        console.log(`📷 Image converted to base64: ${(result.length / 1024).toFixed(1)} KB`);
+        logger.info(`📷 Image converted to base64: ${(result.length / 1024).toFixed(1)} KB`);
         resolve(result);
       };
 
       reader.onerror = (error) => {
-        console.error("Error reading file:", error);
+        logger.error("Error reading file:", error);
         reject(new Error("فشل في قراءة ملف الصورة"));
       };
 

@@ -12,6 +12,7 @@ import {
 import { Edit24Regular } from "@fluentui/react-icons";
 import { Student, StudentMarks, DetectedMarkTypes } from "../../types";
 import styled from "styled-components";
+import { logger } from "../../utils/logger";
 
 interface DataTableProps {
   data: Student[];
@@ -219,12 +220,12 @@ const DataTable: React.FC<DataTableProps> = ({ data, onDataUpdate, detectedMarkT
 
   // Update editableData when data changes
   useEffect(() => {
-    console.log(
+    logger.debug(
       "📊 DataTable: Received new data prop:",
       data.map((s) => s.name)
     );
     setEditableData(data);
-    console.log("📊 DataTable: Updated editableData state");
+    logger.debug("📊 DataTable: Updated editableData state");
   }, [data]);
 
   const validateMark = (value: string | null): boolean => {

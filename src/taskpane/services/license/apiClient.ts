@@ -1,8 +1,9 @@
-/* global fetch, console, localStorage */
+/* global fetch, localStorage */
 
 import { getLmsBaseUrl, API_ENDPOINTS, LICENSE_STATUS_CODES, STORAGE_KEYS } from "./config";
 import { deviceFingerprint, DeviceInfo } from "./deviceFingerprint";
 import { getIpLookupUrl } from "./config";
+import { logger } from "../../utils/logger";
 
 /**
  * License Validation Result
@@ -81,7 +82,7 @@ export class LicenseApiClient {
         expiresAt: data.validUntil,
       };
     } catch (error) {
-      console.error("License activation error:", error);
+      logger.error("License activation error:", error);
       throw error;
     }
   }
@@ -131,7 +132,7 @@ export class LicenseApiClient {
         maxDevices: data.maxDevices,
       };
     } catch (error) {
-      console.error("License validation error:", error);
+      logger.error("License validation error:", error);
       throw error;
     }
   }
@@ -158,7 +159,7 @@ export class LicenseApiClient {
       });
     } catch (error) {
       // Silent fail for usage tracking
-      console.warn("Usage tracking failed:", error);
+      logger.warn("Usage tracking failed:", error);
     }
   }
 }

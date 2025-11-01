@@ -1,5 +1,3 @@
-/* global console */
-
 import { Student, DetectedMarkTypes, StudentUncertainty } from "../../types";
 import { normalizeArabicNumber, isValidStudentName } from "../../utils/arabicTextUtils";
 import { logger } from "./logger";

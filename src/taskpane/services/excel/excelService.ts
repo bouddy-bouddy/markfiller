@@ -9,8 +9,9 @@ import { ExcelFormatDetector } from "./excelFormatDetector";
 import { ExcelNameMatcher, NameMatchConfig } from "./excelNameMatcher";
 import { ExcelMarkInserter } from "./excelMarkInserter";
 import { getNeighborValue } from "./excelHelpers";
+import { logger } from "../../utils/logger";
 
-/* global Excel, console */
+/* global Excel */
 
 /**
  * Enhanced Excel Service with Massar Format Support
@@ -94,7 +95,7 @@ class ExcelService {
         return result;
       });
     } catch (error) {
-      console.warn("Could not read workbook metadata:", error);
+      logger.warn("Could not read workbook metadata:", error);
       return {};
     }
   }
@@ -135,7 +136,7 @@ class ExcelService {
         return false;
       });
     } catch (error) {
-      console.error("Excel validation error:", error);
+      logger.error("Excel validation error:", error);
       return false;
     }
   }

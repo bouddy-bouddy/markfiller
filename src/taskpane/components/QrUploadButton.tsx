@@ -1,4 +1,4 @@
-/* global console, setTimeout, setInterval, clearInterval */
+/* global setTimeout, setInterval, clearInterval */
 import React, { useState } from "react";
 import {
   Button,
@@ -12,6 +12,7 @@ import {
 import { QrCode24Regular, Checkmark24Regular, Dismiss24Regular } from "@fluentui/react-icons";
 import QRCode from "qrcode";
 import { licenseService } from "../services/license/licenseService";
+import { logger } from "../utils/logger";
 
 interface QrUploadButtonProps {
   onImageReceived: (imageUrl: string) => void;
@@ -29,13 +30,13 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
   const generateQrCode = async () => {
-    console.log("🚀 Starting QR code generation...");
+    logger.info("🚀 Starting QR code generation...");
     setIsGenerating(true);
     setError(null);
 
     try {
       const licenseKey = licenseService.getStoredLicenseKey();
-      console.log("🔑 License key:", licenseKey ? "Found" : "NOT FOUND");
+      logger.debug("🔑 License key:", licenseKey ? "Found" : "NOT FOUND");
 
       if (!licenseKey) {
         throw new Error("لم يتم العثور على مفتاح الترخيص");
@@ -45,10 +46,10 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
       const API_BASE_URL =
         process.env.REACT_APP_API_URL || (typeof window !== "undefined" && (window as any).REACT_APP_API_URL);
 
-      console.log("🌐 API Base URL:", API_BASE_URL);
+      logger.debug("🌐 API Base URL:", API_BASE_URL);
 
       const sessionUrl = `${API_BASE_URL}/api/qr-upload/session`;
-      console.log("📡 Creating session at:", sessionUrl);
+      logger.debug("📡 Creating session at:", sessionUrl);
 
       // Create session
       const response = await fetch(sessionUrl, {
@@ -59,21 +60,21 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
         body: JSON.stringify({ licenseKey }),
       });
 
-      console.log("📥 Response status:", response.status);
+      logger.debug("📥 Response status:", response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "Unknown error" }));
-        console.error("❌ Session creation failed:", errorData);
+        logger.error("❌ Session creation failed:", errorData);
         throw new Error(errorData.error || "فشل في إنشاء جلسة الرفع");
       }
 
       const data = await response.json();
-      console.log("✅ Session created:", data);
+      logger.info("✅ Session created:", data);
 
       setSessionId(data.sessionId);
       setUploadUrl(data.uploadUrl);
 
-      console.log("🎨 Generating QR code for URL:", data.uploadUrl);
+      logger.debug("🎨 Generating QR code for URL:", data.uploadUrl);
 
       // Generate QR code
       const qrDataUrl = await QRCode.toDataURL(data.uploadUrl, {
@@ -85,18 +86,18 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
         },
       });
 
-      console.log("✅ QR code generated successfully");
+      logger.info("✅ QR code generated successfully");
 
       setQrCodeDataUrl(qrDataUrl);
       setIsGenerating(false);
       setIsWaiting(true);
 
       // Start polling for upload
-      console.log("⏳ Starting polling for session:", data.sessionId);
+      logger.debug("⏳ Starting polling for session:", data.sessionId);
       startPolling(data.sessionId, API_BASE_URL);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "حدث خطأ غير متوقع";
-      console.error("❌ Error generating QR code:", errorMessage, err);
+      logger.error("❌ Error generating QR code:", errorMessage, err);
       setError(errorMessage);
       setIsGenerating(false);
     }
@@ -106,15 +107,15 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
     let pollCount = 0;
     const maxPolls = 60; // 10 minutes (every 10 seconds)
 
-    console.log("🔄 Polling started for session:", sessionId);
+    logger.debug("🔄 Polling started for session:", sessionId);
 
     const pollInterval = setInterval(async () => {
       pollCount++;
-      console.log(`🔍 Poll attempt ${pollCount}/${maxPolls}`);
+      logger.debug(`🔍 Poll attempt ${pollCount}/${maxPolls}`);
 
       if (pollCount > maxPolls) {
         clearInterval(pollInterval);
-        console.error("⏰ Session timeout");
+        logger.warn("⏰ Session timeout");
         setError("انتهت مهلة الجلسة. يرجى المحاولة مرة أخرى");
         setIsWaiting(false);
         return;
@@ -122,16 +123,16 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
 
       try {
         const checkUrl = `${apiBaseUrl}/api/qr-upload/session/${sessionId}`;
-        console.log("📡 Checking status at:", checkUrl);
+        logger.debug("📡 Checking status at:", checkUrl);
 
         const response = await fetch(checkUrl);
         const data = await response.json();
 
-        console.log("📊 Status check result:", data);
+        logger.debug("📊 Status check result:", data);
 
         if (data.status === "completed" && data.imageUrl) {
           clearInterval(pollInterval);
-          console.log("✅ Upload completed! Image URL:", data.imageUrl);
+          logger.info("✅ Upload completed! Image URL:", data.imageUrl);
           setIsWaiting(false);
           setUploadSuccess(true);
 
@@ -140,30 +141,30 @@ const QrUploadButton: React.FC<QrUploadButtonProps> = ({ onImageReceived, disabl
 
           // Close dialog after 2 seconds
           setTimeout(() => {
-            console.log("🔒 Closing dialog");
+            logger.debug("🔒 Closing dialog");
             handleClose();
           }, 2000);
         } else if (data.status === "expired") {
           clearInterval(pollInterval);
-          console.error("⏰ Session expired");
+          logger.warn("⏰ Session expired");
           setError("انتهت صلاحية الجلسة");
           setIsWaiting(false);
         }
       } catch (err) {
-        console.error("❌ Polling error:", err);
+        logger.error("❌ Polling error:", err);
         // Don't stop polling on network errors, just log them
       }
     }, 10000); // Poll every 10 seconds
   };
 
   const handleOpen = () => {
-    console.log("🔓 Opening QR dialog");
+    logger.debug("🔓 Opening QR dialog");
     setIsDialogOpen(true);
     generateQrCode();
   };
 
   const handleClose = () => {
-    console.log("🔒 Closing QR dialog and resetting state");
+    logger.debug("🔒 Closing QR dialog and resetting state");
     setIsDialogOpen(false);
     setQrCodeDataUrl(null);
     setUploadUrl(null);

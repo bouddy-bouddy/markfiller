@@ -1,10 +1,16 @@
-/* global console */
-
 import { Student, DetectedMarkTypes, StudentUncertainty } from "../../types";
 import { normalizeArabicText, normalizeArabicNumber, isValidStudentName } from "../../utils/arabicTextUtils";
 import { MARK_TYPE_REGEX } from "../../constants/markTypes";
 import { ExtractionError } from "./errors";
 import { logger } from "./logger";
+import {
+  analyzeAllHeaderSections,
+  extractDataRowsInRange,
+  parseRowIntoCells,
+  extractStudentName,
+  isSummaryRow,
+  emergencyNameExtraction,
+} from "./extractionHelpers";
 
 /**
  * Data Extractor
@@ -146,8 +152,8 @@ export class DataExtractor {
   /**
    * Post-process students to deduplicate and renumber
    */
-  postProcessStudents(students: Student[], _detectedMarkTypes: DetectedMarkTypes): Student[] {
-    void _detectedMarkTypes;
+  postProcessStudents(students: Student[], detectedMarkTypes: DetectedMarkTypes): Student[] {
+    // Note: detectedMarkTypes parameter preserved for future enhancements
     const byKey = new Map<string, Student>();
     const order: string[] = [];
     
@@ -275,8 +281,6 @@ export class DataExtractor {
    */
   private extractStudentsFromLines(lines: string[], detectedMarkTypes: DetectedMarkTypes): Student[] {
     try {
-      const { analyzeAllHeaderSections, extractDataRowsInRange, parseRowIntoCells, extractStudentName, isSummaryRow, emergencyNameExtraction } = require("./extractionHelpers");
-      
       let students: Student[] = [];
 
       // Find all header sections
@@ -352,8 +356,6 @@ export class DataExtractor {
     detectedMarkTypes: DetectedMarkTypes,
     studentNumber: number
   ): Student | null {
-    const { parseRowIntoCells, extractStudentName, emergencyNameExtraction } = require("./extractionHelpers");
-    
     const cells = parseRowIntoCells(row);
 
     if (cells.length === 0) {

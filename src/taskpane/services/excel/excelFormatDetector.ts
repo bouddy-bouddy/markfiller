@@ -5,6 +5,7 @@
 
 import { IntelligentWorksheetStructure } from "../../types";
 import { ExcelColumnDetector } from "./excelColumnDetector";
+import { logger } from "../../utils/logger";
 
 export class ExcelFormatDetector {
   private columnDetector: ExcelColumnDetector;
@@ -43,25 +44,25 @@ export class ExcelFormatDetector {
    * Analyzes Massar file structure in detail
    */
   analyzeMassarStructure(values: any[][]): IntelligentWorksheetStructure {
-    console.log("🔍 Analyzing Massar file structure...");
+    logger.debug("🔍 Analyzing Massar file structure...");
 
     const headers = this.columnDetector.extractHeaders(values);
-    console.log("📋 Headers found:", headers);
+    logger.debug("📋 Headers found:", headers);
 
     const studentNameColumn = this.columnDetector.findMassarStudentNameColumn(headers, values);
-    console.log("👤 Student name column:", studentNameColumn, headers[studentNameColumn] || "N/A");
+    logger.debug("👤 Student name column:", studentNameColumn, headers[studentNameColumn] || "N/A");
 
     const studentIdColumn = this.columnDetector.findStudentIdColumn(headers);
-    console.log("🆔 Student ID column:", studentIdColumn, headers[studentIdColumn] || "N/A");
+    logger.debug("🆔 Student ID column:", studentIdColumn, headers[studentIdColumn] || "N/A");
 
     const markColumns = this.columnDetector.findMassarMarkColumns(headers, values);
-    console.log("📊 Mark columns found:", markColumns);
+    logger.debug("📊 Mark columns found:", markColumns);
 
     const markColumnsConfidence = this.columnDetector.calculateMarkColumnConfidence(headers, values);
-    console.log("🎯 Mark columns confidence:", markColumnsConfidence);
+    logger.debug("🎯 Mark columns confidence:", markColumnsConfidence);
 
     const additionalMarkColumns = this.columnDetector.findAdditionalMarkColumns(headers, markColumns);
-    console.log("➕ Additional mark columns:", additionalMarkColumns);
+    logger.debug("➕ Additional mark columns:", additionalMarkColumns);
 
     const structure: IntelligentWorksheetStructure = {
       headers,
@@ -73,7 +74,7 @@ export class ExcelFormatDetector {
       additionalMarkColumns,
     };
 
-    console.log("✅ Massar structure analysis complete:", structure);
+    logger.debug("✅ Massar structure analysis complete:", structure);
     return structure;
   }
 

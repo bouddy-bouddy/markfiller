@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { licenseService } from "../services/license/licenseService";
+import { logger } from "../utils/logger";
 
 interface UseLicenseResult {
   isLicenseValid: boolean;
@@ -37,7 +38,7 @@ export const useLicense = (): UseLicenseResult => {
         setIsLicenseValid(false);
       }
     } catch (error) {
-      console.error("License check failed:", error);
+      logger.error("License check failed:", error);
       setIsLicenseValid(false);
     } finally {
       setIsCheckingLicense(false);

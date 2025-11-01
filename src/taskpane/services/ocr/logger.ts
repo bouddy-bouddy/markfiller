@@ -1,11 +1,14 @@
-/* global console, process */
-
 /**
- * Enhanced logging utility for OCR service
- * Provides consistent logging with prefixes and development mode support
+ * OCR Service Logger
+ * Uses centralized logger with OCR-specific prefixes
  */
 
-export class OcrLogger {
+import { logger as baseLogger } from "../../utils/logger";
+
+/**
+ * Enhanced logging utility for OCR service with prefixes
+ */
+class OcrLogger {
   private prefix: string;
 
   constructor(prefix: string = "🔍 [GeminiOCR]") {
@@ -13,24 +16,42 @@ export class OcrLogger {
   }
 
   info(message: string, data?: any): void {
-    console.log(`${this.prefix} ${message}`, data !== undefined ? data : "");
+    if (data !== undefined && data !== "") {
+      baseLogger.info(`${this.prefix} ${message}`, data);
+    } else {
+      baseLogger.info(`${this.prefix} ${message}`);
+    }
   }
 
   warn(message: string, data?: any): void {
-    console.warn(`${this.prefix} ⚠️ ${message}`, data !== undefined ? data : "");
+    if (data !== undefined && data !== "") {
+      baseLogger.warn(`${this.prefix} ⚠️ ${message}`, data);
+    } else {
+      baseLogger.warn(`${this.prefix} ⚠️ ${message}`);
+    }
   }
 
   error(message: string, error?: any): void {
-    console.error(`${this.prefix} ❌ ${message}`, error !== undefined ? error : "");
+    if (error !== undefined && error !== "") {
+      baseLogger.error(`${this.prefix} ❌ ${message}`, error);
+    } else {
+      baseLogger.error(`${this.prefix} ❌ ${message}`);
+    }
   }
 
   success(message: string, data?: any): void {
-    console.log(`${this.prefix} ✅ ${message}`, data !== undefined ? data : "");
+    if (data !== undefined && data !== "") {
+      baseLogger.info(`${this.prefix} ✅ ${message}`, data);
+    } else {
+      baseLogger.info(`${this.prefix} ✅ ${message}`);
+    }
   }
 
   debug(message: string, data?: any): void {
-    if (process.env.NODE_ENV === "development") {
-      console.log(`${this.prefix} 🐛 ${message}`, data !== undefined ? data : "");
+    if (data !== undefined && data !== "") {
+      baseLogger.debug(`${this.prefix} 🐛 ${message}`, data);
+    } else {
+      baseLogger.debug(`${this.prefix} 🐛 ${message}`);
     }
   }
 }

@@ -10,6 +10,7 @@ import {
 import LoadingSpinner from "../shared/LoadingSpinner";
 import QrUploadButton from "../QrUploadButton";
 import styled from "styled-components";
+import { logger } from "../../utils/logger";
 
 // ============= STYLED COMPONENTS =============
 const StepTitle = styled.div`
@@ -327,17 +328,16 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
   // ============= QR IMAGE HANDLER =============
   const handleQrImageReceived = async (imageUrl: string) => {
     try {
-      console.log("📱 Image received from QR upload:", imageUrl);
+      logger.info("📱 Image received from QR upload:", imageUrl);
 
       // Check if it's a Cloudinary URL (starts with http/https)
       const isCloudinaryUrl = imageUrl.startsWith("http://") || imageUrl.startsWith("https://");
 
       // Use the URL directly if it's from Cloudinary, otherwise construct local URL
-      const fullImageUrl = isCloudinaryUrl
-        ? imageUrl
-        : `${process.env.REACT_APP_API_URL || "http://localhost:3000"}${imageUrl}`;
+      const API_URL = process.env.REACT_APP_API_URL || process.env.LMS_BASE_URL || "https://markfiller-lms.vercel.app";
+      const fullImageUrl = isCloudinaryUrl ? imageUrl : `${API_URL}${imageUrl}`;
 
-      console.log("🌐 Fetching image from:", fullImageUrl);
+      logger.info("🌐 Fetching image from:", fullImageUrl);
 
       // Fetch the image
       const response = await fetch(fullImageUrl);
@@ -347,20 +347,20 @@ const ImageProcessingStep: React.FC<ImageProcessingStepProps> = ({
       }
 
       const blob = await response.blob();
-      console.log("✅ Image blob received, size:", blob.size, "bytes");
+      logger.info("✅ Image blob received, size:", `${blob.size} bytes`);
 
       // Convert to File object
       const filename = imageUrl.split("/").pop() || "marksheet.jpg";
       const file = new File([blob], filename, { type: blob.type });
 
-      console.log("📄 File created:", file.name, file.type, file.size);
+      logger.info("📄 File created:", `${file.name}, ${file.type}, ${file.size}`);
 
       // Call the parent's onImageUpload function
       onImageUpload(file);
 
-      console.log("✅ Image successfully loaded from QR upload");
+      logger.info("✅ Image successfully loaded from QR upload");
     } catch (error) {
-      console.error("❌ Error loading QR image:", error);
+      logger.error("❌ Error loading QR image:", error);
       alert(`حدث خطأ أثناء تحميل الصورة: ${error instanceof Error ? error.message : "خطأ غير معروف"}`);
     }
   };

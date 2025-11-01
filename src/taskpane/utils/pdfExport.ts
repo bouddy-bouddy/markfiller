@@ -2,6 +2,7 @@
 import { Statistics } from "../types/statistics";
 import { MarkType } from "../types";
 import { getMarkTypeName, formatNumber } from "./markTypeHelpers";
+import { logger } from "./logger";
 
 interface PdfExportOptions {
   statistics: Statistics;
@@ -320,7 +321,7 @@ export const generatePdfReport = async (reportRef: HTMLDivElement, options: PdfE
 
     pdf.save(`MarkFiller-Statistics-${safeClass}_${dateStr}.pdf`);
   } catch (error) {
-    console.error("Error generating PDF:", error);
+    logger.error("Error generating PDF:", error);
     throw error;
   }
 };

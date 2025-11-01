@@ -4,6 +4,7 @@
  */
 
 import { MarkType } from "../../types";
+import { logger } from "../../utils/logger";
 
 /**
  * Format mark value for Massar Excel format
@@ -159,7 +160,7 @@ export function getMergedStudentName(row: any[], primaryNameColumn: number): str
   const finalName = fullName.trim();
 
   if (finalName !== originalName) {
-    console.log(`🔗 Merged name: "${originalName}" → "${finalName}" (column ${primaryNameColumn})`);
+    logger.debug(`🔗 Merged name: "${originalName}" → "${finalName}" (column ${primaryNameColumn})`);
   }
 
   return finalName;

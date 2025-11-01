@@ -1,8 +1,8 @@
-/* eslint-disable no-console */
 import { useState } from "react";
 import excelService from "../services/excel/excelService";
 import { licenseService } from "../services/license/licenseService";
 import { Student, DetectedMarkTypes, AppStep } from "../types";
+import { logger } from "../utils/logger";
 
 interface UseMarksInsertionProps {
   completeStep: (step: AppStep) => void;
@@ -45,7 +45,7 @@ export const useMarksInsertion = ({
       completeStep(AppStep.MappingPreview);
       advanceToStep(AppStep.Statistics);
     } catch (error) {
-      console.error("Marks insertion failed:", error);
+      logger.error("Marks insertion failed:", error);
 
       // Track insertion failure
       await licenseService.trackUsage("marks_insertion_failed", {

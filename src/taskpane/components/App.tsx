@@ -1,8 +1,8 @@
-/* global console */
 import React, { Suspense } from "react";
 import { FluentProvider, webLightTheme } from "@fluentui/react-components";
 import { GlobalStyle } from "../styles/globalStyles";
 import { AppStep } from "../types";
+import { logger } from "../utils/logger";
 
 // Hooks
 import { useLicense } from "../hooks/useLicense";
@@ -84,8 +84,7 @@ const App: React.FC<AppProps> = ({ title, isOfficeInitialized = true }) => {
     completeStep,
     advanceToStep,
     onError: (message: string) => {
-      // eslint-disable-next-line no-console
-      console.error(message);
+      logger.error(message);
     },
   });
 

@@ -7,6 +7,7 @@ const webpack = require("webpack");
 const Dotenv = require("dotenv-webpack");
 
 const urlDev = "https://localhost:3000/";
+const urlProd = "https://markfiller.azurewebsites.net/"; // Set your production URL here
 
 async function getHttpsOptions() {
   const httpsOptions = await devCerts.getHttpsServerOptions();
