@@ -1,4 +1,11 @@
 import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../types";
+import {
+  normalizeArabicText,
+  compareNames,
+  editDistance,
+  calculateSimilarity,
+} from "../utils/arabicTextUtils";
+import { MARK_TYPE_PATTERNS } from "../constants/markTypes";
 
 type NameMatchConfig = {
   baseThreshold: number;
@@ -859,13 +866,7 @@ class ExcelService {
    * Find mark columns with enhanced pattern matching
    */
   findMarkColumns(headers: string[]): Record<MarkType, number> {
-    const markTypes: Record<MarkType, string[]> = {
-      fard1: ["الفرض 1", "الفرض الأول", "فرض 1", "فرض١", "اختبار 1", "امتحان 1", "تقويم 1"],
-      fard2: ["الفرض 2", "الفرض الثاني", "فرض 2", "فرض٢", "اختبار 2", "امتحان 2", "تقويم 2"],
-      fard3: ["الفرض 3", "الفرض الثالث", "فرض 3", "فرض٣", "اختبار 3", "امتحان 3", "تقويم 3"],
-      fard4: ["الفرض 4", "الفرض الرابع", "فرض 4", "فرض٤", "اختبار 4", "امتحان 4", "تقويم 4"],
-      activities: ["الأنشطة", "النشاط", "أنشطة", "المهارات", "الأداء", "نشاط", "تطبيقات", "مراقبة مستمرة"],
-    };
+    const markTypes = MARK_TYPE_PATTERNS;
 
     const columns: Record<MarkType, number> = {
       fard1: -1,
@@ -928,16 +929,10 @@ class ExcelService {
     };
 
     // In Massar format, look for test headers and their corresponding النقطة columns
-    const testPatterns = [
-      { type: "fard1" as MarkType, patterns: ["الفرض الأول", "الفرض 1", "فرض 1", "فرض الأول", "فرض١"] },
-      { type: "fard2" as MarkType, patterns: ["الفرض الثاني", "الفرض 2", "فرض 2", "فرض الثاني", "فرض٢"] },
-      { type: "fard3" as MarkType, patterns: ["الفرض الثالث", "الفرض 3", "فرض 3", "فرض الثالث", "فرض٣"] },
-      { type: "fard4" as MarkType, patterns: ["الفرض الرابع", "الفرض 4", "فرض 4", "فرض الرابع", "فرض٤"] },
-      {
-        type: "activities" as MarkType,
-        patterns: ["الأنشطة", "النشاط", "أنشطة", "المراقبة المستمرة", "مراقبة مستمرة"],
-      },
-    ];
+    const testPatterns = Object.entries(MARK_TYPE_PATTERNS).map(([type, patterns]) => ({
+      type: type as MarkType,
+      patterns,
+    }));
 
     // Look through multiple rows to find the structure
     for (let rowIndex = 0; rowIndex < Math.min(5, values.length); rowIndex++) {
@@ -1491,12 +1486,12 @@ class ExcelService {
     }
 
     const nameColumn = this.worksheetStructure.studentNameColumn;
-    const nameToFind = this.normalizeArabicText(studentName);
+    const nameToFind = normalizeArabicText(studentName);
 
     // First try exact match (after normalization)
     for (let i = 1; i < values.length; i++) {
       const cellName = this.getMergedStudentName(values[i], nameColumn);
-      const normalizedCellName = this.normalizeArabicText(cellName);
+      const normalizedCellName = normalizeArabicText(cellName);
       if (normalizedCellName === nameToFind) {
         return i;
       }
@@ -1507,7 +1502,7 @@ class ExcelService {
       const targetTokens = nameToFind.split(/\s+/).filter(Boolean).sort();
       for (let i = 1; i < values.length; i++) {
         const cellName = this.getMergedStudentName(values[i], nameColumn);
-        const normalizedCellName = this.normalizeArabicText(cellName);
+        const normalizedCellName = normalizeArabicText(cellName);
         const cellTokens = normalizedCellName.split(/\s+/).filter(Boolean).sort();
         if (
           targetTokens.length >= 2 &&
@@ -1522,11 +1517,11 @@ class ExcelService {
     // Finally try fuzzy matching requiring high similarity of the FULL name only
     for (let i = 1; i < values.length; i++) {
       const cellName = this.getMergedStudentName(values[i], nameColumn);
-      const normalizedCellName = this.normalizeArabicText(cellName);
+      const normalizedCellName = normalizeArabicText(cellName);
       // Require strong similarity score and identical token count to avoid first-name-only matches
       const tokensA = nameToFind.split(/\s+/).filter(Boolean);
       const tokensB = normalizedCellName.split(/\s+/).filter(Boolean);
-      const strongSimilarity = this.compareNames(nameToFind, normalizedCellName);
+      const strongSimilarity = compareNames(nameToFind, normalizedCellName, this.nameMatchConfig);
       if (strongSimilarity && tokensA.length === tokensB.length) {
         return i;
       }
@@ -1535,7 +1530,7 @@ class ExcelService {
     // Last resort: scan across all columns in the row to detect the name cell if studentName appears elsewhere
     for (let i = 1; i < values.length; i++) {
       const row = values[i];
-      const concatenated = this.normalizeArabicText(row.map((c) => (c == null ? "" : c.toString())).join(" "));
+      const concatenated = normalizeArabicText(row.map((c) => (c == null ? "" : c.toString())).join(" "));
       // Only consider as match if full token sequence appears, not just first name
       const pattern = new RegExp(`(^|\\s)${nameToFind.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}($|\\s)`);
       if (pattern.test(concatenated)) {
@@ -1606,134 +1601,7 @@ class ExcelService {
     return finalName;
   }
 
-  normalizeArabicText(text: string | undefined): string {
-    if (!text) return "";
 
-    // Convert to string and normalize compatibility forms first
-    let s = text.toString();
-
-    // Remove BOM and invisible formatting/RTL marks that often sneak in from Excel/OCR
-    // - Zero width: U+200B..U+200D, U+FEFF, U+2060
-    // - Directional marks: U+200E (LRM), U+200F (RLM), U+061C (ALM)
-    // - Embedding/override: U+202A..U+202E, Isolates: U+2066..U+2069
-    s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "");
-
-    // Replace special/nb spaces with a normal space
-    s = s.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
-
-    // Remove Arabic tatweel/kashida
-    s = s.replace(/\u0640/g, "");
-
-    // Normalize compatibility/composition
-    s = s.normalize("NFKC");
-
-    // Remove Latin combining marks (already covered by NFKC) and explicitly remove Arabic diacritics
-    // Arabic diacritics ranges: 0610-061A, 064B-065F, 0670, 06D6-06DC, 06DF-06E8, 06EA-06ED
-    s = s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g, "");
-
-    // Normalize common Arabic letter variants that differ by code point but look identical
-    // Persian Yeh -> Arabic Yeh, Keheh -> Kaf, Heh goal -> Heh
-    s = s
-      .replace(/\u06CC/g, "\u064A") // ی -> ي
-      .replace(/\u06A9/g, "\u0643") // ک -> ك
-      .replace(/\u06C1/g, "\u0647"); // ہ -> ه
-
-    // Unify alef variants and common letter variants
-    s = s
-      .replace(/[أإآٱ]/g, "ا")
-      .replace(/ة/g, "ه")
-      .replace(/ى/g, "ي")
-      .replace(/ؤ/g, "و")
-      .replace(/ئ/g, "ي");
-
-    // Replace Lam-Alef ligatures with their decomposed form
-    s = s.replace(/[\uFEFB-\uFEFE]/g, "لا");
-
-    // Keep only letters/numbers/spaces; drop punctuation/symbols that can confuse matching
-    s = s.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, " ");
-
-    // Collapse repeated whitespace, trim, and lowercase (Arabic is case-insensitive)
-    s = s.replace(/\s+/g, " ").trim().toLowerCase();
-
-    return s;
-  }
-
-  compareNames(name1: string, name2: string): boolean {
-    // Normalize again for safety (callers usually pass normalized values already)
-    const a = this.normalizeArabicText(name1);
-    const b = this.normalizeArabicText(name2);
-
-    if (a === b) return true;
-
-    // Quick containment check ignoring spaces
-    const aNoSpace = a.replace(/\s+/g, "");
-    const bNoSpace = b.replace(/\s+/g, "");
-    if (aNoSpace.includes(bNoSpace) || bNoSpace.includes(aNoSpace)) {
-      if (Math.min(aNoSpace.length, bNoSpace.length) >= this.nameMatchConfig.minContainLen) return true;
-    }
-
-    // Token-sort comparison (order agnostic)
-    const tokenSort = (s: string) =>
-      s
-        .split(/\s+/)
-        .filter(Boolean)
-        .sort((x, y) => x.localeCompare(y))
-        .join(" ");
-    const aTok = tokenSort(a);
-    const bTok = tokenSort(b);
-
-    const simRaw = this.calculateSimilarity(a, b);
-    const simNoSpace = this.calculateSimilarity(aNoSpace, bNoSpace);
-    const simTok = this.calculateSimilarity(aTok, bTok);
-
-    // Adaptive thresholding
-    let threshold = this.nameMatchConfig.baseThreshold;
-    const minLen = Math.min(a.length, b.length);
-    if (minLen <= this.nameMatchConfig.shortNameMaxLen) threshold = this.nameMatchConfig.shortNameThreshold;
-
-    // If tokens largely overlap, allow slightly lower threshold
-    const aSet = new Set(a.split(/\s+/).filter(Boolean));
-    const bSet = new Set(b.split(/\s+/).filter(Boolean));
-    const overlap = [...aSet].filter((t) => bSet.has(t)).length;
-    const required = Math.max(1, Math.ceil(Math.min(aSet.size, bSet.size) * 0.6));
-    if (overlap >= required && Math.max(aSet.size, bSet.size) >= 2)
-      threshold = Math.min(threshold, this.nameMatchConfig.overlapRelaxedThreshold);
-
-    const best = Math.max(simRaw, simNoSpace, simTok);
-    return best >= threshold;
-  }
-
-  calculateSimilarity(s1: string, s2: string): number {
-    if (s1 === s2) return 1.0;
-
-    const longer = s1.length > s2.length ? s1 : s2;
-    const shorter = s1.length > s2.length ? s2 : s1;
-
-    if (longer.length === 0) return 1.0;
-
-    return (longer.length - this.editDistance(longer, shorter)) / longer.length;
-  }
-
-  editDistance(s1: string, s2: string): number {
-    const costs: number[] = [];
-    for (let i = 0; i <= s1.length; i++) {
-      let lastValue = i;
-      for (let j = 0; j <= s2.length; j++) {
-        if (i === 0) {
-          costs[j] = j;
-        } else if (j > 0) {
-          let newValue = costs[j - 1];
-          if (s1.charAt(i - 1) !== s2.charAt(j - 1)) {
-            newValue = Math.min(Math.min(newValue, lastValue), costs[j]) + 1;
-          }
-          costs[j - 1] = lastValue;
-          lastValue = newValue;
-        }
-      }
-      if (i > 0) costs[s2.length] = lastValue;
-    }
-    return costs[s2.length];
-  }
 
   formatMarkForMassar(mark: number): string {
     // Ensure mark is formatted as required by Massar

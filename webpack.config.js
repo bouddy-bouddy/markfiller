@@ -94,6 +94,9 @@ module.exports = async (env, options) => {
       new webpack.ProvidePlugin({
         Promise: ["es6-promise", "Promise"],
       }),
+      new webpack.DefinePlugin({
+        "process.env.NODE_ENV": JSON.stringify(dev ? "development" : "production"),
+      }),
     ],
     cache: {
       type: "filesystem",
@@ -106,8 +109,40 @@ module.exports = async (env, options) => {
         chunks: "all",
         maxInitialRequests: 25,
         minSize: 20000,
+        cacheGroups: {
+          // Vendor chunks for better caching
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: "vendors",
+            priority: 10,
+            reuseExistingChunk: true,
+          },
+          // Fluent UI components (large library)
+          fluentui: {
+            test: /[\\/]node_modules[\\/]@fluentui[\\/]/,
+            name: "fluentui",
+            priority: 20,
+            reuseExistingChunk: true,
+          },
+          // React and React DOM
+          react: {
+            test: /[\\/]node_modules[\\/](react|react-dom)[\\/]/,
+            name: "react",
+            priority: 30,
+            reuseExistingChunk: true,
+          },
+          // Common utilities and services
+          common: {
+            minChunks: 2,
+            priority: 5,
+            reuseExistingChunk: true,
+            name: "common",
+          },
+        },
       },
       runtimeChunk: "single",
+      minimize: !dev,
+      usedExports: true, // Tree shaking
     },
     devServer: {
       hot: true,

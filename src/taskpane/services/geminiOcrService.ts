@@ -1,5 +1,7 @@
 /* global fetch, File, FileReader, console, process, Image, document */
 import { Student, DetectedMarkTypes, StudentUncertainty } from "../types";
+import { normalizeArabicText, normalizeArabicNumber, isValidStudentName } from "../utils/arabicTextUtils";
+import { MARK_TYPE_REGEX } from "../constants/markTypes";
 
 class GeminiOCRService {
   private geminiApiKey: string;
@@ -45,18 +47,6 @@ class GeminiOCRService {
   private cacheNormalizeNameForComparison: Map<string, string> = new Map();
   private cachePreprocessMark: Map<string, string | null> = new Map();
   private ratioPattern: RegExp = /^(\d{1,2})\s*\/?\s*(?:out\s*of\s*)?(\d{1,2})$/i;
-  private arabicDigitMap: Record<string, string> = {
-    "٠": "0",
-    "١": "1",
-    "٢": "2",
-    "٣": "3",
-    "٤": "4",
-    "٥": "5",
-    "٦": "6",
-    "٧": "7",
-    "٨": "8",
-    "٩": "9",
-  };
 
   constructor() {
     this.geminiApiKey = process.env.GEMINI_API_KEY || "";
@@ -69,7 +59,7 @@ class GeminiOCRService {
    * Merge two student arrays by normalized name, preferring non-null marks from either source
    */
   private mergeStudentsByName(primary: Student[], secondary: Student[]): Student[] {
-    const normalize = (s: string) => this.normalizeNameForComparison(s);
+    const normalize = (s: string) => normalizeArabicText(s);
 
     const byName = new Map<string, Student>();
     for (const s of primary) {
@@ -606,7 +596,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
 
     const lines = text
       .split("\n")
-      .map((line) => this.normalizeArabicNumber(line.trim()))
+      .map((line) => normalizeArabicNumber(line.trim()))
       .filter((line) => line.length > 0);
 
     // Detect mark types from headers
@@ -626,14 +616,12 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
    */
   private detectMarkTypes(text: string): DetectedMarkTypes {
     // Scan full text to avoid missing headers that appear later in multi-section documents
-    const headerText = text;
-
     return {
-      hasFard1: /(ال)?فرض\s*(?:1|١|الأول|اول)/.test(headerText),
-      hasFard2: /(ال)?فرض\s*(?:2|٢|الثاني|ثاني)/.test(headerText),
-      hasFard3: /(ال)?فرض\s*(?:3|٣|الثالث|ثالث)/.test(headerText),
-      hasFard4: /(ال)?فرض\s*(?:4|٤|الرابع|رابع)/.test(headerText),
-      hasActivities: /الأنشطة|النشاط|المراقبة\s*المستمرة|مراقبة\s*مستمرة|أنشطة/.test(headerText),
+      hasFard1: MARK_TYPE_REGEX.fard1.test(text),
+      hasFard2: MARK_TYPE_REGEX.fard2.test(text),
+      hasFard3: MARK_TYPE_REGEX.fard3.test(text),
+      hasFard4: MARK_TYPE_REGEX.fard4.test(text),
+      hasActivities: MARK_TYPE_REGEX.activities.test(text),
     };
   }
 
@@ -853,7 +841,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     // Find student name using multiple strategies
-    let studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
+      let studentName = this.extractStudentName(cells, headerAnalysis.columnStructure);
 
     // IMPROVED: If name extraction fails, try emergency fallback extraction
     if (!studentName) {
@@ -873,7 +861,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // Extract marks using the column mapping
     const { marks, flags } = this.extractMarksAdvanced(cells, headerAnalysis, detectedMarkTypes);
     let nameUncertain = false;
-    if (!this.isValidStudentName(studentName)) {
+    if (!isValidStudentName(studentName)) {
       nameUncertain = true;
     }
 
@@ -915,7 +903,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     const markLike = /^(?:\d{1,2})(?:[.,]\d{1,2})?$/;
 
     for (const seg of segments) {
-      if (markLike.test(this.normalizeArabicNumber(seg))) {
+      if (markLike.test(normalizeArabicNumber(seg))) {
         cells.push(seg);
       } else {
         // Some OCR rows may still contain extra spaces between name parts – keep full name segment
@@ -936,7 +924,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     }
 
     // 5) If we only have one cell and it's not a number, try to split it further
-    if (cells.length === 1 && !markLike.test(this.normalizeArabicNumber(cells[0]))) {
+    if (cells.length === 1 && !markLike.test(normalizeArabicNumber(cells[0]))) {
       const parts = cells[0].split(/\s+/).filter((p) => p.length > 0);
       if (parts.length > 1) {
         return this.groupPartsIntoCells(parts);
@@ -988,7 +976,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     const nameColumn = columnStructure.find((col) => col.type === "name");
     if (nameColumn && cells[nameColumn.index]) {
       const name = cells[nameColumn.index];
-      if (this.isValidStudentName(name)) {
+      if (isValidStudentName(name)) {
         return this.cleanStudentName(name);
       }
     }
@@ -996,7 +984,7 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     // Strategy 2: Find the longest Arabic text that's not a header
     let bestName = "";
     for (const cell of cells) {
-      if (this.isValidStudentName(cell) && cell.length > bestName.length) {
+      if (isValidStudentName(cell) && cell.length > bestName.length) {
         bestName = cell;
       }
     }
@@ -1099,30 +1087,6 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     return null;
   }
 
-  /**
-   * Check if a string is a valid student name - IMPROVED VERSION (More Lenient)
-   */
-  private isValidStudentName(name: string): boolean {
-    if (!name || name.length < 1) return false; // IMPROVED: Allow single character names
-
-    // IMPROVED: Allow names without Arabic text (for mixed language scenarios)
-    // Original strict check: if (!/[\u0600-\u06FF]/.test(name)) return false;
-
-    // Must not be header-like (but be more lenient)
-    if (this.isStrictHeaderLike(name)) return false;
-
-    // Must not be purely numeric
-    if (/^\d+([.,]\d+)?$/.test(name.replace(/\s/g, ""))) return false;
-
-    // IMPROVED: More lenient validation after cleaning
-    const cleaned = name.replace(/[^\u0600-\u06FF\s\u0041-\u005A\u0061-\u007A]/g, "").trim();
-    if (cleaned.length < 1) return false; // IMPROVED: Allow single character after cleaning
-
-    // IMPROVED: Additional check - reject if it's only punctuation or symbols
-    if (/^[^\u0600-\u06FF\u0041-\u005A\u0061-\u007A\s]+$/.test(name)) return false;
-
-    return true;
-  }
 
   /**
    * Check if a string looks like a header
@@ -2003,38 +1967,13 @@ Provide the raw extracted text exactly as it appears in the image, preserving al
     return null;
   }
 
-  /**
-   * Normalize Arabic numbers to English
-   */
-  private normalizeArabicNumber(text: string): string {
-    return text.replace(/[٠-٩]/g, (d) => this.arabicDigitMap[d] || d);
-  }
-
   private normalizeNameForComparison(text: string): string {
     if (!text) return "";
     const cached = this.cacheNormalizeNameForComparison.get(text);
     if (cached !== undefined) return cached;
-    let s = text.toString();
-    s = s.replace(/[\u200B-\u200D\uFEFF\u2060\u200E\u200F\u061C\u202A-\u202E\u2066-\u2069]/g, "");
-    s = s.replace(/[\u00A0\u2000-\u200A\u202F\u205F\u3000]/g, " ");
-    s = s.replace(/\u0640/g, "");
-    s = s.normalize("NFKC");
-    s = s.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E8\u06EA-\u06ED]/g, "");
-    s = s
-      .replace(/\u06CC/g, "\u064A")
-      .replace(/\u06A9/g, "\u0643")
-      .replace(/\u06C1/g, "\u0647");
-    s = s
-      .replace(/[أإآٱ]/g, "ا")
-      .replace(/ة/g, "ه")
-      .replace(/ى/g, "ي")
-      .replace(/ؤ/g, "و")
-      .replace(/ئ/g, "ي");
-    s = s.replace(/[\uFEFB-\uFEFE]/g, "لا");
-    s = s.replace(/[^\u0600-\u06FFa-zA-Z0-9\s]/g, " ");
-    s = s.replace(/\s+/g, " ").trim().toLowerCase();
-    this.cacheNormalizeNameForComparison.set(text, s);
-    return s;
+    const normalized = normalizeArabicText(text);
+    this.cacheNormalizeNameForComparison.set(text, normalized);
+    return normalized;
   }
 
   private getProbableNameCellIndex(cells: string[]): number {

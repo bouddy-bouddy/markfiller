@@ -1,5 +1,6 @@
 import { DetectedMarkTypes, MarkType, Student } from "../types";
 import { Statistics } from "../types/statistics";
+import { getMarkTypeName, ALL_MARK_TYPES } from "../constants/markTypes";
 
 export function generateMarkStatistics(students: Student[], types: DetectedMarkTypes): Statistics {
   const stats: Statistics = {
@@ -125,7 +126,7 @@ export function generateMarkStatistics(students: Student[], types: DetectedMarkT
 
   students.forEach((student) => {
     Object.entries(student.marks).forEach(([key, value]) => {
-      if (!(["fard1", "fard2", "fard3", "fard4", "activities"] as string[]).includes(key)) return;
+      if (!ALL_MARK_TYPES.includes(key as MarkType)) return;
       const markType = key as MarkType;
       if (!isTypeDetected(markType)) return;
       if (value !== null) {
@@ -254,51 +255,17 @@ export function generateMarkStatistics(students: Student[], types: DetectedMarkT
   (Object.keys(stats.markTypes) as MarkType[]).forEach((type) => {
     if (!isTypeDetected(type)) return;
     const s = stats.markTypes[type];
+    const typeName = getMarkTypeName(type);
+
     if (s.count > 0 && s.avg < 10) {
-      const typeName =
-        type === "fard1"
-          ? "الفرض الأول"
-          : type === "fard2"
-            ? "الفرض الثاني"
-            : type === "fard3"
-              ? "الفرض الثالث"
-              : type === "fard4"
-                ? "الفرض الرابع"
-                : type === "activities"
-                  ? "الأنشطة"
-                  : type;
       recs.push(`متوسط ${typeName} أقل من المعدل (10).`);
     }
     if ((s.stdDev || 0) > 4) {
-      const typeName =
-        type === "fard1"
-          ? "الفرض الأول"
-          : type === "fard2"
-            ? "الفرض الثاني"
-            : type === "fard3"
-              ? "الفرض الثالث"
-              : type === "fard4"
-                ? "الفرض الرابع"
-                : type === "activities"
-                  ? "الأنشطة"
-                  : type;
       recs.push(
         `تشتت عالٍ في ${typeName} (انحراف معياري ${(s.stdDev || 0).toFixed(2)}). قد توجد فوارق كبيرة بين التلاميذ.`
       );
     }
     if ((s.missingCount || 0) / (s.count + (s.missingCount || 0) || 1) > 0.1) {
-      const typeName =
-        type === "fard1"
-          ? "الفرض الأول"
-          : type === "fard2"
-            ? "الفرض الثاني"
-            : type === "fard3"
-              ? "الفرض الثالث"
-              : type === "fard4"
-                ? "الفرض الرابع"
-                : type === "activities"
-                  ? "الأنشطة"
-                  : type;
       recs.push(`نسبة القيم المفقودة مرتفعة في ${typeName}. تحقق من اكتمال الإدخال أو وضوح الصورة.`);
     }
   });
