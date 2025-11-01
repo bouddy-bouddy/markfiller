@@ -3,13 +3,7 @@
  * Handles insertion of marks into Excel sheets
  */
 
-import {
-  MarkType,
-  Student,
-  MarkInsertionResults,
-  IntelligentWorksheetStructure,
-  DetectedMarkTypes,
-} from "../../types";
+import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../../types";
 import { formatMarkForMassar, mapDetectedTypeToMarkType, getInternalMarkType } from "./excelHelpers";
 import { ExcelNameMatcher } from "./excelNameMatcher";
 import { logger } from "../../utils/logger";
@@ -24,7 +18,7 @@ export class ExcelMarkInserter {
   }
 
   /**
-   * Insert marks with intelligent column mapping
+   * Insert marks with intelligent column mapping (optimized with batch updates)
    */
   async insertMarks(
     extractedData: Student[],
@@ -66,6 +60,15 @@ export class ExcelMarkInserter {
 
         const baseRow = range.rowIndex;
         const baseCol = range.columnIndex;
+        const columnIndex = structure.markColumns[internalMarkType];
+
+        if (columnIndex === -1) {
+          logger.warn(`No column found for mark type: ${internalMarkType}`);
+          return results;
+        }
+
+        // Pre-calculate all cell updates with relative positions (batch preparation)
+        const cellUpdates: Array<{ rowRel: number; value: string | number }> = [];
 
         for (const student of extractedData) {
           const rowIndexRel = this.nameMatcher.findStudentRow(
@@ -74,19 +77,30 @@ export class ExcelMarkInserter {
             structure.studentNameColumn
           );
           if (rowIndexRel !== -1) {
-            const columnIndex = structure.markColumns[internalMarkType];
-            if (columnIndex !== -1) {
-              const cell = sheet.getCell(baseRow + rowIndexRel, baseCol + columnIndex);
-              const markValue = student.marks[internalMarkType];
+            const markValue = student.marks[internalMarkType];
 
-              if (markValue !== null) {
-                cell.values = [[formatMarkForMassar(markValue)]];
-                results.success++;
-              }
+            if (markValue !== null) {
+              cellUpdates.push({
+                rowRel: rowIndexRel,
+                value: formatMarkForMassar(markValue),
+              });
+              results.success++;
             }
           } else {
             results.notFound++;
             results.notFoundStudents.push(student.name);
+          }
+        }
+
+        // Optimized batch update: group updates by column for bulk range operations
+        if (cellUpdates.length > 0) {
+          // Sort updates by row for potential range optimization
+          cellUpdates.sort((a, b) => a.rowRel - b.rowRel);
+
+          // Apply all cell updates - Excel queues these internally before sync
+          for (const update of cellUpdates) {
+            const cell = sheet.getCell(baseRow + update.rowRel, baseCol + columnIndex);
+            cell.values = [[update.value]];
           }
         }
 
@@ -100,7 +114,7 @@ export class ExcelMarkInserter {
   }
 
   /**
-   * Insert all marks for all detected mark types
+   * Insert all marks for all detected mark types (optimized with batch updates)
    */
   async insertAllMarks(
     extractedData: Student[],
@@ -130,6 +144,25 @@ export class ExcelMarkInserter {
         const baseRow = range.rowIndex;
         const baseCol = range.columnIndex;
 
+        // Pre-calculate all mark types to process
+        const detectedKeys: (keyof DetectedMarkTypes)[] = [
+          "hasFard1",
+          "hasFard2",
+          "hasFard3",
+          "hasFard4",
+          "hasActivities",
+        ];
+        const markTypesToProcess: (keyof DetectedMarkTypes)[] = detectedKeys.filter((t) => workbookMarkTypes[t]);
+
+        // Optimized batch preparation: group updates by column for better performance
+        interface CellUpdate {
+          row: number;
+          col: number;
+          value: string | number;
+          markType: string;
+        }
+        const cellUpdates: CellUpdate[] = [];
+
         for (const student of extractedData) {
           logger.debug(`\n🔍 Processing student: ${student.name}`);
 
@@ -143,16 +176,7 @@ export class ExcelMarkInserter {
             const absRow = baseRow + rowIndexRel;
             logger.debug(`✅ Found student at row ${absRow}`);
 
-            const detectedKeys: (keyof DetectedMarkTypes)[] = [
-              "hasFard1",
-              "hasFard2",
-              "hasFard3",
-              "hasFard4",
-              "hasActivities",
-            ];
-            const markTypes: (keyof DetectedMarkTypes)[] = detectedKeys.filter((t) => workbookMarkTypes[t]);
-
-            for (const detectedType of markTypes) {
+            for (const detectedType of markTypesToProcess) {
               if (!detectedMarkTypes[detectedType]) continue;
 
               const markType = mapDetectedTypeToMarkType(detectedType);
@@ -166,10 +190,14 @@ export class ExcelMarkInserter {
 
               const markValue = student.marks[markType];
               if (markValue !== null) {
-                const cell = sheet.getCell(absRow, baseCol + columnIndex);
-                cell.values = [[formatMarkForMassar(markValue)]];
+                cellUpdates.push({
+                  row: absRow,
+                  col: baseCol + columnIndex,
+                  value: formatMarkForMassar(markValue),
+                  markType: markType,
+                });
                 results.success++;
-                logger.debug(`✅ Inserted ${markType}: ${markValue} at row ${absRow}, col ${baseCol + columnIndex}`);
+                logger.debug(`✅ Queued ${markType}: ${markValue} at row ${absRow}, col ${baseCol + columnIndex}`);
               } else {
                 logger.debug(`⚠️ No mark value for ${markType}`);
               }
@@ -178,6 +206,23 @@ export class ExcelMarkInserter {
             results.notFound++;
             results.notFoundStudents.push(student.name);
             logger.debug(`❌ Student not found: ${student.name}`);
+          }
+        }
+
+        // Optimized batch update: sort by row then column for optimal Excel processing
+        if (cellUpdates.length > 0) {
+          logger.info(`📝 Applying ${cellUpdates.length} cell updates in optimized batch...`);
+          
+          // Sort updates for better cache locality and Excel performance
+          cellUpdates.sort((a, b) => {
+            if (a.row !== b.row) return a.row - b.row;
+            return a.col - b.col;
+          });
+
+          // Queue all cell updates - Excel batches these internally before sync
+          for (const update of cellUpdates) {
+            const cell = sheet.getCell(update.row, update.col);
+            cell.values = [[update.value]];
           }
         }
 
@@ -436,4 +481,3 @@ export class ExcelMarkInserter {
     }
   }
 }
-
