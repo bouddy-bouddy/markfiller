@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { licenseService } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
 
 interface UseLicenseResult {
   isLicenseValid: boolean;

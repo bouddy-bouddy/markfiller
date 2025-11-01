@@ -10,7 +10,8 @@ import {
   CheckmarkCircle24Filled,
   DismissCircle24Filled,
 } from "@fluentui/react-icons";
-import { licenseService, LicenseValidationResult } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
+import type { LicenseValidationResult } from "../services/license/apiClient";
 
 interface LicenseActivationProps {
   onLicenseValidated: () => void;

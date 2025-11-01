@@ -11,7 +11,7 @@ import { useMarkData } from "../hooks/useMarkData";
 import { useExcelValidation } from "../hooks/useExcelValidation";
 import { useImageProcessing } from "../hooks/useImageProcessing";
 import { useMarksInsertion } from "../hooks/useMarksInsertion";
-import { licenseService } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
 
 // Components
 import LicenseActivation from "./LicenseActivation";

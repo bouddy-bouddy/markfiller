@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import { useState } from "react";
 import excelService from "../services/excel/excelService";
-import { licenseService } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
 import { Student, DetectedMarkTypes, AppStep } from "../types";
 
 interface UseMarksInsertionProps {

@@ -1,7 +1,7 @@
 /* global File, HTMLInputElement, FileReader, console */
 /* eslint-disable no-console */
 import { useState, useRef } from "react";
-import { licenseService } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
 import { uploadWithTracking } from "../services/usageTracker";
 import { Student, DetectedMarkTypes, AppStep } from "../types";
 

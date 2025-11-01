@@ -11,7 +11,7 @@ import {
 } from "@fluentui/react-components";
 import { QrCode24Regular, Checkmark24Regular, Dismiss24Regular } from "@fluentui/react-icons";
 import QRCode from "qrcode";
-import { licenseService } from "../services/licenseService";
+import { licenseService } from "../services/license/licenseService";
 
 interface QrUploadButtonProps {
   onImageReceived: (imageUrl: string) => void;
