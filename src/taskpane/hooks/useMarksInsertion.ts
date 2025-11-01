@@ -1,6 +1,6 @@
 /* eslint-disable no-console */
 import { useState } from "react";
-import excelService from "../services/excelService";
+import excelService from "../services/excel/excelService";
 import { licenseService } from "../services/licenseService";
 import { Student, DetectedMarkTypes, AppStep } from "../types";
 
@@ -63,4 +63,3 @@ export const useMarksInsertion = ({
     insertMarks,
   };
 };
-

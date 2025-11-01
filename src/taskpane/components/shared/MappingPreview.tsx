@@ -24,7 +24,7 @@ import {
   ArrowRight24Regular,
 } from "@fluentui/react-icons";
 import styled from "styled-components";
-import excelService from "../../services/excelService";
+import excelService from "../../services/excel/excelService";
 import { Student, DetectedMarkTypes, MarkType, markTypeNames } from "../../types";
 
 const MappingContainer = styled.div`

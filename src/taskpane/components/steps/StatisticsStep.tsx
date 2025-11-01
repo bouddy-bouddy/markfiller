@@ -29,7 +29,7 @@ import {
   PointElement,
 } from "chart.js";
 import type { ChartData } from "chart.js";
-import excelService from "../../services/excelService";
+import excelService from "../../services/excel/excelService";
 
 ChartJS.register(ArcElement, BarElement, CategoryScale, LinearScale, Tooltip, Legend, LineElement, PointElement);
 

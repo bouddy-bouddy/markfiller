@@ -119,7 +119,7 @@ export const useImageProcessing = ({
             lastModified: new Date(selectedImage.lastModified).toISOString(),
           });
 
-          const { default: geminiOcrService } = await import("../services/geminiOcrService");
+          const { default: geminiOcrService } = await import("../services/ocr/geminiOcrService");
           const { students, detectedMarkTypes } = await geminiOcrService.processImageFast(selectedImage);
 
           console.log("✅ OCR PROCESSING COMPLETED SUCCESSFULLY");
@@ -197,4 +197,3 @@ export const useImageProcessing = ({
     processImage,
   };
 };
-

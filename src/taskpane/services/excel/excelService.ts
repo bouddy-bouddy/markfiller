@@ -3,12 +3,12 @@
  * Coordinates Excel operations using specialized services
  */
 
-import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../types";
-import { ExcelColumnDetector } from "./excel/excelColumnDetector";
-import { ExcelFormatDetector } from "./excel/excelFormatDetector";
-import { ExcelNameMatcher, NameMatchConfig } from "./excel/excelNameMatcher";
-import { ExcelMarkInserter } from "./excel/excelMarkInserter";
-import { getNeighborValue } from "./excel/excelHelpers";
+import { MarkType, Student, MarkInsertionResults, IntelligentWorksheetStructure, DetectedMarkTypes } from "../../types";
+import { ExcelColumnDetector } from "./excelColumnDetector";
+import { ExcelFormatDetector } from "./excelFormatDetector";
+import { ExcelNameMatcher, NameMatchConfig } from "./excelNameMatcher";
+import { ExcelMarkInserter } from "./excelMarkInserter";
+import { getNeighborValue } from "./excelHelpers";
 
 /* global Excel, console */
 

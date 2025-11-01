@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import excelService from "../services/excelService";
+import excelService from "../services/excel/excelService";
 import { ExcelStatus, AppStep } from "../types";
 
 interface UseExcelValidationProps {
@@ -60,4 +60,3 @@ export const useExcelValidation = ({
     validateExcel,
   };
 };
-
